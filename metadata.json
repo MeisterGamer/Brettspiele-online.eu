@@ -1,0 +1,6 @@
+{
+  "name": "FamPlay - Family Multi-Gaming Arcade",
+  "description": "Cross-platform family gaming platform with 100+ card & board games, integrated voice chat, leaderboards, parental controls, tournaments, custom avatars, and multi-language support.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
