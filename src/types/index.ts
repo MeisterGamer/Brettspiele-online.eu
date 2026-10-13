@@ -8,6 +8,8 @@ export type GameCategory =
   | 'kids';
 
 export type GameEngineType = 
+  | 'ludo' // Mensch ärgere Dich nicht with authentic 3D wooden Halma cones
+  | 'chess' // Classic Chess with authentic Staunton wooden figures
   | 'connect-four'
   | 'fam-cards' // Uno-style
   | 'checkers'
@@ -35,6 +37,8 @@ export interface GameInfo {
   difficulty: 'Easy' | 'Medium' | 'Challenging';
   rating: number; // e.g. 4.9
   playsCount: number;
+  disabled?: boolean;
+  maintenance?: boolean;
 }
 
 export type AvatarFlair = 'none' | 'wood' | 'gold-vip' | 'neon' | 'diamond' | 'rainbow';
@@ -51,9 +55,34 @@ export interface AvatarConfig {
   flair: AvatarFlair;
 }
 
+export type UserRole = 'admin' | 'moderator' | 'user';
+
+export interface MatchHistoryItem {
+  id: string;
+  gameId: string;
+  gameTitle: string;
+  result: 'won' | 'lost' | 'draw';
+  score: number;
+  opponentName: string;
+  date: string;
+  xpEarned: number;
+  coinsEarned: number;
+}
+
+export interface AdminAuditLog {
+  id: string;
+  timestamp: string;
+  adminName: string;
+  action: string;
+  target: string;
+  details: string;
+}
+
 export interface UserProfile {
   id: string;
   name: string;
+  email?: string;
+  role?: UserRole;
   familyRole: 'Child' | 'Teen' | 'Parent' | 'Grandparent' | 'Family Champion';
   clanName: string;
   level: number;
@@ -61,9 +90,13 @@ export interface UserProfile {
   coins: number;
   gems: number;
   isVip: boolean;
+  isBanned?: boolean;
+  banReason?: string;
+  joinedDate?: string;
   avatar: AvatarConfig;
   streakDays: number;
   lastDailyClaim: string; // YYYY-MM-DD
+  matchHistory?: MatchHistoryItem[];
   stats: {
     gamesPlayed: number;
     gamesWon: number;

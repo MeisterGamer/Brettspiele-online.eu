@@ -252,9 +252,9 @@ export const CatalogQuickPlay: React.FC<CatalogQuickPlayProps> = ({ game, onGame
             src={getGameImage(game)}
             alt={game.title}
             referrerPolicy="no-referrer"
-            className="w-full h-full object-cover filter brightness-[0.6] contrast-110"
+            className="w-full h-full object-cover filter brightness-[0.85] contrast-105"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent" />
 
           {/* Badges on top of hero photo */}
           <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none">

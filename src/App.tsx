@@ -25,6 +25,7 @@ import {
 import { sound } from './services/sound';
 import { getTranslation } from './services/i18n';
 import { HERO_BANNER_IMAGE, HERO_BANNER_FALLBACK, getGameImage } from './services/gameImages';
+import { authService } from './services/authService';
 
 // Components
 import { AvatarDisplay } from './components/avatar/AvatarDisplay';
@@ -38,8 +39,10 @@ import { LeaderboardModal } from './components/leaderboards/LeaderboardModal';
 import { AchievementsModal } from './components/achievements/AchievementsModal';
 import { VipModal } from './components/vip/VipModal';
 import { DailyRewardModal } from './components/rewards/DailyRewardModal';
-import { AdminDashboardModal } from './components/admin/AdminDashboardModal';
+import { AdminSystemModal } from './components/admin/AdminSystemModal';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
+import { LoginModal } from './components/auth/LoginModal';
+import { UserPanelModal } from './components/user/UserPanelModal';
 
 // Playable Game Engines
 import { ConnectFour } from './components/games/ConnectFour';
@@ -51,6 +54,8 @@ import { MemoryMatchGame } from './components/games/MemoryMatchGame';
 import { DotsAndBoxesGame } from './components/games/DotsAndBoxesGame';
 import { TicTacToeGame } from './components/games/TicTacToeGame';
 import { CatalogQuickPlay } from './components/games/CatalogQuickPlay';
+import { LudoGame } from './components/games/LudoGame';
+import { ChessGame } from './components/games/ChessGame';
 
 // Icons
 import { 
@@ -77,14 +82,18 @@ import {
   Clock, 
   Play,
   Settings,
-  HelpCircle
+  HelpCircle,
+  LogIn,
+  ShieldAlert,
+  User
 } from 'lucide-react';
 
 export default function App() {
   // App state
   const [language, setLanguage] = useState<SupportedLanguage>('en');
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
-  const [user, setUser] = useState<UserProfile>(initialUserProfile);
+  const [user, setUser] = useState<UserProfile>(() => authService.getCurrentUser());
+  const [allGames, setAllGames] = useState<GameInfo[]>(gamesCatalog);
   const [parental, setParental] = useState<ParentalControls>(initialParentalControls);
   const [publicRooms, setPublicRooms] = useState<GameRoom[]>(initialPublicRooms);
   const [tournaments, setTournaments] = useState<Tournament[]>(initialTournaments);
@@ -97,33 +106,36 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [kidsMode, setKidsMode] = useState<boolean>(false);
   const [activeGame, setActiveGame] = useState<GameInfo | null>(null);
-  const [currentRoom, setCurrentRoom] = useState<GameRoom | null>({
-    id: 'room_live',
-    code: 'FAM-777',
-    name: "Alex's Family Table",
-    gameId: 'connect-four',
-    gameTitle: 'Connect Four (Vier Gewinnt)',
-    isPrivate: false,
-    hostName: 'Alex Gamer',
-    maxPlayers: 4,
-    currentPlayers: 1,
-    status: 'in-game',
-    voiceChatActive: true,
-    createdAt: 'Just now',
-    participants: [
-      {
-        id: 'usr_me',
-        name: 'Alex Gamer',
-        avatar: initialUserProfile.avatar,
-        isHost: true,
-        isReady: true,
-        score: 0,
-        ping: 18,
-      }
-    ],
+  const [currentRoom, setCurrentRoom] = useState<GameRoom | null>(() => {
+    const active = authService.getCurrentUser();
+    return {
+      id: 'room_live',
+      code: 'FAM-777',
+      name: `${active.name}'s Familientisch`,
+      gameId: 'ludo',
+      gameTitle: 'Mensch ärgere Dich nicht (Ludo)',
+      isPrivate: false,
+      hostName: active.name,
+      maxPlayers: 4,
+      currentPlayers: 1,
+      status: 'in-game',
+      voiceChatActive: false, // Voice is NOT active by default (strictly optional)
+      createdAt: 'Gerade eröffnet',
+      participants: [
+        {
+          id: active.id,
+          name: active.name,
+          avatar: active.avatar,
+          isHost: true,
+          isReady: true,
+          score: 0,
+          ping: 18,
+        }
+      ],
+    };
   });
   const [globalAnnouncement, setGlobalAnnouncement] = useState<string | null>(
-    '🏆 October Family Grandmaster Cup is LIVE! Play FamCards to earn clan points!'
+    '🎲 Willkommen am virtuellen FamPlay-Spieltisch · Wähle dein Lieblingsspiel oder lade deine Familie per Tisch-Code ein!'
   );
 
   // Modals
@@ -137,6 +149,8 @@ export default function App() {
   const [isVipOpen, setIsVipOpen] = useState<boolean>(false);
   const [isDailyOpen, setIsDailyOpen] = useState<boolean>(false);
   const [isAdminOpen, setIsAdminOpen] = useState<boolean>(false);
+  const [isLoginOpen, setIsLoginOpen] = useState<boolean>(false);
+  const [isUserPanelOpen, setIsUserPanelOpen] = useState<boolean>(false);
 
   // Voice Chat participants in current table (starts empty, real family joins dynamically)
   const [voiceParticipants, setVoiceParticipants] = useState<VoiceParticipant[]>([]);
@@ -167,16 +181,33 @@ export default function App() {
     const earnedCoins = 100 * multiplier;
     const earnedXp = 150 * multiplier;
 
-    setUser((prev) => ({
-      ...prev,
-      coins: prev.coins + earnedCoins,
-      xp: prev.xp + earnedXp,
-      stats: {
-        ...prev.stats,
-        gamesPlayed: prev.stats.gamesPlayed + 1,
-        gamesWon: prev.stats.gamesWon + 1,
-      },
-    }));
+    const newMatch = {
+      id: `m_${Date.now()}`,
+      gameId: activeGame?.id || 'game',
+      gameTitle: activeGame?.title || 'Spielpartie',
+      result: (result?.winner === 'player' || result?.winner === 'draw' || result?.score > 100 ? 'won' : 'lost') as 'won' | 'lost',
+      score: result?.score || 350,
+      opponentName: 'Familientisch / Bot',
+      date: 'Gerade eben',
+      xpEarned: earnedXp,
+      coinsEarned: earnedCoins,
+    };
+
+    setUser((prev) => {
+      const updated: UserProfile = {
+        ...prev,
+        coins: prev.coins + earnedCoins,
+        xp: prev.xp + earnedXp,
+        stats: {
+          ...prev.stats,
+          gamesPlayed: prev.stats.gamesPlayed + 1,
+          gamesWon: prev.stats.gamesWon + (newMatch.result === 'won' ? 1 : 0),
+        },
+        matchHistory: [newMatch, ...(prev.matchHistory || [])],
+      };
+      authService.setCurrentUser(updated);
+      return updated;
+    });
 
     // Update screen time session
     setParental((prev) => ({
@@ -186,7 +217,8 @@ export default function App() {
   };
 
   // Filter games based on search, category, kids mode, and parental rating
-  const filteredGames = gamesCatalog.filter((game) => {
+  const filteredGames = allGames.filter((game) => {
+    if (game.disabled) return false;
     if (kidsMode && game.minAge > 5) return false;
     if (parental.enabled && game.minAge > parental.maxAgeRating) return false;
     if (selectedCategory !== 'all' && game.category !== selectedCategory) return false;
@@ -325,19 +357,45 @@ export default function App() {
               onClear={() => setNotifications([])}
             />
 
-            {/* Profile & Avatar studio launcher */}
+            {/* User Profile / Account Center launcher */}
             <button
               onClick={() => {
                 sound.playClick();
-                setIsAvatarOpen(true);
+                setIsUserPanelOpen(true);
               }}
-              className="flex items-center gap-2 pl-2 pr-3 py-1 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 rounded-2xl transition"
+              className="flex items-center gap-2 pl-2 pr-3 py-1 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 rounded-2xl transition group"
+              title="Mein Benutzerkonto & Profil öffnen"
             >
               <AvatarDisplay avatar={user.avatar} size="sm" showBadge={user.familyRole.slice(0, 1)} />
               <div className="text-left hidden md:block">
-                <div className="text-xs font-bold text-white leading-tight">{user.name}</div>
+                <div className="flex items-center gap-1.5 leading-tight">
+                  <span className="text-xs font-bold text-white group-hover:text-amber-400 transition">{user.name}</span>
+                  {user.role === 'admin' && (
+                    <span className="text-[9px] font-black uppercase bg-rose-500/20 text-rose-300 border border-rose-500/40 px-1 rounded">
+                      Admin
+                    </span>
+                  )}
+                  {user.role === 'moderator' && (
+                    <span className="text-[9px] font-black uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 px-1 rounded">
+                      Mod
+                    </span>
+                  )}
+                </div>
                 <div className="text-[10px] text-amber-400 font-semibold">{user.familyRole}</div>
               </div>
+            </button>
+
+            {/* Login / Switch Account Button */}
+            <button
+              onClick={() => {
+                sound.playClick();
+                setIsLoginOpen(true);
+              }}
+              className="p-2 sm:px-3 sm:py-1.5 rounded-2xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+              title="Anmelden oder Benutzer wechseln"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Anmelden</span>
             </button>
           </div>
         </div>
@@ -390,9 +448,17 @@ export default function App() {
 
             <button
               onClick={() => { sound.playClick(); setIsAdminOpen(true); }}
-              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-300 font-semibold text-xs transition flex items-center gap-1.5 shrink-0 border border-slate-700"
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 border ${
+                user.role === 'admin'
+                  ? 'bg-rose-600 hover:bg-rose-500 text-white border-rose-400 shadow-md shadow-rose-600/30 ring-1 ring-rose-400/50'
+                  : 'bg-slate-800 hover:bg-slate-700 text-rose-300 border-slate-700'
+              }`}
             >
-              <Sliders className="w-3.5 h-3.5 text-rose-400" /> {t('admin_panel')}
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-300" />
+              <span>Adminsystem</span>
+              {user.role === 'admin' && (
+                <span className="text-[9px] bg-black/40 px-1 rounded uppercase tracking-wider">Root</span>
+              )}
             </button>
           </div>
 
@@ -493,6 +559,12 @@ export default function App() {
 
             {/* GAME ENGINE CONTAINER */}
             <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-2xl min-h-[500px] flex items-center justify-center">
+              {activeGame.engine === 'ludo' && (
+                <LudoGame onGameEnd={handleGameCompletion} />
+              )}
+              {activeGame.engine === 'chess' && (
+                <ChessGame onGameEnd={handleGameCompletion} />
+              )}
               {activeGame.engine === 'connect-four' && (
                 <ConnectFour onGameEnd={handleGameCompletion} />
               )}
@@ -545,47 +617,87 @@ export default function App() {
                 <h2 className="text-2xl sm:text-4xl font-black font-display text-white leading-tight">
                   {t('tagline')}
                 </h2>
-                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                  Join public rooms, private family tables with instant room codes, talk in crystal-clear voice chat with fun audio filters, and climb monthly family tournament leaderboards!
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xl">
+                  Klassische Gesellschaftsspiele am virtuellen Familientisch: Spiele mit echten handgefertigten Spielfiguren, würfle live im 3D-Lederbecher und lade Familie per Raum-Code ein!
                 </p>
 
                 {/* Instant Play Highlights with Real Badges */}
                 <div className="pt-2 flex flex-wrap gap-2">
+                  {/* Mensch ärgere Dich nicht */}
                   <button
-                    onClick={() => handleLaunchGame(gamesCatalog[0])} // Connect Four
-                    className="px-3.5 py-2 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 transition flex items-center gap-1.5"
+                    onClick={() => {
+                      const g = gamesCatalog.find((x) => x.id === 'ludo') || gamesCatalog[0];
+                      handleLaunchGame(g);
+                    }}
+                    className="px-3.5 py-2 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 transition flex items-center gap-1.5 active:scale-95"
                   >
-                    <Play className="w-3.5 h-3.5 fill-current" /> Connect Four
+                    <Play className="w-3.5 h-3.5 fill-current" /> Mensch ärgere Dich nicht
                   </button>
+
+                  {/* Schach mit Staunton-Figuren */}
                   <button
-                    onClick={() => handleLaunchGame(gamesCatalog[1])} // Uno
-                    className="px-3.5 py-2 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-lg shadow-rose-600/20 transition flex items-center gap-1.5"
+                    onClick={() => {
+                      const g = gamesCatalog.find((x) => x.id === 'chess') || gamesCatalog[1];
+                      handleLaunchGame(g);
+                    }}
+                    className="px-3.5 py-2 rounded-2xl bg-slate-100 hover:bg-white text-slate-950 font-black text-xs shadow-lg shadow-white/10 transition flex items-center gap-1.5 active:scale-95"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" /> Schach (Staunton)
+                  </button>
+
+                  {/* Vier Gewinnt */}
+                  <button
+                    onClick={() => {
+                      const g = gamesCatalog.find((x) => x.id === 'connect-four') || gamesCatalog[0];
+                      handleLaunchGame(g);
+                    }}
+                    className="px-3.5 py-2 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-lg shadow-blue-600/20 transition flex items-center gap-1.5 active:scale-95"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" /> Vier Gewinnt
+                  </button>
+
+                  {/* Dame */}
+                  <button
+                    onClick={() => {
+                      const g = gamesCatalog.find((x) => x.id === 'checkers') || gamesCatalog[2];
+                      handleLaunchGame(g);
+                    }}
+                    className="px-3.5 py-2 rounded-2xl bg-amber-800 hover:bg-amber-700 text-white font-black text-xs shadow-lg shadow-amber-800/20 transition flex items-center gap-1.5 active:scale-95"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" /> Dame (Holzsteine)
+                  </button>
+
+                  {/* Schiffe Versenken */}
+                  <button
+                    onClick={() => {
+                      const g = gamesCatalog.find((x) => x.id === 'battleship') || gamesCatalog[3];
+                      handleLaunchGame(g);
+                    }}
+                    className="px-3.5 py-2 rounded-2xl bg-sky-700 hover:bg-sky-600 text-white font-black text-xs shadow-lg shadow-sky-700/20 transition flex items-center gap-1.5 active:scale-95"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" /> Schiffe Versenken
+                  </button>
+
+                  {/* FamCards Uno */}
+                  <button
+                    onClick={() => {
+                      const g = gamesCatalog.find((x) => x.id === 'fam-cards') || gamesCatalog[1];
+                      handleLaunchGame(g);
+                    }}
+                    className="px-3.5 py-2 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-lg shadow-rose-600/20 transition flex items-center gap-1.5 active:scale-95"
                   >
                     <Play className="w-3.5 h-3.5 fill-current" /> FamCards (Uno)
                   </button>
+
+                  {/* Kniffel / Yatzy */}
                   <button
-                    onClick={() => handleLaunchGame(gamesCatalog[3])} // Battleship
-                    className="px-3.5 py-2 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white font-black text-xs shadow-lg shadow-sky-600/20 transition flex items-center gap-1.5"
+                    onClick={() => {
+                      const g = gamesCatalog.find((x) => x.id === 'yatzy') || gamesCatalog[4];
+                      handleLaunchGame(g);
+                    }}
+                    className="px-3.5 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-lg shadow-indigo-600/20 transition flex items-center gap-1.5 active:scale-95"
                   >
-                    <Play className="w-3.5 h-3.5 fill-current" /> Battleship (Radar)
-                  </button>
-                  <button
-                    onClick={() => handleLaunchGame(gamesCatalog[2])} // Checkers
-                    className="px-3.5 py-2 rounded-2xl bg-amber-700 hover:bg-amber-600 text-white font-black text-xs shadow-lg shadow-amber-700/20 transition flex items-center gap-1.5"
-                  >
-                    <Play className="w-3.5 h-3.5 fill-current" /> Checkers (Dame)
-                  </button>
-                  <button
-                    onClick={() => handleLaunchGame(gamesCatalog[4])} // Yatzy
-                    className="px-3.5 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-lg shadow-indigo-600/20 transition flex items-center gap-1.5"
-                  >
-                    <Play className="w-3.5 h-3.5 fill-current" /> Yatzy (Kniffel)
-                  </button>
-                  <button
-                    onClick={() => handleLaunchGame(gamesCatalog[5])} // Memory Match
-                    className="px-3.5 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-lg shadow-emerald-600/20 transition flex items-center gap-1.5"
-                  >
-                    <Play className="w-3.5 h-3.5 fill-current" /> Memory Animals
+                    <Play className="w-3.5 h-3.5 fill-current" /> Kniffel / Yatzy
                   </button>
                 </div>
               </div>
@@ -600,7 +712,7 @@ export default function App() {
                   <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
-                    placeholder={t('search_placeholder')}
+                    placeholder="Spiel suchen... z.B. Mensch ärgere Dich nicht, Schach, Dame, Uno, Kniffel"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-10 pr-4 py-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 transition"
@@ -617,21 +729,21 @@ export default function App() {
 
                 <div className="flex items-center gap-2 shrink-0">
                   <div className="bg-slate-900 border border-slate-800 px-3.5 py-3 rounded-2xl text-xs font-bold text-slate-300">
-                    Showing <strong className="text-amber-400 font-mono">{filteredGames.length}</strong> of 100+ Games
+                    <strong className="text-amber-400 font-mono">{filteredGames.length}</strong> Spiele verfügbar
                   </div>
                 </div>
               </div>
 
-              {/* Category Pills */}
+              {/* Category Segmented Control */}
               <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
                 {[
-                  { id: 'all', label: t('all_games'), icon: Gamepad2 },
-                  { id: 'cards', label: t('cards'), icon: Award },
-                  { id: 'board', label: t('board'), icon: Trophy },
-                  { id: 'dice', label: t('dice'), icon: Sparkles },
-                  { id: 'strategy', label: t('strategy'), icon: ShieldCheck },
-                  { id: 'party', label: t('party'), icon: Users },
-                  { id: 'kids', label: t('kids'), icon: Baby },
+                  { id: 'all', label: 'Alle Spiele', icon: Gamepad2 },
+                  { id: 'board', label: 'Klassische Brettspiele', icon: Trophy },
+                  { id: 'cards', label: 'Kartenspiele', icon: Award },
+                  { id: 'dice', label: 'Würfelspiele', icon: Sparkles },
+                  { id: 'strategy', label: 'Strategie & Taktik', icon: ShieldCheck },
+                  { id: 'party', label: 'Partyspiele', icon: Users },
+                  { id: 'kids', label: 'Familie & Kinder', icon: Baby },
                 ].map((cat) => {
                   const Icon = cat.icon;
                   const isSelected = selectedCategory === cat.id;
@@ -642,10 +754,10 @@ export default function App() {
                         sound.playClick();
                         setSelectedCategory(cat.id as any);
                       }}
-                      className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 ${
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 ${
                         isSelected
                           ? 'bg-amber-400 text-slate-950 shadow-md font-black'
-                          : 'bg-slate-900 hover:bg-slate-850 text-slate-300 border border-slate-800'
+                          : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
                       }`}
                     >
                       <Icon className="w-3.5 h-3.5" />
@@ -656,51 +768,43 @@ export default function App() {
               </div>
             </div>
 
-            {/* 100+ Games Catalog Grid with Real Pictures */}
+            {/* 100+ Games Catalog Grid with Real Pictures & Clean Editorial Layout */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filteredGames.map((game) => (
                 <div
                   key={game.id}
-                  className="bg-slate-900/90 border border-slate-800 hover:border-slate-700 rounded-3xl p-3.5 flex flex-col justify-between transition-all hover:-translate-y-1 hover:shadow-xl group overflow-hidden"
+                  className="bg-slate-900/90 border border-slate-800 hover:border-amber-500/40 rounded-3xl p-3.5 flex flex-col justify-between transition-all hover:-translate-y-1 hover:shadow-2xl group overflow-hidden"
                 >
                   <div>
                     {/* Real Game Photograph Header */}
-                    <div className="h-40 w-full rounded-2xl overflow-hidden relative mb-3 bg-slate-800 border border-slate-800">
+                    <div className="h-44 w-full rounded-2xl overflow-hidden relative mb-3 bg-slate-950 border border-slate-800">
                       <img
                         src={getGameImage(game)}
                         alt={game.title}
                         referrerPolicy="no-referrer"
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         onError={(e) => {
                           (e.currentTarget as HTMLImageElement).src = HERO_BANNER_FALLBACK;
                         }}
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/25 to-transparent pointer-events-none" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/30 to-transparent pointer-events-none" />
 
-                      {/* Top Overlay Badge Pills */}
+                      {/* Top Overlay Indicator */}
                       <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between pointer-events-none">
-                        <span className="text-xl p-1.5 rounded-xl bg-slate-900/85 backdrop-blur-md shadow-md border border-slate-700/60 leading-none">
+                        <span className="text-lg p-1.5 rounded-xl bg-slate-950/80 backdrop-blur-md shadow-md border border-slate-700/60 leading-none">
                           {game.icon}
                         </span>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-900/85 backdrop-blur-md text-slate-200 px-2 py-0.5 rounded-full border border-slate-700 shadow">
-                            {game.category}
+                        {game.featured && (
+                          <span className="text-[10px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 px-2 py-0.5 rounded shadow flex items-center gap-1">
+                            <Star className="w-2.5 h-2.5 fill-current" /> HIGHLIGHT
                           </span>
-                          {game.featured && (
-                            <span className="text-[10px] font-bold bg-amber-500 text-slate-950 px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shadow font-black">
-                              <Star className="w-2.5 h-2.5 fill-current" /> TOP
-                            </span>
-                          )}
-                        </div>
+                        )}
                       </div>
 
-                      {/* Bottom Overlay Info */}
-                      <div className="absolute bottom-2 left-2.5 right-2.5 flex items-center justify-between text-[11px] text-slate-200 font-semibold drop-shadow pointer-events-none">
-                        <span className="bg-slate-900/80 backdrop-blur-sm px-2 py-0.5 rounded-lg text-amber-300 font-bold">
-                          ★ {game.rating.toFixed(1)}
-                        </span>
-                        <span className="bg-slate-900/80 backdrop-blur-sm px-2 py-0.5 rounded-lg text-slate-300 font-mono text-[10px]">
-                          {game.playsCount.toLocaleString()} Plays
+                      {/* Bottom Overlay Title Bar */}
+                      <div className="absolute bottom-2 left-2.5 right-2.5 pointer-events-none">
+                        <span className="text-[11px] text-amber-300/90 font-medium tracking-wide">
+                          ★ {game.rating.toFixed(1)} · {game.playsCount.toLocaleString()} Runden
                         </span>
                       </div>
                     </div>
@@ -714,13 +818,13 @@ export default function App() {
                       {game.description}
                     </p>
 
-                    {/* Metadata Specs */}
-                    <div className="mt-3 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400 px-1">
-                      <span className="text-slate-300 font-semibold">{game.players}</span>
-                      <span className="font-mono">{game.duration}</span>
-                      <span className="bg-slate-800 px-2 py-0.5 rounded text-amber-300 font-bold">
-                        Age {game.minAge}+
-                      </span>
+                    {/* Metadata Specs as Clean Typographic Line (Zero-Pill Discipline) */}
+                    <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center gap-2 text-xs text-slate-400 px-1 font-medium">
+                      <span className="text-slate-300">{game.players}</span>
+                      <span aria-hidden="true" className="text-slate-600">·</span>
+                      <span>{game.duration}</span>
+                      <span aria-hidden="true" className="text-slate-600">·</span>
+                      <span className="text-amber-400/90">Ab {game.minAge} Jahren</span>
                     </div>
                   </div>
 
@@ -728,13 +832,10 @@ export default function App() {
                   <div className="mt-4 pt-1">
                     <button
                       onClick={() => handleLaunchGame(game)}
-                      className={`w-full py-2.5 rounded-2xl font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 ${
-                        game.featured
-                          ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black'
-                          : 'bg-indigo-600 hover:bg-indigo-500 text-white'
-                      }`}
+                      className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-white font-bold text-xs shadow transition-all duration-200 flex items-center justify-center gap-1.5 active:scale-95 group-hover:bg-amber-500 group-hover:text-slate-950"
                     >
-                      <Play className="w-3.5 h-3.5 fill-current" /> {t('play_now')}
+                      <Play className="w-3.5 h-3.5 fill-current" />
+                      <span>Am Spieltisch starten</span>
                     </button>
                   </div>
                 </div>
@@ -743,7 +844,7 @@ export default function App() {
               {filteredGames.length === 0 && (
                 <div className="col-span-full py-16 text-center text-slate-400 space-y-2">
                   <Gamepad2 className="w-10 h-10 text-slate-600 mx-auto" />
-                  <p className="text-sm font-semibold">No games found matching your search filter.</p>
+                  <p className="text-sm font-semibold">Keine Spiele gefunden, die deiner Suche entsprechen.</p>
                   <button
                     onClick={() => {
                       setSearchQuery('');
@@ -752,7 +853,7 @@ export default function App() {
                     }}
                     className="text-xs text-amber-400 font-bold underline"
                   >
-                    Clear All Filters
+                    Filter zurücksetzen
                   </button>
                 </div>
               )}
@@ -907,11 +1008,17 @@ export default function App() {
         }}
       />
 
-      <AdminDashboardModal
+      {/* Admin System Modal */}
+      <AdminSystemModal
         isOpen={isAdminOpen}
         onClose={() => setIsAdminOpen(false)}
-        reports={reports}
+        currentUser={user}
+        allGames={allGames}
         rooms={publicRooms}
+        reports={reports}
+        onUpdateGameCatalog={(updatedGames) => {
+          setAllGames(updatedGames);
+        }}
         onResolveReport={(repId, action) => {
           setReports((prev) =>
             prev.map((r) =>
@@ -922,7 +1029,70 @@ export default function App() {
           );
         }}
         onBroadcastAnnouncement={(msg) => {
-          setGlobalAnnouncement(`📢 System Broadcast: ${msg}`);
+          setGlobalAnnouncement(msg);
+        }}
+        onTerminateRoom={(roomId) => {
+          setPublicRooms((prev) => prev.filter((r) => r.id !== roomId));
+          if (currentRoom?.id === roomId) {
+            setCurrentRoom(null);
+          }
+        }}
+        onUserRoleChange={(userId, newRole) => {
+          if (user.id === userId) {
+            setUser((prev) => ({ ...prev, role: newRole }));
+          }
+        }}
+        onRefreshUsers={() => {
+          const fresh = authService.getCurrentUser();
+          if (fresh.id === user.id) {
+            setUser(fresh);
+          }
+        }}
+      />
+
+      {/* Login & Register Modal */}
+      <LoginModal
+        isOpen={isLoginOpen}
+        onClose={() => setIsLoginOpen(false)}
+        currentUser={user}
+        onUserChanged={(newUser) => {
+          setUser(newUser);
+          if (currentRoom) {
+            setCurrentRoom((prev) => {
+              if (!prev) return null;
+              return {
+                ...prev,
+                hostName: newUser.name,
+                participants: prev.participants.map((p, idx) =>
+                  idx === 0 ? { ...p, id: newUser.id, name: newUser.name, avatar: newUser.avatar } : p
+                ),
+              };
+            });
+          }
+        }}
+      />
+
+      {/* User Account & Profile Center */}
+      <UserPanelModal
+        isOpen={isUserPanelOpen}
+        onClose={() => setIsUserPanelOpen(false)}
+        user={user}
+        onUpdateUser={(updatedUser) => {
+          setUser(updatedUser);
+          authService.setCurrentUser(updatedUser);
+        }}
+        onOpenAvatarStudio={() => {
+          setIsUserPanelOpen(false);
+          setIsAvatarOpen(true);
+        }}
+        onOpenLoginSwitcher={() => {
+          setIsUserPanelOpen(false);
+          setIsLoginOpen(true);
+        }}
+        onLogout={() => {
+          const guest = authService.logout();
+          setUser(guest);
+          setIsUserPanelOpen(false);
         }}
       />
     </div>

@@ -175,8 +175,17 @@ class SoundEngine {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
     osc.connect(gain);
     gain.connect(ctx.destination);
-    osc.start();
     osc.stop(ctx.currentTime + 0.2);
+  }
+
+  // Piece / Chip click alias
+  public playChip() {
+    this.playPieceDrop();
+  }
+
+  // Success chime alias
+  public playSuccess() {
+    this.playReward();
   }
 }
 
