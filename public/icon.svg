@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4F46E5" />
+      <stop offset="50%" stop-color="#7C3AED" />
+      <stop offset="100%" stop-color="#0F172A" />
+    </linearGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE68A" />
+      <stop offset="100%" stop-color="#F59E0B" />
+    </linearGradient>
+    <linearGradient id="red" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F87171" />
+      <stop offset="100%" stop-color="#DC2626" />
+    </linearGradient>
+    <linearGradient id="cyan" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="100%" stop-color="#0284C7" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.4" />
+    </filter>
+  </defs>
+
+  <!-- Background rounded squircle -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)" />
+
+  <!-- Subtle glow ring -->
+  <circle cx="256" cy="256" r="190" fill="none" stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="4" />
+
+  <!-- Main Gamepad / Arcade Badge -->
+  <g filter="url(#shadow)">
+    <!-- Dice 1 (Tilt left) -->
+    <g transform="translate(140, 160) rotate(-12)">
+      <rect x="-55" y="-55" width="110" height="110" rx="22" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="3" />
+      <circle cx="-25" cy="-25" r="10" fill="#DC2626" />
+      <circle cx="25" cy="25" r="10" fill="#DC2626" />
+      <circle cx="0" cy="0" r="10" fill="#DC2626" />
+      <circle cx="-25" cy="25" r="10" fill="#DC2626" />
+      <circle cx="25" cy="-25" r="10" fill="#DC2626" />
+    </g>
+
+    <!-- Chess King / Meeple Figure (Center) -->
+    <g transform="translate(256, 270)">
+      <!-- Meeple base -->
+      <path d="M-60,110 C-40,80 -30,60 -25,10 C-35,5 -42,-15 -35,-30 C-30,-40 -15,-45 0,-45 C15,-45 30,-40 35,-30 C42,-15 35,5 25,10 C30,60 40,80 60,110 Z" fill="url(#gold)" />
+      <!-- Golden crown on top -->
+      <path d="M-22,-45 L-15,-65 L0,-52 L15,-65 L22,-45 Z" fill="#FDE68A" />
+      <circle cx="0" cy="-68" r="6" fill="#FDE68A" />
+    </g>
+
+    <!-- Star / Play Badge (Top Right) -->
+    <g transform="translate(370, 175) rotate(15)">
+      <polygon points="0,-45 13,-14 45,-14 20,6 29,38 0,18 -29,38 -20,6 -45,-14 -13,-14" fill="url(#cyan)" />
+    </g>
+
+    <!-- Brand Typography / Banner -->
+    <g transform="translate(256, 420)">
+      <rect x="-140" y="-30" width="280" height="56" rx="28" fill="#1E1B4B" fill-opacity="0.9" stroke="url(#gold)" stroke-width="3" />
+      <text x="0" y="8" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="28" fill="#FFFFFF" text-anchor="middle" letter-spacing="2">FAMPLAY</text>
+    </g>
+  </g>
+</svg>

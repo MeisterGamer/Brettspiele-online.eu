@@ -24,7 +24,9 @@ import {
   Users, 
   ArrowRight,
   TrendingUp,
-  Award
+  Award,
+  Smartphone,
+  Download
 } from 'lucide-react';
 
 interface UserPanelModalProps {
@@ -35,6 +37,7 @@ interface UserPanelModalProps {
   onOpenAvatarStudio: () => void;
   onOpenLoginSwitcher: () => void;
   onLogout: () => void;
+  onOpenAndroidModal?: () => void;
 }
 
 export const UserPanelModal: React.FC<UserPanelModalProps> = ({
@@ -45,6 +48,7 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
   onOpenAvatarStudio,
   onOpenLoginSwitcher,
   onLogout,
+  onOpenAndroidModal,
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'stats' | 'history' | 'settings'>('overview');
   
@@ -478,6 +482,37 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
                   Berechtigungs-Rolle: <strong className="text-amber-400 uppercase">{user.role || 'Spieler'}</strong>
                 </div>
               </div>
+
+              {/* Android App & WebAPK Launcher Card */}
+              {onOpenAndroidModal && (
+                <div className="p-4 bg-gradient-to-r from-emerald-950/60 to-slate-800 border border-emerald-500/30 rounded-2xl flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center shrink-0">
+                      <Smartphone className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <span>FamPlay für Android</span>
+                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded-full font-bold">App</span>
+                      </div>
+                      <div className="text-[11px] text-slate-400">
+                        Als Vollbild-App auf dem Smartphone oder Tablet installieren
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sound.playClick();
+                      onOpenAndroidModal();
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition flex items-center gap-1.5 shrink-0 shadow-md cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    App-Hub
+                  </button>
+                </div>
+              )}
 
               <div className="flex items-center justify-between pt-2">
                 <button

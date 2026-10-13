@@ -25,6 +25,7 @@
 10. [User Roles & Permissions Matrix](#-user-roles--permissions-matrix)
 11. [Audio & Sound Design Engine](#-audio--sound-design-engine)
 12. [Internationalization (i18n)](#-internationalization-i18n)
+13. [Android App & WebAPK Installation](#-android-app--webapk-installation)
 
 ---
 
@@ -332,6 +333,38 @@ FamPlay supports instant language switching between:
 - 🇬🇧 **English (US/UK)**
 
 Language toggling is accessible directly from the top navigation bar and affects all games, rules, administration panels, and system notifications without page reload.
+
+---
+
+## 🤖 Android App & WebAPK Installation
+
+FamPlay is fully architected as an **Android WebAPK & Progressive Web App (PWA)**, allowing seamless installation on any Android smartphone, tablet, or Chromebook:
+
+### Android Highlights
+- **Vollbild (Standalone Mode)**: Runs without browser address bar or chrome navigation, delivering 100% of the screen for game boards.
+- **Haptic Vibration Feedback**: Integrates subtle Android vibration cues on moves, dice rolls, token placement, and victories via `navigator.vibrate`.
+- **Offline Caching**: Automatically precaches the application bundle, game logic, and fonts for smooth offline gameplay on flights, road trips, or areas with poor reception.
+- **App Drawer & Home Screen Icon**: Installs with high-resolution adaptive/maskable icons (`192x192` and `512x512`).
+
+### Installation Methods on Android
+1. **In-App 1-Click Install**: Click the green **„Android App“** button in the header or user profile panel to trigger the native installation prompt.
+2. **Google Chrome on Android**: Tap `⋮` (menu) in the upper right corner → **„App installieren“** or **„Zum Startbildschirm hinzufügen“**.
+3. **Samsung Internet**: Tap `≡` (menu) in the bottom right corner → **„Seite hinzufügen zu“** → **„Startbildschirm“**.
+4. **Mozilla Firefox on Android**: Tap `⋮` → **„Installieren“**.
+
+### Packaging as Standalone APK / Google Play Store (TWA)
+FamPlay's Web App Manifest and Service Worker are 100% compatible with Google Trusted Web Activities (TWA):
+```bash
+# 1. Install Google Bubblewrap CLI
+npm install -g @bubblewrap/cli
+
+# 2. Initialize Android Studio Project from FamPlay manifest
+bubblewrap init --manifest https://<your-famplay-domain>/manifest.webmanifest
+
+# 3. Build signed APK or Android App Bundle (.aab) for Google Play
+bubblewrap build
+```
+Alternatively, upload your manifest directly to [PWABuilder.com](https://www.pwabuilder.com/) to download a ready-to-publish Android package.
 
 ---
 

@@ -43,6 +43,9 @@ import { AdminSystemModal } from './components/admin/AdminSystemModal';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
 import { LoginModal } from './components/auth/LoginModal';
 import { UserPanelModal } from './components/user/UserPanelModal';
+import { AndroidAppModal } from './components/pwa/AndroidAppModal';
+import { PWAInstallButton } from './components/pwa/PWAInstallButton';
+import { OfflineIndicator } from './components/pwa/OfflineIndicator';
 
 // Playable Game Engines
 import { ConnectFour } from './components/games/ConnectFour';
@@ -151,6 +154,7 @@ export default function App() {
   const [isAdminOpen, setIsAdminOpen] = useState<boolean>(false);
   const [isLoginOpen, setIsLoginOpen] = useState<boolean>(false);
   const [isUserPanelOpen, setIsUserPanelOpen] = useState<boolean>(false);
+  const [isAndroidAppModalOpen, setIsAndroidAppModalOpen] = useState<boolean>(false);
 
   // Voice Chat participants in current table (starts empty, real family joins dynamically)
   const [voiceParticipants, setVoiceParticipants] = useState<VoiceParticipant[]>([]);
@@ -384,6 +388,9 @@ export default function App() {
                 <div className="text-[10px] text-amber-400 font-semibold">{user.familyRole}</div>
               </div>
             </button>
+
+            {/* Android App & PWA Install launcher */}
+            <PWAInstallButton onOpenModal={() => setIsAndroidAppModalOpen(true)} />
 
             {/* Login / Switch Account Button */}
             <button
@@ -1094,7 +1101,20 @@ export default function App() {
           setUser(guest);
           setIsUserPanelOpen(false);
         }}
+        onOpenAndroidModal={() => {
+          setIsUserPanelOpen(false);
+          setIsAndroidAppModalOpen(true);
+        }}
       />
+
+      {/* Android App & PWA Hub Modal */}
+      <AndroidAppModal
+        isOpen={isAndroidAppModalOpen}
+        onClose={() => setIsAndroidAppModalOpen(false)}
+      />
+
+      {/* Offline connectivity status banner */}
+      <OfflineIndicator />
     </div>
   );
 }

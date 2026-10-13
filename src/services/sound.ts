@@ -29,8 +29,20 @@ class SoundEngine {
     return this.soundEnabled;
   }
 
+  // Android haptic vibration feedback
+  public vibrate(pattern: number | number[] = 15) {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate(pattern);
+      } catch {
+        // Ignore if unsupported or blocked
+      }
+    }
+  }
+
   // UI button click
   public playClick() {
+    this.vibrate(10);
     const ctx = this.getContext();
     if (!ctx) return;
     const osc = ctx.createOscillator();
@@ -65,6 +77,7 @@ class SoundEngine {
 
   // Chip drop / piece placement sound
   public playPieceDrop() {
+    this.vibrate(20);
     const ctx = this.getContext();
     if (!ctx) return;
     const osc = ctx.createOscillator();
@@ -82,6 +95,7 @@ class SoundEngine {
 
   // Dice roll rattle
   public playDiceRoll() {
+    this.vibrate([20, 30, 20]);
     const ctx = this.getContext();
     if (!ctx) return;
     for (let i = 0; i < 4; i++) {
@@ -103,6 +117,7 @@ class SoundEngine {
 
   // Victory fanfare
   public playVictory() {
+    this.vibrate([40, 50, 40, 80]);
     const ctx = this.getContext();
     if (!ctx) return;
     const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
