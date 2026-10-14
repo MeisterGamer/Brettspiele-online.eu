@@ -58,7 +58,7 @@ export const initialTournaments: Tournament[] = [
   {
     id: 'tourney-fam-cards',
     title: 'Familien-Meisterschaft Cup',
-    gameTitle: 'FamCards (Uno)',
+    gameTitle: 'Uno',
     gameId: 'fam-cards',
     season: 'Saison 2026',
     bannerColor: 'from-amber-500 to-rose-600',
@@ -103,7 +103,7 @@ export const initialAchievements: Achievement[] = [
   {
     id: 'ach_2',
     title: 'Uno-König',
-    description: 'Gewinne eine Runde FamCards / Uno',
+    description: 'Gewinne eine Runde Uno',
     category: 'cards',
     icon: '🃏',
     progress: 0,

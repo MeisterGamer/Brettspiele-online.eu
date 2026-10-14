@@ -189,7 +189,7 @@ export default function App() {
 
     // Ensure current table matches active game and seats user
     setCurrentRoom((prev) => {
-      const maxSlots = ['chess', 'connect-four', 'checkers', 'tictactoe', 'dots-boxes'].includes(game.engine) ? 2 : 4;
+      const maxSlots = ['chess', 'connect-four', 'checkers', 'tictactoe', 'dots-boxes', 'battleship'].includes(game.engine) ? 2 : 4;
       if (prev && prev.gameId === game.id) {
         return prev;
       }
@@ -251,7 +251,10 @@ export default function App() {
     if (game.disabled) return false;
     if (kidsMode && game.minAge > 5) return false;
     if (parental.enabled && game.minAge > parental.maxAgeRating) return false;
-    if (selectedCategory !== 'all' && game.category !== selectedCategory) return false;
+    if (selectedCategory !== 'all') {
+      const matchCat = game.category === selectedCategory || (game.categories && game.categories.includes(selectedCategory));
+      if (!matchCat) return false;
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       const matchTitle = game.title.toLowerCase().includes(q);
@@ -720,83 +723,29 @@ export default function App() {
                   Klassische Gesellschaftsspiele am virtuellen Familientisch: Spiele mit echten handgefertigten Spielfiguren, würfle live im 3D-Lederbecher und lade Familie per Raum-Code ein!
                 </p>
 
-                {/* Instant Play Highlights with Real Badges */}
-                <div className="pt-2 flex flex-wrap gap-2">
-                  {/* Mensch ärgere Dich nicht */}
+                {/* Hero Primary Actions (No duplicate game buttons) */}
+                <div className="pt-2 flex flex-wrap items-center gap-3">
                   <button
                     onClick={() => {
-                      const g = gamesCatalog.find((x) => x.id === 'ludo') || gamesCatalog[0];
-                      handleLaunchGame(g);
+                      sound.playClick();
+                      setIsRoomManagerOpen(true);
                     }}
-                    className="px-3.5 py-2 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 transition flex items-center gap-1.5 active:scale-95"
+                    className="px-4 py-2.5 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-lg shadow-amber-400/20 transition flex items-center gap-2 active:scale-95 cursor-pointer"
                   >
-                    <Play className="w-3.5 h-3.5 fill-current" /> Mensch ärgere Dich nicht
+                    <Users className="w-4 h-4" />
+                    <span>Familientisch eröffnen</span>
                   </button>
 
-                  {/* Schach mit Staunton-Figuren */}
                   <button
                     onClick={() => {
-                      const g = gamesCatalog.find((x) => x.id === 'chess') || gamesCatalog[1];
-                      handleLaunchGame(g);
+                      sound.playReward();
+                      const randomGame = gamesCatalog[Math.floor(Math.random() * gamesCatalog.length)];
+                      handleLaunchGame(randomGame);
                     }}
-                    className="px-3.5 py-2 rounded-2xl bg-slate-100 hover:bg-white text-slate-950 font-black text-xs shadow-lg shadow-white/10 transition flex items-center gap-1.5 active:scale-95"
+                    className="px-4 py-2.5 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-white font-bold text-xs border border-slate-700 shadow transition flex items-center gap-2 active:scale-95 cursor-pointer"
                   >
-                    <Play className="w-3.5 h-3.5 fill-current" /> Schach (Staunton)
-                  </button>
-
-                  {/* Vier Gewinnt */}
-                  <button
-                    onClick={() => {
-                      const g = gamesCatalog.find((x) => x.id === 'connect-four') || gamesCatalog[0];
-                      handleLaunchGame(g);
-                    }}
-                    className="px-3.5 py-2 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-lg shadow-blue-600/20 transition flex items-center gap-1.5 active:scale-95"
-                  >
-                    <Play className="w-3.5 h-3.5 fill-current" /> Vier Gewinnt
-                  </button>
-
-                  {/* Dame */}
-                  <button
-                    onClick={() => {
-                      const g = gamesCatalog.find((x) => x.id === 'checkers') || gamesCatalog[2];
-                      handleLaunchGame(g);
-                    }}
-                    className="px-3.5 py-2 rounded-2xl bg-amber-800 hover:bg-amber-700 text-white font-black text-xs shadow-lg shadow-amber-800/20 transition flex items-center gap-1.5 active:scale-95"
-                  >
-                    <Play className="w-3.5 h-3.5 fill-current" /> Dame (Holzsteine)
-                  </button>
-
-                  {/* Schiffe Versenken */}
-                  <button
-                    onClick={() => {
-                      const g = gamesCatalog.find((x) => x.id === 'battleship') || gamesCatalog[3];
-                      handleLaunchGame(g);
-                    }}
-                    className="px-3.5 py-2 rounded-2xl bg-sky-700 hover:bg-sky-600 text-white font-black text-xs shadow-lg shadow-sky-700/20 transition flex items-center gap-1.5 active:scale-95"
-                  >
-                    <Play className="w-3.5 h-3.5 fill-current" /> Schiffe Versenken
-                  </button>
-
-                  {/* FamCards Uno */}
-                  <button
-                    onClick={() => {
-                      const g = gamesCatalog.find((x) => x.id === 'fam-cards') || gamesCatalog[1];
-                      handleLaunchGame(g);
-                    }}
-                    className="px-3.5 py-2 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-lg shadow-rose-600/20 transition flex items-center gap-1.5 active:scale-95"
-                  >
-                    <Play className="w-3.5 h-3.5 fill-current" /> FamCards (Uno)
-                  </button>
-
-                  {/* Kniffel / Yatzy */}
-                  <button
-                    onClick={() => {
-                      const g = gamesCatalog.find((x) => x.id === 'yatzy') || gamesCatalog[4];
-                      handleLaunchGame(g);
-                    }}
-                    className="px-3.5 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-lg shadow-indigo-600/20 transition flex items-center gap-1.5 active:scale-95"
-                  >
-                    <Play className="w-3.5 h-3.5 fill-current" /> Kniffel / Yatzy
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    <span>Zufälliges Spiel starten</span>
                   </button>
                 </div>
               </div>

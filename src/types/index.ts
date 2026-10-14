@@ -24,6 +24,7 @@ export interface GameInfo {
   id: string;
   title: string;
   category: GameCategory;
+  categories?: GameCategory[];
   players: string; // "2-4 Players"
   duration: string; // "10-15 Min"
   minAge: number; // 3, 6, 8, 10

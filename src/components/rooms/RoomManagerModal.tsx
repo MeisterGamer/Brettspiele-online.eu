@@ -265,12 +265,21 @@ export const RoomManagerModal: React.FC<RoomManagerModalProps> = ({
                 </label>
                 <select
                   value={selectedGameId}
-                  onChange={(e) => setSelectedGameId(e.target.value)}
+                  onChange={(e) => {
+                    const newId = e.target.value;
+                    setSelectedGameId(newId);
+                    const sel = availableGames.find((g) => g.id === newId);
+                    if (sel && ['chess', 'connect-four', 'checkers', 'battleship', 'dots-boxes', 'tictactoe'].includes(sel.engine)) {
+                      setMaxPlayers(2);
+                    } else {
+                      setMaxPlayers(4);
+                    }
+                  }}
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white"
                 >
                   {availableGames.map((g) => (
                     <option key={g.id} value={g.id}>
-                      {g.title} ({g.category.toUpperCase()})
+                      {g.title} • {g.players}
                     </option>
                   ))}
                 </select>
@@ -281,15 +290,31 @@ export const RoomManagerModal: React.FC<RoomManagerModalProps> = ({
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
                     Player Limit
                   </label>
-                  <select
-                    value={maxPlayers}
-                    onChange={(e) => setMaxPlayers(Number(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white"
-                  >
-                    <option value={2}>2 Players (Duel)</option>
-                    <option value={4}>4 Players (Family Table)</option>
-                    <option value={6}>6 Players (Party)</option>
-                  </select>
+                  {(() => {
+                    const sel = availableGames.find((g) => g.id === selectedGameId);
+                    const isTwoPlayer = sel && ['chess', 'connect-four', 'checkers', 'battleship', 'dots-boxes', 'tictactoe'].includes(sel.engine);
+                    if (isTwoPlayer) {
+                      return (
+                        <select
+                          value={2}
+                          disabled
+                          className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-400 cursor-not-allowed"
+                        >
+                          <option value={2}>2 Spieler (Duell)</option>
+                        </select>
+                      );
+                    }
+                    return (
+                      <select
+                        value={maxPlayers}
+                        onChange={(e) => setMaxPlayers(Number(e.target.value))}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white"
+                      >
+                        <option value={2}>2 Spieler (Duell)</option>
+                        <option value={4}>4 Spieler (Familientisch)</option>
+                      </select>
+                    );
+                  })()}
                 </div>
 
                 <div>

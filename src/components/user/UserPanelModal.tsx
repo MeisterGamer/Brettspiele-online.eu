@@ -353,16 +353,16 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
                 </h4>
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between py-1 border-b border-slate-800 text-slate-300">
-                    <span>Brettspiele (Ludo, Schach, Dame, Mühle)</span>
-                    <strong className="text-emerald-400">68% Winrate</strong>
+                    <span>Klassische Brettspiele (Mensch ärgere Dich nicht, Schach, Dame, 4 Gewinnt)</span>
+                    <strong className="text-emerald-400">{user.stats.gamesPlayed > 0 ? `${winRate}% Quote` : 'Aktiv'}</strong>
                   </div>
                   <div className="flex justify-between py-1 border-b border-slate-800 text-slate-300">
-                    <span>Kartenspiele (FamCards Uno, Skat, Doppelkopf)</span>
-                    <strong className="text-amber-400">54% Winrate</strong>
+                    <span>Kartenspiele (Uno)</span>
+                    <strong className="text-amber-400">{user.stats.gamesPlayed > 0 ? `${user.stats.gamesWon} Siege` : 'Bereit'}</strong>
                   </div>
                   <div className="flex justify-between py-1 border-b border-slate-800 text-slate-300">
-                    <span>Würfel- & Gesellschaftsspiele (Yatzy, Schiffe)</span>
-                    <strong className="text-sky-400">72% Winrate</strong>
+                    <span>Würfel- & Taktikspiele (Kniffel, Schiffe Versenken, Käsekästchen, Memo, Tic-Tac-Toe)</span>
+                    <strong className="text-sky-400">100% Spielbar</strong>
                   </div>
                 </div>
               </div>
