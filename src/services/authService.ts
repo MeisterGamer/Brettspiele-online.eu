@@ -1,80 +1,12 @@
 import { UserProfile, AdminAuditLog } from '../types';
+import { apiAuth } from './apiAuth';
 
 const STORAGE_KEY_CURRENT_USER = 'famplay_current_user_v2';
 const STORAGE_KEY_USERS = 'famplay_all_users_v2';
 const STORAGE_KEY_AUDIT_LOGS = 'famplay_audit_logs_v2';
 
-// Clean initial accounts without fake match records or fake stats
-export const INITIAL_DEMO_USERS: UserProfile[] = [
-  {
-    id: 'usr_admin',
-    name: 'Admin',
-    email: 'admin@famplay.com',
-    role: 'admin',
-    familyRole: 'Family Champion',
-    clanName: '',
-    level: 1,
-    xp: 0,
-    coins: 500,
-    gems: 20,
-    isVip: true,
-    streakDays: 0,
-    lastDailyClaim: '',
-    joinedDate: 'Heute',
-    avatar: {
-      skinTone: '#FCD34D',
-      hairStyle: 'spiky',
-      hairColor: '#451A03',
-      eyes: 'sparkle',
-      mouth: 'smile',
-      outfit: 'royal',
-      outfitColor: '#4F46E5',
-      accessory: 'crown',
-      flair: 'gold-vip',
-    },
-    stats: {
-      gamesPlayed: 0,
-      gamesWon: 0,
-      tournamentsWon: 0,
-      favoriteGame: 'Mensch ärgere Dich nicht',
-    },
-    matchHistory: [],
-  },
-  {
-    id: 'usr_guest',
-    name: 'Gast-Spieler',
-    email: 'gast@famplay.com',
-    role: 'user',
-    familyRole: 'Child',
-    clanName: '',
-    level: 1,
-    xp: 0,
-    coins: 200,
-    gems: 0,
-    isVip: false,
-    streakDays: 0,
-    lastDailyClaim: '',
-    joinedDate: 'Heute',
-    avatar: {
-      skinTone: '#FCD34D',
-      hairStyle: 'straight',
-      hairColor: '#1F2937',
-      eyes: 'happy',
-      mouth: 'smile',
-      outfit: 'tshirt',
-      outfitColor: '#6B7280',
-      accessory: 'none',
-      flair: 'none',
-    },
-    stats: {
-      gamesPlayed: 0,
-      gamesWon: 0,
-      tournamentsWon: 0,
-      favoriteGame: 'Mensch ärgere Dich nicht',
-    },
-    matchHistory: [],
-  },
-];
+// Empty default user array - real users are stored in MariaDB
+export const INITIAL_DEMO_USERS: UserProfile[] = [];
 
 const INITIAL_AUDIT_LOGS: AdminAuditLog[] = [
   {
@@ -83,7 +15,7 @@ const INITIAL_AUDIT_LOGS: AdminAuditLog[] = [
     adminName: 'System',
     action: 'SYSTEM_BOOT',
     target: 'FamPlay Plattform',
-    details: 'System initialisiert mit sauberen Spieldaten und 10 echten Spieltischen.',
+    details: 'System initialisiert mit MariaDB-Authentifizierung und Pflicht-Login.',
   },
 ];
 
@@ -93,15 +25,14 @@ export const authService = {
       const data = localStorage.getItem(STORAGE_KEY_USERS);
       if (data) {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           return parsed;
         }
       }
     } catch {
       // ignore
     }
-    localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(INITIAL_DEMO_USERS));
-    return INITIAL_DEMO_USERS;
+    return [];
   },
 
   saveUsers(users: UserProfile[]) {
@@ -112,23 +43,31 @@ export const authService = {
     }
   },
 
-  getCurrentUser(): UserProfile {
-    try {
-      const data = localStorage.getItem(STORAGE_KEY_CURRENT_USER);
-      if (data) {
-        return JSON.parse(data);
+  getCurrentUser(): UserProfile | null {
+    // 1. Prioritize JWT-authenticated session from apiAuth
+    const fromApi = apiAuth.getCachedUser();
+    if (fromApi) return fromApi;
+
+    // 2. Only if valid token exists, check localStorage
+    if (apiAuth.getToken()) {
+      try {
+        const data = localStorage.getItem(STORAGE_KEY_CURRENT_USER);
+        if (data) {
+          return JSON.parse(data);
+        }
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
     }
-    const defaultUser = INITIAL_DEMO_USERS[0];
-    localStorage.setItem(STORAGE_KEY_CURRENT_USER, JSON.stringify(defaultUser));
-    return defaultUser;
+
+    // Never auto-login admin or guest: Login is strictly mandatory
+    return null;
   },
 
   setCurrentUser(user: UserProfile) {
     try {
       localStorage.setItem(STORAGE_KEY_CURRENT_USER, JSON.stringify(user));
+      apiAuth.setCachedUser(user);
       const users = this.getUsers();
       const idx = users.findIndex((u) => u.id === user.id);
       if (idx !== -1) {
@@ -224,10 +163,9 @@ export const authService = {
     return { success: true, user: newUser };
   },
 
-  logout(): UserProfile {
-    const guestUser = INITIAL_DEMO_USERS.find((u) => u.id === 'usr_guest') || INITIAL_DEMO_USERS[0];
-    localStorage.setItem(STORAGE_KEY_CURRENT_USER, JSON.stringify(guestUser));
-    return guestUser;
+  logout(): void {
+    localStorage.removeItem(STORAGE_KEY_CURRENT_USER);
+    apiAuth.logout();
   },
 
   switchAccount(userId: string): UserProfile | null {

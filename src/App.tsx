@@ -26,6 +26,9 @@ import { sound } from './services/sound';
 import { getTranslation } from './services/i18n';
 import { HERO_BANNER_IMAGE, HERO_BANNER_FALLBACK, getGameImage } from './services/gameImages';
 import { authService } from './services/authService';
+import { apiAuth } from './services/apiAuth';
+import { AuthGate } from './components/auth/AuthGate';
+import { WebSetupWizard } from './components/setup/WebSetupWizard';
 
 // Components
 import { AvatarDisplay } from './components/avatar/AvatarDisplay';
@@ -96,7 +99,44 @@ export default function App() {
   // App state
   const [language, setLanguage] = useState<SupportedLanguage>('en');
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
-  const [user, setUser] = useState<UserProfile>(() => authService.getCurrentUser());
+  // Platform Installation & First-Run Setup State
+  const [isInstalled, setIsInstalled] = useState<boolean | null>(null);
+  // Mandatory Login: Never auto-login as admin or guest
+  const [user, setUser] = useState<UserProfile | null>(() => apiAuth.getCachedUser());
+  const [authChecking, setAuthChecking] = useState<boolean>(true);
+
+  // Authenticate session & check installation on boot from server
+  useEffect(() => {
+    fetch('/api/setup/status')
+      .then((res) => res.json())
+      .then((status) => {
+        setIsInstalled(Boolean(status.installed));
+        if (!status.installed) {
+          setAuthChecking(false);
+          setUser(null);
+        } else {
+          const token = apiAuth.getToken();
+          if (!token) {
+            setUser(null);
+            setAuthChecking(false);
+            return;
+          }
+          apiAuth.fetchCurrentUser()
+            .then((fresh) => {
+              setUser(fresh);
+              setAuthChecking(false);
+            })
+            .catch(() => {
+              setUser(null);
+              setAuthChecking(false);
+            });
+        }
+      })
+      .catch(() => {
+        setIsInstalled(true);
+        setAuthChecking(false);
+      });
+  }, []);
   const [allGames, setAllGames] = useState<GameInfo[]>(gamesCatalog);
   const [parental, setParental] = useState<ParentalControls>(initialParentalControls);
   const [publicRooms, setPublicRooms] = useState<GameRoom[]>(() => multiplayerService.getRooms());
@@ -131,7 +171,7 @@ export default function App() {
 
   // URL query parameter ?room=CODE auto-join
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && user) {
       const params = new URLSearchParams(window.location.search);
       const code = params.get('room');
       if (code) {
@@ -144,7 +184,7 @@ export default function App() {
         }
       }
     }
-  }, []);
+  }, [user]);
 
   const [globalAnnouncement, setGlobalAnnouncement] = useState<string | null>(
     '🎲 Willkommen am virtuellen FamPlay-Spieltisch · Wähle dein Lieblingsspiel oder lade deine Familie per Tisch-Code ein!'
@@ -178,6 +218,7 @@ export default function App() {
   };
 
   const handleLaunchGame = (game: GameInfo) => {
+    if (!user) return;
     // Check parental controls age rating
     if (parental.enabled && game.minAge > parental.maxAgeRating) {
       sound.playError();
@@ -206,6 +247,7 @@ export default function App() {
   };
 
   const handleGameCompletion = (result: any) => {
+    if (!user) return;
     // Add XP & Coins with VIP bonus multiplier
     const multiplier = user.isVip ? 2 : 1;
     const earnedCoins = 100 * multiplier;
@@ -224,6 +266,7 @@ export default function App() {
     };
 
     setUser((prev) => {
+      if (!prev) return null;
       const updated: UserProfile = {
         ...prev,
         coins: prev.coins + earnedCoins,
@@ -264,6 +307,33 @@ export default function App() {
     }
     return true;
   });
+
+  // 1. First-Run Setup: Owner must install and configure platform
+  if (isInstalled === false) {
+    return (
+      <WebSetupWizard
+        onSetupComplete={() => {
+          setIsInstalled(true);
+          setUser(null);
+        }}
+      />
+    );
+  }
+
+  // 2. Mandatory Authentication: If checking session, show clean spinner
+  if (authChecking || isInstalled === null) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-400 gap-3 font-sans">
+        <div className="w-9 h-9 border-3 border-amber-400 border-t-transparent rounded-full animate-spin" />
+        <span className="text-xs font-mono text-slate-400">Prüfe Server-Setup & MariaDB...</span>
+      </div>
+    );
+  }
+
+  // 3. Mandatory Authentication: Must be logged in to enter FamPlay
+  if (!user) {
+    return <AuthGate onLoginSuccess={(loggedInUser) => setUser(loggedInUser)} />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
@@ -951,6 +1021,7 @@ export default function App() {
         currentUser={user}
         onSave={(newAvatar, newRole) => {
           setUser((u) => {
+            if (!u) return null;
             const updated = {
               ...u,
               avatar: newAvatar,
@@ -1032,11 +1103,11 @@ export default function App() {
           );
           const found = achievements.find((a) => a.id === achId);
           if (found) {
-            setUser((u) => ({
+            setUser((u) => u ? {
               ...u,
               coins: u.coins + found.coinReward,
               xp: u.xp + found.xpReward,
-            }));
+            } : null);
           }
         }}
       />
@@ -1046,12 +1117,12 @@ export default function App() {
         onClose={() => setIsVipOpen(false)}
         currentUser={user}
         onUpgradeVip={() => {
-          setUser((u) => ({
+          setUser((u) => u ? {
             ...u,
             isVip: true,
             coins: u.coins + 2500,
             avatar: { ...u.avatar, flair: 'gold-vip' },
-          }));
+          } : null);
         }}
       />
 
@@ -1060,12 +1131,12 @@ export default function App() {
         onClose={() => setIsDailyOpen(false)}
         currentUser={user}
         onClaimDaily={(day, coins, gems) => {
-          setUser((u) => ({
+          setUser((u) => u ? {
             ...u,
             coins: u.coins + coins,
             gems: u.gems + gems,
             streakDays: day,
-          }));
+          } : null);
         }}
       />
 
@@ -1099,13 +1170,13 @@ export default function App() {
           }
         }}
         onUserRoleChange={(userId, newRole) => {
-          if (user.id === userId) {
-            setUser((prev) => ({ ...prev, role: newRole }));
+          if (user?.id === userId) {
+            setUser((prev) => prev ? { ...prev, role: newRole } : null);
           }
         }}
         onRefreshUsers={() => {
           const fresh = authService.getCurrentUser();
-          if (fresh.id === user.id) {
+          if (fresh && user && fresh.id === user.id) {
             setUser(fresh);
           }
         }}
@@ -1151,8 +1222,11 @@ export default function App() {
           setIsLoginOpen(true);
         }}
         onLogout={() => {
-          const guest = authService.logout();
-          setUser(guest);
+          sound.playClick();
+          apiAuth.logout();
+          setUser(null);
+          setActiveGame(null);
+          setCurrentRoom(null);
           setIsUserPanelOpen(false);
         }}
         onOpenAndroidModal={() => {
