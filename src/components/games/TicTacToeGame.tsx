@@ -1,20 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { sound } from '../../services/sound';
 import confetti from 'canvas-confetti';
 import { RefreshCw, Trophy, Bot, Users, Sparkles } from 'lucide-react';
 import { TABLE_BACKGROUNDS } from '../../services/gameImages';
 
+import { RoomParticipant } from '../../types';
+import { AvatarDisplay } from '../avatar/AvatarDisplay';
+
 interface TicTacToeProps {
   onGameEnd?: (winner: string) => void;
+  tableParticipants?: RoomParticipant[];
+  currentUserId?: string;
+  onActiveTurnChange?: (turnPlayerId: string) => void;
 }
 
-export const TicTacToeGame: React.FC<TicTacToeProps> = ({ onGameEnd }) => {
+export const TicTacToeGame: React.FC<TicTacToeProps> = ({ 
+  onGameEnd,
+  tableParticipants,
+  currentUserId,
+  onActiveTurnChange
+}) => {
+  const p1 = tableParticipants?.[0];
+  const p2 = tableParticipants?.[1];
+  const p1Name = p1?.name || 'X (Du)';
+  const p2Name = p2?.name || (p2?.isBot ? 'KI-Gegner' : 'O (Spieler 2)');
+  const isP2Bot = p2 ? !!p2.isBot : true;
+
   const [board, setBoard] = useState<(string | null)[]>(Array(9).fill(null));
   const [turn, setTurn] = useState<'X' | 'O'>('X');
   const [winner, setWinner] = useState<string | null>(null);
-  const [mode, setMode] = useState<'bot' | 'local2p'>('bot');
+  const [mode, setMode] = useState<'bot' | 'local2p'>(() => isP2Bot ? 'bot' : 'local2p');
   const [theme, setTheme] = useState<'pebbles' | 'wood'>('pebbles');
   const [scores, setScores] = useState({ x: 0, o: 0, draw: 0 });
+
+  useEffect(() => {
+    if (onActiveTurnChange) {
+      const activeId = turn === 'X' ? (p1?.id || 'p1') : (p2?.id || 'p2');
+      onActiveTurnChange(activeId);
+    }
+  }, [turn, p1?.id, p2?.id, onActiveTurnChange]);
 
   const winningCombos = [
     [0, 1, 2], [3, 4, 5], [6, 7, 8],
@@ -132,16 +156,26 @@ export const TicTacToeGame: React.FC<TicTacToeProps> = ({ onGameEnd }) => {
   return (
     <div className="flex flex-col items-center max-w-md mx-auto w-full select-none text-slate-100">
       
-      {/* Score Header */}
-      <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3.5 rounded-2xl mb-4 text-xs font-semibold shadow-xl">
-        <div className="flex items-center gap-2">
-          <div
-            className="w-4 h-4 rounded-full border border-sky-300 shadow"
-            style={{
-              background: 'radial-gradient(circle at 35% 35%, #7dd3fc, #0284c7 70%, #0369a1)',
-            }}
-          />
-          <span className="text-slate-200">X (You): <strong className="font-mono text-sky-400 text-sm">{scores.x}</strong></span>
+      {/* Score Header with Avatars */}
+      <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3 sm:p-3.5 rounded-2xl mb-4 text-xs font-semibold shadow-xl">
+        <div className={`flex items-center gap-2 p-1 rounded-xl transition ${turn === 'X' && !winner ? 'bg-sky-950/40 ring-1 ring-sky-500/50' : ''}`}>
+          {p1?.avatar ? (
+            <AvatarDisplay avatar={p1.avatar} size="sm" />
+          ) : (
+            <div
+              className="w-5 h-5 rounded-full border border-sky-300 shadow"
+              style={{
+                background: 'radial-gradient(circle at 35% 35%, #7dd3fc, #0284c7 70%, #0369a1)',
+              }}
+            />
+          )}
+          <div>
+            <div className="font-bold text-slate-200 flex items-center gap-1">
+              <span>{p1Name}</span>
+              <span className="w-2 h-2 rounded-full bg-sky-400 inline-block" />
+            </div>
+            <div className="text-[11px] text-sky-400 font-mono">Siege: {scores.x}</div>
+          </div>
         </div>
 
         {/* Mode & Theme Toggles */}
@@ -153,7 +187,7 @@ export const TicTacToeGame: React.FC<TicTacToeProps> = ({ onGameEnd }) => {
                 mode === 'bot' ? 'bg-indigo-600 text-white' : 'text-slate-400'
               }`}
             >
-              AI
+              KI
             </button>
             <button
               onClick={() => { setMode('local2p'); resetGame(); }}
@@ -169,18 +203,28 @@ export const TicTacToeGame: React.FC<TicTacToeProps> = ({ onGameEnd }) => {
             onClick={() => setTheme((t) => (t === 'pebbles' ? 'wood' : 'pebbles'))}
             className="px-2 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold border border-slate-700"
           >
-            {theme === 'pebbles' ? '🪨 River Stones' : '🪵 Wood Pegs'}
+            {theme === 'pebbles' ? '🪨 Steine' : '🪵 Holz'}
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-slate-200">O ({mode === 'bot' ? 'Bot' : 'P2'}): <strong className="font-mono text-amber-400 text-sm">{scores.o}</strong></span>
-          <div
-            className="w-4 h-4 rounded-full border border-amber-300 shadow"
-            style={{
-              background: 'radial-gradient(circle at 35% 35%, #fde68a, #d97706 70%, #92400e)',
-            }}
-          />
+        <div className={`flex items-center gap-2 p-1 rounded-xl transition ${turn === 'O' && !winner ? 'bg-amber-950/40 ring-1 ring-amber-500/50' : ''}`}>
+          <div className="text-right">
+            <div className="font-bold text-slate-200 flex items-center gap-1 justify-end">
+              <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
+              <span>{p2Name}</span>
+            </div>
+            <div className="text-[11px] text-amber-400 font-mono">Siege: {scores.o}</div>
+          </div>
+          {p2?.avatar ? (
+            <AvatarDisplay avatar={p2.avatar} size="sm" />
+          ) : (
+            <div
+              className="w-5 h-5 rounded-full border border-amber-300 shadow"
+              style={{
+                background: 'radial-gradient(circle at 35% 35%, #fef08a, #f59e0b 70%, #b45309)',
+              }}
+            />
+          )}
         </div>
       </div>
 

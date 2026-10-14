@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { sound } from '../../services/sound';
 import confetti from 'canvas-confetti';
-import { RefreshCw, Trophy, Target, Shield, Crosshair, AlertCircle, Flame, Waves } from 'lucide-react';
+import { RefreshCw, Trophy, Target, Shield, Crosshair, AlertCircle, Flame, Waves, Bot, Users } from 'lucide-react';
 import { NAVAL_FLEET_PHOTOS, TABLE_BACKGROUNDS } from '../../services/gameImages';
+import { RoomParticipant } from '../../types';
+import { AvatarDisplay } from '../avatar/AvatarDisplay';
 
 const GRID_SIZE = 8; // 8x8 for fast, fun family gameplay
 
@@ -26,9 +28,21 @@ const SHIPS: ShipDef[] = [
 
 interface BattleshipGameProps {
   onGameEnd?: (winner: string) => void;
+  tableParticipants?: RoomParticipant[];
+  currentUserId?: string;
+  onActiveTurnChange?: (turnPlayerId: string) => void;
 }
 
-export const BattleshipGame: React.FC<BattleshipGameProps> = ({ onGameEnd }) => {
+export const BattleshipGame: React.FC<BattleshipGameProps> = ({ 
+  onGameEnd,
+  tableParticipants,
+  currentUserId,
+  onActiveTurnChange
+}) => {
+  const p1 = tableParticipants?.[0];
+  const p2 = tableParticipants?.[1];
+  const p1Name = p1?.name || 'Admiral (Du)';
+  const p2Name = p2?.name || (p2?.isBot ? 'KI Flottenadmiral' : 'Gegnerischer Admiral');
   const generateRandomFleet = (): CellState[][] => {
     const grid: CellState[][] = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill('empty'));
 
@@ -77,6 +91,13 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({ onGameEnd }) => 
   const [winner, setWinner] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>('Select enemy grid coordinates to launch radar missile!');
   const [lastStrikeResult, setLastStrikeResult] = useState<'hit' | 'miss' | null>(null);
+
+  useEffect(() => {
+    if (onActiveTurnChange) {
+      const activeId = turn === 'player' ? (p1?.id || 'p1') : (p2?.id || 'p2');
+      onActiveTurnChange(activeId);
+    }
+  }, [turn, p1?.id, p2?.id, onActiveTurnChange]);
 
   // Calculate damage per ship class
   const getEnemyShipHits = (shipId: string): number => {
@@ -207,28 +228,83 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({ onGameEnd }) => 
   return (
     <div className="flex flex-col items-center max-w-4xl mx-auto w-full select-none text-slate-100">
       
-      {/* Tactical Status Banner */}
-      <div className="w-full bg-slate-900/90 border border-slate-800 p-3.5 rounded-2xl mb-4 text-xs flex flex-wrap items-center justify-between gap-2 shadow-xl">
-        <div className="flex items-center gap-2">
-          <Crosshair className="w-4 h-4 text-rose-400 shrink-0" />
-          <span className="font-semibold text-slate-200">{statusMessage}</span>
+      {/* Tactical Status Banner & Commanders */}
+      <div className="w-full bg-slate-900/90 border border-slate-800 p-3 sm:p-4 rounded-2xl mb-4 text-xs shadow-xl space-y-3">
+        {/* Commanders Avatar Bar */}
+        <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+          {/* Commander 1 */}
+          <div className="flex items-center gap-2.5">
+            {p1?.avatar ? (
+              <div className="p-0.5 rounded-xl ring-2 ring-emerald-500 shadow">
+                <AvatarDisplay avatar={p1.avatar} size="sm" />
+              </div>
+            ) : (
+              <div className="w-7 h-7 rounded-xl bg-emerald-600/30 border border-emerald-500 flex items-center justify-center text-xs font-bold text-emerald-300">
+                A1
+              </div>
+            )}
+            <div>
+              <div className="font-bold text-white text-xs flex items-center gap-1.5">
+                <span>{p1Name}</span>
+                {turn === 'player' && (
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-black border border-emerald-500/30 animate-pulse">
+                    AM ZUG
+                  </span>
+                )}
+              </div>
+              <div className="text-[10px] text-slate-400">Blaue Flotte · Heimatbasis</div>
+            </div>
+          </div>
+
+          <div className="text-slate-600 font-black text-xs">VS</div>
+
+          {/* Commander 2 */}
+          <div className="flex items-center gap-2.5 text-right">
+            <div>
+              <div className="font-bold text-white text-xs flex items-center gap-1.5 justify-end">
+                {turn === 'enemy' && (
+                  <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-black border border-amber-500/30 animate-pulse">
+                    AM ZUG
+                  </span>
+                )}
+                <span>{p2Name}</span>
+              </div>
+              <div className="text-[10px] text-slate-400">Rote Flotte · {p2?.isBot ? 'KI-Admiral' : 'Gegner'}</div>
+            </div>
+            {p2?.avatar ? (
+              <div className="p-0.5 rounded-xl ring-2 ring-rose-500 shadow">
+                <AvatarDisplay avatar={p2.avatar} size="sm" />
+              </div>
+            ) : (
+              <div className="w-7 h-7 rounded-xl bg-rose-600/30 border border-rose-500 flex items-center justify-center text-xs font-bold text-rose-300">
+                A2
+              </div>
+            )}
+          </div>
         </div>
-        
-        <div className="flex items-center gap-2">
-          <span className={`px-2.5 py-1 rounded-full font-bold text-[11px] uppercase tracking-wider ${
-            turn === 'player'
-              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse'
-              : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-          }`}>
-            {turn === 'player' ? '🎯 Your Turn: Ready to Strike' : '⚡ Hostile AI Missile Airborne...'}
-          </span>
-          <button
-            onClick={resetGame}
-            className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
-            title="Re-deploy Fleets"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-          </button>
+
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Crosshair className="w-4 h-4 text-rose-400 shrink-0" />
+            <span className="font-semibold text-slate-200">{statusMessage}</span>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <span className={`px-2.5 py-1 rounded-full font-bold text-[11px] uppercase tracking-wider ${
+              turn === 'player'
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+            }`}>
+              {turn === 'player' ? '🎯 Dein Zug: Ziel wählen' : '⚡ KI-Rakete im Anflug...'}
+            </span>
+            <button
+              onClick={resetGame}
+              className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+              title="Flotte neu aufstellen"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 

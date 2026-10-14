@@ -26,7 +26,8 @@ import {
   TrendingUp,
   Award,
   Smartphone,
-  Download
+  Download,
+  Trash2
 } from 'lucide-react';
 
 interface UserPanelModalProps {
@@ -514,17 +515,46 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
                 </div>
               )}
 
-              <div className="flex items-center justify-between pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    sound.playClick();
-                    onLogout();
-                  }}
-                  className="px-4 py-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-xs font-bold transition flex items-center gap-1.5"
-                >
-                  <LogOut className="w-4 h-4" /> Konto abmelden
-                </button>
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sound.playClick();
+                      onLogout();
+                    }}
+                    className="px-3.5 py-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-xs font-bold transition flex items-center gap-1.5"
+                  >
+                    <LogOut className="w-4 h-4" /> Abmelden
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sound.playReward();
+                      onUpdateUser({
+                        ...user,
+                        xp: 0,
+                        level: 1,
+                        streakDays: 0,
+                        stats: {
+                          gamesPlayed: 0,
+                          gamesWon: 0,
+                          tournamentsWon: 0,
+                          favoriteGame: 'Mensch ärgere Dich nicht',
+                        },
+                        matchHistory: [],
+                      });
+                      setSavedSuccess(true);
+                      setTimeout(() => setSavedSuccess(false), 2500);
+                    }}
+                    className="px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold transition flex items-center gap-1.5"
+                    title="Alle eigenen Statistiken und die Match-Historie zurücksetzen"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Spieldaten leeren</span>
+                  </button>
+                </div>
 
                 <button
                   type="submit"

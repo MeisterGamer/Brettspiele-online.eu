@@ -453,19 +453,21 @@ export const AdminSystemModal: React.FC<AdminSystemModalProps> = ({
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="bg-slate-800/60 border border-slate-700/80 p-4 rounded-2xl">
                       <div className="text-xs text-slate-400 font-bold mb-1">Spieler Online</div>
-                      <div className="text-2xl font-black font-mono text-emerald-400">1,482</div>
+                      <div className="text-2xl font-black font-mono text-emerald-400">
+                        {rooms.reduce((acc, r) => acc + (r.participants?.length || 0), 0) + 1}
+                      </div>
                       <div className="text-[10px] text-slate-500 mt-1">Gleichzeitige Verbindungen</div>
                     </div>
 
                     <div className="bg-slate-800/60 border border-slate-700/80 p-4 rounded-2xl">
                       <div className="text-xs text-slate-400 font-bold mb-1">Aktive Tische</div>
-                      <div className="text-2xl font-black font-mono text-indigo-400">{rooms.length * 142 + 28}</div>
-                      <div className="text-[10px] text-slate-500 mt-1">Inklusive privater Räume</div>
+                      <div className="text-2xl font-black font-mono text-indigo-400">{rooms.length}</div>
+                      <div className="text-[10px] text-slate-500 mt-1">Echte Spieltische</div>
                     </div>
 
                     <div className="bg-slate-800/60 border border-slate-700/80 p-4 rounded-2xl">
                       <div className="text-xs text-slate-400 font-bold mb-1">Registrierte Konten</div>
-                      <div className="text-2xl font-black font-mono text-amber-400">{usersList.length * 1240 + 890}</div>
+                      <div className="text-2xl font-black font-mono text-amber-400">{usersList.length}</div>
                       <div className="text-[10px] text-slate-500 mt-1">Davon {usersList.filter((u) => u.isVip).length} VIP Pässe</div>
                     </div>
 
@@ -479,7 +481,7 @@ export const AdminSystemModal: React.FC<AdminSystemModalProps> = ({
                   </div>
 
                   {/* Quick System Tools */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <div className="bg-slate-800/40 border border-slate-700/60 p-4 rounded-2xl">
                       <h4 className="text-xs font-bold text-slate-300 mb-2 flex items-center gap-2">
                         <Radio className="w-4 h-4 text-emerald-400" /> WebRTC Voice Cluster
@@ -525,6 +527,27 @@ export const AdminSystemModal: React.FC<AdminSystemModalProps> = ({
                         className="text-xs font-bold text-yellow-300 bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/40 px-3 py-1.5 rounded-xl transition w-full"
                       >
                         Doppel-XP Event starten
+                      </button>
+                    </div>
+
+                    <div className="bg-rose-950/20 border border-rose-500/30 p-4 rounded-2xl">
+                      <h4 className="text-xs font-bold text-rose-300 mb-2 flex items-center gap-2">
+                        <Trash2 className="w-4 h-4 text-rose-400" /> Alle Spielerdaten löschen
+                      </h4>
+                      <p className="text-xs text-slate-400 mb-3">
+                        Löscht alle gespeicherten Spieler-Profile und Caches sauber.
+                      </p>
+                      <button
+                        onClick={() => {
+                          sound.playReward();
+                          authService.clearAllPlayerData();
+                          setUsersList(authService.getUsers());
+                          onRefreshUsers();
+                          showNotice('Alle Spielerdaten und Caches erfolgreich gelöscht.');
+                        }}
+                        className="text-xs font-bold text-rose-300 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 px-3 py-1.5 rounded-xl transition w-full"
+                      >
+                        Spielerdaten komplett leeren
                       </button>
                     </div>
                   </div>

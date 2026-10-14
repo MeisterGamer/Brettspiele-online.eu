@@ -143,6 +143,8 @@ export interface RoomParticipant {
   isReady: boolean;
   score: number;
   ping: number;
+  isBot?: boolean;
+  seatIndex?: number;
 }
 
 export interface GameRoom {

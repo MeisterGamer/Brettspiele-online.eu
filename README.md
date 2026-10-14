@@ -7,7 +7,7 @@
 [![Web Audio](https://img.shields.io/badge/Audio-Web%20Audio%20API-green.svg)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)
 [![License](https://img.shields.io/badge/License-MIT-amber.svg)](LICENSE)
 
-> **FamPlay** is a modern, cross-platform family gaming platform offering a curated suite of 100+ digital board, card, and puzzle classics. Built with bespoke wooden/felt textures, realistic tactile game pieces, opt-in family voice channels, multi-role user authentication, parental safety controls, and an enterprise-grade administration back-office.
+> **FamPlay** is a modern, cross-platform family gaming platform offering a curated suite of genuine digital board, card, and puzzle classics. Built with bespoke wooden/felt textures, realistic tactile game pieces, opt-in family voice channels, multi-role user authentication, parental safety controls, and an administration back-office.
 
 ---
 
@@ -37,9 +37,9 @@
 - **🎙️ Zero Auto-Join Voice Chat (Privacy-First)**:
   - Voice channels are strictly **opt-in** by default. Users never join voice automatically.
   - Features push-to-talk, active speaker wave rings, volume controls, participant list, and mic test indicators.
-- **🔐 Complete Authentication & User System**:
+- **🔐 Complete Authentication & Clean User System**:
   - Sign-in and registration with family role assignments (*Parent*, *Teen*, *Child*, *Grandparent*, *Family Champion*).
-  - Quick-switch demo personas for rapid testing (*Admin Alex*, *Papa Markus*, *Emma Junior*, *Oma Renate*, *Guest*).
+  - Clean accounts with zero mock clutter, real match histories, and genuine level progression.
   - Persistent local storage session management.
 - **👤 Comprehensive User Profile Panel**:
   - Level progression, XP tracking, coin & gem wallets, and VIP multiplier indicators.

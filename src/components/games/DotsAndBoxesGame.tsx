@@ -1,16 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { sound } from '../../services/sound';
 import confetti from 'canvas-confetti';
 import { RefreshCw, Trophy, Square, Shield, Crown } from 'lucide-react';
 import { TABLE_BACKGROUNDS } from '../../services/gameImages';
 
+import { RoomParticipant } from '../../types';
+import { AvatarDisplay } from '../avatar/AvatarDisplay';
+
 interface DotsAndBoxesProps {
   onGameEnd?: (winner: string) => void;
+  tableParticipants?: RoomParticipant[];
+  currentUserId?: string;
+  onActiveTurnChange?: (turnPlayerId: string) => void;
 }
 
 const GRID_SIZE = 4; // 4x4 dots = 3x3 boxes (9 total territory boxes)
 
-export const DotsAndBoxesGame: React.FC<DotsAndBoxesProps> = ({ onGameEnd }) => {
+export const DotsAndBoxesGame: React.FC<DotsAndBoxesProps> = ({ 
+  onGameEnd,
+  tableParticipants,
+  currentUserId,
+  onActiveTurnChange
+}) => {
+  const p1 = tableParticipants?.[0];
+  const p2 = tableParticipants?.[1];
+  const p1Name = p1?.name || 'Blau (Spieler 1)';
+  const p2Name = p2?.name || (p2?.isBot ? 'KI-Gegner' : 'Gelb (Spieler 2)');
+
   // Horizontal lines: GRID_SIZE rows of (GRID_SIZE - 1)
   const [hLines, setHLines] = useState<boolean[][]>(() =>
     Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE - 1).fill(false))
@@ -29,6 +45,13 @@ export const DotsAndBoxesGame: React.FC<DotsAndBoxesProps> = ({ onGameEnd }) => 
   const [turn, setTurn] = useState<'p1' | 'p2'>('p1');
   const [scores, setScores] = useState({ p1: 0, p2: 0 });
   const [winner, setWinner] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (onActiveTurnChange) {
+      const activeId = turn === 'p1' ? (p1?.id || 'p1') : (p2?.id || 'p2');
+      onActiveTurnChange(activeId);
+    }
+  }, [turn, p1?.id, p2?.id, onActiveTurnChange]);
 
   // Check if box (r, c) is completed
   const checkCompletedBoxes = (
@@ -128,20 +151,40 @@ export const DotsAndBoxesGame: React.FC<DotsAndBoxesProps> = ({ onGameEnd }) => 
   return (
     <div className="flex flex-col items-center max-w-md mx-auto w-full select-none text-slate-100">
       
-      {/* Score Header */}
-      <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3.5 rounded-2xl mb-4 text-xs font-semibold shadow-xl">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded-md bg-sky-500 shadow-md ring-1 ring-sky-300" />
-          <span>Player 1 (Blue): <strong className="text-sky-400 font-mono text-sm">{scores.p1}</strong></span>
+      {/* Score Header with Avatars */}
+      <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3 sm:p-3.5 rounded-2xl mb-4 text-xs font-semibold shadow-xl">
+        <div className={`flex items-center gap-2 p-1 rounded-xl transition ${turn === 'p1' && !winner ? 'bg-sky-950/40 ring-1 ring-sky-500/50' : ''}`}>
+          {p1?.avatar ? (
+            <AvatarDisplay avatar={p1.avatar} size="sm" />
+          ) : (
+            <div className="w-4 h-4 rounded-md bg-sky-500 shadow-md ring-1 ring-sky-300" />
+          )}
+          <div>
+            <div className="font-bold text-slate-200 flex items-center gap-1">
+              <span>{p1Name}</span>
+              <span className="w-2 h-2 rounded-full bg-sky-400 inline-block" />
+            </div>
+            <div className="text-[11px] text-sky-400 font-mono">Kästchen: {scores.p1}</div>
+          </div>
         </div>
 
         <div className="text-[11px] text-slate-300 font-bold uppercase tracking-wider bg-slate-950 px-2.5 py-1 rounded-full border border-slate-800">
-          {winner ? 'Territory Settled' : turn === 'p1' ? '⚡ Blue Turn' : '⚡ Amber Turn'}
+          {winner ? 'Spiel beendet' : turn === 'p1' ? '⚡ Blau am Zug' : '⚡ Gelb am Zug'}
         </div>
 
-        <div className="flex items-center gap-2">
-          <span>Player 2 (Amber): <strong className="text-amber-500 font-mono text-sm">{scores.p2}</strong></span>
-          <div className="w-4 h-4 rounded-md bg-amber-500 shadow-md ring-1 ring-amber-300" />
+        <div className={`flex items-center gap-2 p-1 rounded-xl transition ${turn === 'p2' && !winner ? 'bg-amber-950/40 ring-1 ring-amber-500/50' : ''}`}>
+          <div className="text-right">
+            <div className="font-bold text-slate-200 flex items-center gap-1 justify-end">
+              <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
+              <span>{p2Name}</span>
+            </div>
+            <div className="text-[11px] text-amber-400 font-mono">Kästchen: {scores.p2}</div>
+          </div>
+          {p2?.avatar ? (
+            <AvatarDisplay avatar={p2.avatar} size="sm" />
+          ) : (
+            <div className="w-4 h-4 rounded-md bg-amber-500 shadow-md ring-1 ring-amber-300" />
+          )}
         </div>
       </div>
 

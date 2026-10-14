@@ -33,6 +33,8 @@ import { AvatarStudioModal } from './components/avatar/AvatarStudioModal';
 import { VoiceChatPanel } from './components/voice/VoiceChatPanel';
 import { RoomManagerModal } from './components/rooms/RoomManagerModal';
 import { ShareModal } from './components/rooms/ShareModal';
+import { GameTablePanel } from './components/rooms/GameTablePanel';
+import { multiplayerService, MultiplayerEvent } from './services/multiplayerService';
 import { ParentalControlsModal } from './components/parental/ParentalControlsModal';
 import { TournamentModal } from './components/tournaments/TournamentModal';
 import { LeaderboardModal } from './components/leaderboards/LeaderboardModal';
@@ -56,7 +58,6 @@ import { YatzyGame } from './components/games/YatzyGame';
 import { MemoryMatchGame } from './components/games/MemoryMatchGame';
 import { DotsAndBoxesGame } from './components/games/DotsAndBoxesGame';
 import { TicTacToeGame } from './components/games/TicTacToeGame';
-import { CatalogQuickPlay } from './components/games/CatalogQuickPlay';
 import { LudoGame } from './components/games/LudoGame';
 import { ChessGame } from './components/games/ChessGame';
 
@@ -98,7 +99,7 @@ export default function App() {
   const [user, setUser] = useState<UserProfile>(() => authService.getCurrentUser());
   const [allGames, setAllGames] = useState<GameInfo[]>(gamesCatalog);
   const [parental, setParental] = useState<ParentalControls>(initialParentalControls);
-  const [publicRooms, setPublicRooms] = useState<GameRoom[]>(initialPublicRooms);
+  const [publicRooms, setPublicRooms] = useState<GameRoom[]>(() => multiplayerService.getRooms());
   const [tournaments, setTournaments] = useState<Tournament[]>(initialTournaments);
   const [achievements, setAchievements] = useState<Achievement[]>(initialAchievements);
   const [reports, setReports] = useState<ModerationReport[]>(initialModerationReports);
@@ -109,34 +110,42 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [kidsMode, setKidsMode] = useState<boolean>(false);
   const [activeGame, setActiveGame] = useState<GameInfo | null>(null);
-  const [currentRoom, setCurrentRoom] = useState<GameRoom | null>(() => {
-    const active = authService.getCurrentUser();
-    return {
-      id: 'room_live',
-      code: 'FAM-777',
-      name: `${active.name}'s Familientisch`,
-      gameId: 'ludo',
-      gameTitle: 'Mensch ärgere Dich nicht (Ludo)',
-      isPrivate: false,
-      hostName: active.name,
-      maxPlayers: 4,
-      currentPlayers: 1,
-      status: 'in-game',
-      voiceChatActive: false, // Voice is NOT active by default (strictly optional)
-      createdAt: 'Gerade eröffnet',
-      participants: [
-        {
-          id: active.id,
-          name: active.name,
-          avatar: active.avatar,
-          isHost: true,
-          isReady: true,
-          score: 0,
-          ping: 18,
+  const [currentTurnPlayerId, setCurrentTurnPlayerId] = useState<string | null>(null);
+  const [currentRoom, setCurrentRoom] = useState<GameRoom | null>(null);
+
+  // Cross-tab multiplayer synchronization
+  useEffect(() => {
+    const unsubscribe = multiplayerService.subscribe((event: MultiplayerEvent) => {
+      if (event.type === 'ROOMS_UPDATED') {
+        setPublicRooms(event.rooms);
+      }
+      if (event.type === 'ROOM_STATE_SYNC') {
+        setPublicRooms(multiplayerService.getRooms());
+        if (currentRoom && (currentRoom.id === event.room.id || currentRoom.code === event.room.code)) {
+          setCurrentRoom(event.room);
         }
-      ],
-    };
-  });
+      }
+    });
+    return () => unsubscribe();
+  }, [currentRoom?.id, currentRoom?.code]);
+
+  // URL query parameter ?room=CODE auto-join
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('room');
+      if (code) {
+        const found = multiplayerService.getRoomByCode(code);
+        if (found) {
+          const joined = multiplayerService.joinRoom(found.code, user) || found;
+          setCurrentRoom(joined);
+          const matchedGame = gamesCatalog.find((g) => g.id === joined.gameId);
+          if (matchedGame) setActiveGame(matchedGame);
+        }
+      }
+    }
+  }, []);
+
   const [globalAnnouncement, setGlobalAnnouncement] = useState<string | null>(
     '🎲 Willkommen am virtuellen FamPlay-Spieltisch · Wähle dein Lieblingsspiel oder lade deine Familie per Tisch-Code ein!'
   );
@@ -177,6 +186,23 @@ export default function App() {
     }
     sound.playReward();
     setActiveGame(game);
+
+    // Ensure current table matches active game and seats user
+    setCurrentRoom((prev) => {
+      const maxSlots = ['chess', 'connect-four', 'checkers', 'tictactoe', 'dots-boxes'].includes(game.engine) ? 2 : 4;
+      if (prev && prev.gameId === game.id) {
+        return prev;
+      }
+      const newRoom = multiplayerService.createRoom(user, {
+        name: `${user.name}’s Familientisch`,
+        gameId: game.id,
+        gameTitle: game.title,
+        maxPlayers: maxSlots,
+        isPrivate: false,
+        voiceChatActive: false,
+      });
+      return newRoom;
+    });
   };
 
   const handleGameCompletion = (result: any) => {
@@ -564,40 +590,106 @@ export default function App() {
               onInvite={() => setIsShareOpen(true)}
             />
 
+            {/* VIRTUAL GAMING TABLE WITH SEATED PLAYERS & OPEN CHAIRS */}
+            {currentRoom && (
+              <GameTablePanel
+                room={currentRoom}
+                currentUser={user}
+                activeTurnPlayerId={currentTurnPlayerId}
+                onUpdateRoom={(updated) => {
+                  setCurrentRoom(updated);
+                  multiplayerService.updateRoomState(updated);
+                  setPublicRooms(multiplayerService.getRooms());
+                }}
+                onInviteFriend={() => setIsShareOpen(true)}
+                onLeaveTable={() => {
+                  sound.playClick();
+                  setActiveGame(null);
+                }}
+              />
+            )}
+
             {/* GAME ENGINE CONTAINER */}
             <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-2xl min-h-[500px] flex items-center justify-center">
               {activeGame.engine === 'ludo' && (
-                <LudoGame onGameEnd={handleGameCompletion} />
+                <LudoGame 
+                  onGameEnd={handleGameCompletion} 
+                  tableParticipants={currentRoom?.participants}
+                  currentUserId={user.id}
+                  onActiveTurnChange={setCurrentTurnPlayerId}
+                />
               )}
               {activeGame.engine === 'chess' && (
-                <ChessGame onGameEnd={handleGameCompletion} />
+                <ChessGame 
+                  onGameEnd={handleGameCompletion} 
+                  tableParticipants={currentRoom?.participants}
+                  currentUserId={user.id}
+                  onActiveTurnChange={setCurrentTurnPlayerId}
+                />
               )}
               {activeGame.engine === 'connect-four' && (
-                <ConnectFour onGameEnd={handleGameCompletion} />
+                <ConnectFour 
+                  onGameEnd={handleGameCompletion} 
+                  tableParticipants={currentRoom?.participants}
+                  currentUserId={user.id}
+                  onActiveTurnChange={setCurrentTurnPlayerId}
+                />
               )}
               {activeGame.engine === 'fam-cards' && (
-                <FamCardsUno onGameEnd={handleGameCompletion} />
+                <FamCardsUno 
+                  onGameEnd={handleGameCompletion} 
+                  tableParticipants={currentRoom?.participants}
+                  currentUserId={user.id}
+                  onActiveTurnChange={setCurrentTurnPlayerId}
+                />
               )}
               {activeGame.engine === 'checkers' && (
-                <CheckersGame onGameEnd={handleGameCompletion} />
+                <CheckersGame 
+                  onGameEnd={handleGameCompletion} 
+                  tableParticipants={currentRoom?.participants}
+                  currentUserId={user.id}
+                  onActiveTurnChange={setCurrentTurnPlayerId}
+                />
               )}
               {activeGame.engine === 'battleship' && (
-                <BattleshipGame onGameEnd={handleGameCompletion} />
+                <BattleshipGame 
+                  onGameEnd={handleGameCompletion} 
+                  tableParticipants={currentRoom?.participants}
+                  currentUserId={user.id}
+                  onActiveTurnChange={setCurrentTurnPlayerId}
+                />
               )}
               {activeGame.engine === 'yatzy' && (
-                <YatzyGame onGameEnd={handleGameCompletion} />
+                <YatzyGame 
+                  onGameEnd={handleGameCompletion} 
+                  tableParticipants={currentRoom?.participants}
+                  currentUserId={user.id}
+                  onActiveTurnChange={setCurrentTurnPlayerId}
+                />
               )}
               {activeGame.engine === 'memory-match' && (
-                <MemoryMatchGame onGameEnd={handleGameCompletion} />
+                <MemoryMatchGame 
+                  onGameEnd={handleGameCompletion} 
+                  tableParticipants={currentRoom?.participants}
+                  currentUserId={user.id}
+                  onActiveTurnChange={setCurrentTurnPlayerId}
+                />
               )}
               {activeGame.engine === 'dots-boxes' && (
-                <DotsAndBoxesGame onGameEnd={handleGameCompletion} />
+                <DotsAndBoxesGame 
+                  onGameEnd={handleGameCompletion} 
+                  tableParticipants={currentRoom?.participants}
+                  currentUserId={user.id}
+                  onActiveTurnChange={setCurrentTurnPlayerId}
+                />
               )}
               {activeGame.engine === 'tictactoe' && (
-                <TicTacToeGame onGameEnd={handleGameCompletion} />
-              )}
-              {activeGame.engine === 'catalog-simulation' && (
-                <CatalogQuickPlay game={activeGame} onGameEnd={handleGameCompletion} />
+                <TicTacToeGame 
+                  onGameEnd={handleGameCompletion} 
+                  tableParticipants={currentRoom?.participants}
+                  currentUserId={user.id}
+                  onActiveTurnChange={setCurrentTurnPlayerId}
+                />
               )}
             </div>
           </div>
@@ -811,7 +903,7 @@ export default function App() {
                       {/* Bottom Overlay Title Bar */}
                       <div className="absolute bottom-2 left-2.5 right-2.5 pointer-events-none">
                         <span className="text-[11px] text-amber-300/90 font-medium tracking-wide">
-                          ★ {game.rating.toFixed(1)} · {game.playsCount.toLocaleString()} Runden
+                          ★ {game.rating.toFixed(1)} · {game.playsCount > 0 ? `${game.playsCount.toLocaleString()} Runden` : 'Offener Spieltisch'}
                         </span>
                       </div>
                     </div>
@@ -909,11 +1001,24 @@ export default function App() {
         onClose={() => setIsAvatarOpen(false)}
         currentUser={user}
         onSave={(newAvatar, newRole) => {
-          setUser((u) => ({
-            ...u,
-            avatar: newAvatar,
-            familyRole: newRole,
-          }));
+          setUser((u) => {
+            const updated = {
+              ...u,
+              avatar: newAvatar,
+              familyRole: newRole,
+            };
+            authService.setCurrentUser(updated);
+            return updated;
+          });
+          setCurrentRoom((prev) => {
+            if (!prev) return null;
+            const updatedParticipants = prev.participants.map((p) =>
+              p.id === user.id ? { ...p, avatar: newAvatar } : p
+            );
+            const updatedRoom = { ...prev, participants: updatedParticipants };
+            multiplayerService.updateRoomState(updatedRoom);
+            return updatedRoom;
+          });
         }}
       />
 

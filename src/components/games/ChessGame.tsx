@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { sound } from '../../services/sound';
 import confetti from 'canvas-confetti';
 import { RefreshCw, Trophy, Bot, Users, Sparkles, Shield } from 'lucide-react';
@@ -12,8 +12,14 @@ interface ChessPiece {
   color: PieceColor;
 }
 
+import { RoomParticipant } from '../../types';
+import { AvatarDisplay } from '../avatar/AvatarDisplay';
+
 interface ChessGameProps {
   onGameEnd?: (winner: string) => void;
+  tableParticipants?: RoomParticipant[];
+  currentUserId?: string;
+  onActiveTurnChange?: (turnPlayerId: string) => void;
 }
 
 type BoardState = (ChessPiece | null)[][];
@@ -47,14 +53,32 @@ const INITIAL_BOARD: BoardState = [
   ],
 ];
 
-export const ChessGame: React.FC<ChessGameProps> = ({ onGameEnd }) => {
+export const ChessGame: React.FC<ChessGameProps> = ({ 
+  onGameEnd,
+  tableParticipants,
+  currentUserId,
+  onActiveTurnChange
+}) => {
+  const p1 = tableParticipants?.[0];
+  const p2 = tableParticipants?.[1];
+  const p1Name = p1?.name || 'Weiß (Du)';
+  const p2Name = p2?.name || (p2?.isBot ? 'Schach-KI' : 'Schwarz (Spieler 2)');
+  const isP2Bot = p2 ? !!p2.isBot : true;
+
   const [board, setBoard] = useState<BoardState>(INITIAL_BOARD);
   const [turn, setTurn] = useState<PieceColor>('w');
   const [selectedPos, setSelectedPos] = useState<[number, number] | null>(null);
   const [validMoves, setValidMoves] = useState<[number, number][]>([]);
-  const [mode, setMode] = useState<'bot' | 'local2p'>('bot');
+  const [mode, setMode] = useState<'bot' | 'local2p'>(() => isP2Bot ? 'bot' : 'local2p');
   const [winner, setWinner] = useState<string | null>(null);
   const [moveHistory, setMoveHistory] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (onActiveTurnChange) {
+      const activeId = turn === 'w' ? (p1?.id || 'p1') : (p2?.id || 'p2');
+      onActiveTurnChange(activeId);
+    }
+  }, [turn, p1?.id, p2?.id, onActiveTurnChange]);
 
   // Calculate standard moves
   const getMoves = (r: number, c: number, currentBoard: BoardState): [number, number][] => {
@@ -317,13 +341,21 @@ export const ChessGame: React.FC<ChessGameProps> = ({ onGameEnd }) => {
   return (
     <div className="flex flex-col items-center max-w-xl mx-auto w-full select-none text-slate-100">
       
-      {/* Header bar */}
-      <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3 rounded-2xl mb-3 text-xs shadow-xl">
-        <div className="flex items-center gap-2">
-          <span className="w-3.5 h-3.5 rounded-full bg-amber-100 border border-amber-300 shadow" />
-          <span className="font-bold text-slate-200">
-            Weiß: {turn === 'w' ? <strong className="text-amber-300">Am Zug</strong> : 'Wartet'}
-          </span>
+      {/* Header bar with player avatars and turn indicators */}
+      <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3 sm:p-3.5 rounded-2xl mb-3 text-xs shadow-xl">
+        <div className={`flex items-center gap-2 p-1 rounded-xl transition ${turn === 'w' && !winner ? 'bg-amber-950/40 ring-1 ring-amber-400/60' : ''}`}>
+          {p1?.avatar ? (
+            <AvatarDisplay avatar={p1.avatar} size="sm" />
+          ) : (
+            <span className="w-4 h-4 rounded-full bg-amber-100 border border-amber-300 shadow" />
+          )}
+          <div>
+            <div className="font-bold text-slate-200 flex items-center gap-1">
+              <span>{p1Name}</span>
+              <span className="w-2 h-2 rounded-full bg-amber-100 inline-block" />
+            </div>
+            <div className="text-[11px] text-amber-300">{turn === 'w' ? '● Am Zug' : 'Wartet'}</div>
+          </div>
         </div>
 
         <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
@@ -343,6 +375,21 @@ export const ChessGame: React.FC<ChessGameProps> = ({ onGameEnd }) => {
           >
             <Users className="w-3.5 h-3.5" /> 2P Duell
           </button>
+        </div>
+
+        <div className={`flex items-center gap-2 p-1 rounded-xl transition ${turn === 'b' && !winner ? 'bg-slate-800/80 ring-1 ring-slate-400/60' : ''}`}>
+          <div className="text-right">
+            <div className="font-bold text-slate-200 flex items-center gap-1 justify-end">
+              <span className="w-2 h-2 rounded-full bg-slate-800 inline-block border border-slate-600" />
+              <span>{p2Name}</span>
+            </div>
+            <div className="text-[11px] text-slate-400">{turn === 'b' ? '● Am Zug' : 'Wartet'}</div>
+          </div>
+          {p2?.avatar ? (
+            <AvatarDisplay avatar={p2.avatar} size="sm" />
+          ) : (
+            <span className="w-4 h-4 rounded-full bg-slate-900 border border-slate-600 shadow" />
+          )}
         </div>
 
         <button

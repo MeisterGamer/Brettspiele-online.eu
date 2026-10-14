@@ -14,6 +14,8 @@ import {
   Award
 } from 'lucide-react';
 import { TABLE_BACKGROUNDS } from '../../services/gameImages';
+import { RoomParticipant } from '../../types';
+import { AvatarDisplay } from '../avatar/AvatarDisplay';
 
 type PlayerColor = 'red' | 'blue' | 'green' | 'yellow';
 
@@ -26,6 +28,9 @@ interface Piece {
 
 interface LudoGameProps {
   onGameEnd?: (winner: string) => void;
+  tableParticipants?: RoomParticipant[];
+  currentUserId?: string;
+  onActiveTurnChange?: (turnPlayerId: string) => void;
 }
 
 // 40 spaces track coordinates mapped onto an 11x11 grid (traditional German Mensch-ärgere-dich-nicht layout)
@@ -109,14 +114,51 @@ const COLOR_THEMES: Record<PlayerColor, {
   },
 };
 
-export const LudoGame: React.FC<LudoGameProps> = ({ onGameEnd }) => {
+export const LudoGame: React.FC<LudoGameProps> = ({ 
+  onGameEnd,
+  tableParticipants,
+  currentUserId,
+  onActiveTurnChange
+}) => {
+  const colorMap: Record<PlayerColor, RoomParticipant | undefined> = {
+    red: tableParticipants?.[0],
+    blue: tableParticipants?.[1],
+    green: tableParticipants?.[2],
+    yellow: tableParticipants?.[3],
+  };
+
+  const getPlayerLabel = (color: PlayerColor) => {
+    const p = colorMap[color];
+    const colorLabel = color === 'red' ? 'Rot' : color === 'blue' ? 'Blau' : color === 'green' ? 'Grün' : 'Gelb';
+    if (p) {
+      return `${p.name} (${colorLabel})`;
+    }
+    return COLOR_NAMES[color];
+  };
+
+  const isColorAi = (color: PlayerColor): boolean => {
+    const p = colorMap[color];
+    if (p) return !!p.isBot;
+    if (gameMode === 'pass') return false;
+    return color !== 'red';
+  };
+
   const [players, setPlayers] = useState<PlayerColor[]>(['red', 'blue', 'green', 'yellow']);
   const [activeTurn, setActiveTurn] = useState<PlayerColor>('red');
   const [diceValue, setDiceValue] = useState<number | null>(null);
   const [isRolling, setIsRolling] = useState<boolean>(false);
-  const [gameMode, setGameMode] = useState<'ai' | 'pass'>('ai');
+  const [gameMode, setGameMode] = useState<'ai' | 'pass'>('pass');
   const [winner, setWinner] = useState<PlayerColor | null>(null);
-  const [lastActionLog, setLastActionLog] = useState<string>('Willkommen am Spieltisch! Rot beginnt. Bitte würfeln.');
+  const [lastActionLog, setLastActionLog] = useState<string>(() => 
+    `Willkommen am Familientisch! ${getPlayerLabel('red')} beginnt. Bitte würfeln.`
+  );
+
+  useEffect(() => {
+    if (onActiveTurnChange) {
+      const p = colorMap[activeTurn];
+      onActiveTurnChange(p?.id || activeTurn);
+    }
+  }, [activeTurn, onActiveTurnChange, tableParticipants]);
   
   // 4 pieces per player
   const [pieces, setPieces] = useState<Piece[]>([
@@ -215,17 +257,17 @@ export const LudoGame: React.FC<LudoGameProps> = ({ onGameEnd }) => {
     });
 
     if (validPieceIds.length === 0) {
-      setLastActionLog(`${COLOR_NAMES[color]} hat eine ${roll} gewürfelt, kann aber keine Figur ziehen.`);
+      setLastActionLog(`${getPlayerLabel(color)} hat eine ${roll} gewürfelt, kann aber keine Figur ziehen.`);
       // Next turn
       setTimeout(() => {
         passTurn(color, roll === 6);
       }, 1000);
     } else {
       setMovablePieces(validPieceIds);
-      setLastActionLog(`${COLOR_NAMES[color]} hat eine ${roll} gewürfelt! Wähle eine Figur zum Ziehen.`);
+      setLastActionLog(`${getPlayerLabel(color)} hat eine ${roll} gewürfelt! Wähle eine Figur zum Ziehen.`);
 
       // If active player is AI, make move automatically after a short delay
-      if (gameMode === 'ai' && color !== 'red') {
+      if (isColorAi(color)) {
         setTimeout(() => {
           // Pick best move: prioritize capturing opponents, then getting out with a 6, then furthest
           const chosenPieceId = pickBestAiPiece(validPieceIds, color, roll);
@@ -328,8 +370,8 @@ export const LudoGame: React.FC<LudoGameProps> = ({ onGameEnd }) => {
         spread: 80,
         origin: { y: 0.6 },
       });
-      if (onGameEnd) onGameEnd(COLOR_NAMES[color]);
-      setLastActionLog(`🏆 SIEG! ${COLOR_NAMES[color]} hat alle 4 Spielfiguren ins Ziel gebracht!`);
+      if (onGameEnd) onGameEnd(getPlayerLabel(color));
+      setLastActionLog(`🏆 SIEG! ${getPlayerLabel(color)} hat alle 4 Spielfiguren ins Ziel gebracht!`);
     } else {
       passTurn(color, rolledSix);
     }
@@ -337,8 +379,8 @@ export const LudoGame: React.FC<LudoGameProps> = ({ onGameEnd }) => {
 
   const passTurn = (currentColor: PlayerColor, rolledSix: boolean) => {
     if (rolledSix) {
-      setLastActionLog(`${COLOR_NAMES[currentColor]} hat eine 6 gewürfelt und darf noch einmal!`);
-      if (gameMode === 'ai' && currentColor !== 'red') {
+      setLastActionLog(`${getPlayerLabel(currentColor)} hat eine 6 gewürfelt und darf noch einmal!`);
+      if (isColorAi(currentColor)) {
         setTimeout(handleRollDice, 800);
       }
       return;
@@ -349,9 +391,9 @@ export const LudoGame: React.FC<LudoGameProps> = ({ onGameEnd }) => {
     setActiveTurn(nextColor);
     setMovablePieces([]);
     setDiceValue(null);
-    setLastActionLog(`${COLOR_NAMES[nextColor]} ist am Zug. Bitte würfeln.`);
+    setLastActionLog(`${getPlayerLabel(nextColor)} ist am Zug. Bitte würfeln.`);
 
-    if (gameMode === 'ai' && nextColor !== 'red') {
+    if (isColorAi(nextColor)) {
       setTimeout(handleRollDice, 1000);
     }
   };
@@ -452,22 +494,35 @@ export const LudoGame: React.FC<LudoGameProps> = ({ onGameEnd }) => {
       
       {/* Top Controls & Status Bar */}
       <div className="w-full bg-slate-900/95 border border-slate-800 rounded-2xl p-3 sm:p-4 mb-4 shadow-2xl flex flex-wrap items-center justify-between gap-3">
-        {/* Left: Active Player Badge */}
+        {/* Left: Active Player Badge with Avatar */}
         <div className="flex items-center gap-3">
-          <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shadow-md"
-            style={{
-              background: COLOR_THEMES[activeTurn].gradient,
-              boxShadow: `0 4px 12px ${COLOR_THEMES[activeTurn].shadow}`,
-            }}
-          >
-            <Award className="w-5 h-5 text-white drop-shadow" />
-          </div>
+          {colorMap[activeTurn]?.avatar ? (
+            <div className="p-1 rounded-2xl ring-2 ring-amber-400/80 shadow-lg">
+              <AvatarDisplay avatar={colorMap[activeTurn]!.avatar} size="md" />
+            </div>
+          ) : (
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shadow-md"
+              style={{
+                background: COLOR_THEMES[activeTurn].gradient,
+                boxShadow: `0 4px 12px ${COLOR_THEMES[activeTurn].shadow}`,
+              }}
+            >
+              <Award className="w-5 h-5 text-white drop-shadow" />
+            </div>
+          )}
           <div>
-            <div className="text-xs text-slate-400 font-medium">Am Zug:</div>
+            <div className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
+              <span>Am Zug:</span>
+              <span
+                className="w-2.5 h-2.5 rounded-full inline-block"
+                style={{ background: COLOR_THEMES[activeTurn].primary }}
+              />
+            </div>
             <div className="text-sm font-bold text-white flex items-center gap-1.5">
-              <span>{COLOR_NAMES[activeTurn]}</span>
-              {activeTurn === 'red' && <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20">Dein Zug</span>}
+              <span>{getPlayerLabel(activeTurn)}</span>
+              {activeTurn === 'red' && <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Dein Zug</span>}
+              {isColorAi(activeTurn) && <span className="text-[10px] text-sky-400 font-semibold bg-sky-500/10 px-1.5 py-0.5 rounded border border-sky-500/20">KI</span>}
             </div>
           </div>
         </div>

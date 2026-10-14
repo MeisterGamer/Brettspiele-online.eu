@@ -182,38 +182,44 @@ export const TournamentModal: React.FC<TournamentModalProps> = ({
                 </h4>
 
                 <div className="space-y-2">
-                  {activeTourney.leaderboard.map((item) => (
-                    <div
-                      key={item.rank}
-                      className={`p-3 rounded-2xl border flex items-center justify-between text-xs transition ${
-                        item.familyClan.includes('You')
-                          ? 'bg-amber-500/15 border-amber-500/40 font-bold text-white'
-                          : 'bg-slate-950/40 border-slate-800 text-slate-300'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={`w-6 h-6 rounded-lg font-bold font-mono flex items-center justify-center text-xs ${
-                            item.rank === 1
-                              ? 'bg-amber-400 text-slate-950'
-                              : item.rank === 2
-                              ? 'bg-slate-300 text-slate-950'
-                              : item.rank === 3
-                              ? 'bg-amber-700 text-white'
-                              : 'bg-slate-800 text-slate-400'
-                          }`}
-                        >
-                          {item.rank}
-                        </span>
-                        <span>{item.familyClan}</span>
-                      </div>
-
-                      <div className="flex items-center gap-4">
-                        <span className="text-slate-400">{item.wins} Wins</span>
-                        <span className="font-mono font-bold text-amber-400">{item.points} Pts</span>
-                      </div>
+                  {activeTourney.leaderboard.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400 bg-slate-950/40 rounded-2xl border border-slate-800 text-xs">
+                      Noch keine Clan-Partien verzeichnet. Melde dein Team an und spiele am Tisch, um Turnierpunkte zu erzielen!
                     </div>
-                  ))}
+                  ) : (
+                    activeTourney.leaderboard.map((item) => (
+                      <div
+                        key={item.rank}
+                        className={`p-3 rounded-2xl border flex items-center justify-between text-xs transition ${
+                          item.familyClan.includes('You') || (currentUser.clanName && item.familyClan.includes(currentUser.clanName))
+                            ? 'bg-amber-500/15 border-amber-500/40 font-bold text-white'
+                            : 'bg-slate-950/40 border-slate-800 text-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={`w-6 h-6 rounded-lg font-bold font-mono flex items-center justify-center text-xs ${
+                              item.rank === 1
+                                ? 'bg-amber-400 text-slate-950'
+                                : item.rank === 2
+                                ? 'bg-slate-300 text-slate-950'
+                                : item.rank === 3
+                                ? 'bg-amber-700 text-white'
+                                : 'bg-slate-800 text-slate-400'
+                            }`}
+                          >
+                            {item.rank}
+                          </span>
+                          <span>{item.familyClan}</span>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                          <span className="text-slate-400">{item.wins} Wins</span>
+                          <span className="font-mono font-bold text-amber-400">{item.points} Pts</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>

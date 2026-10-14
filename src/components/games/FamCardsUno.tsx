@@ -12,8 +12,14 @@ export interface Card {
   value: CardValue;
 }
 
+import { RoomParticipant } from '../../types';
+import { AvatarDisplay } from '../avatar/AvatarDisplay';
+
 interface FamCardsUnoProps {
   onGameEnd?: (winner: string) => void;
+  tableParticipants?: RoomParticipant[];
+  currentUserId?: string;
+  onActiveTurnChange?: (turnPlayerId: string) => void;
 }
 
 const COLORS: ('red' | 'blue' | 'green' | 'yellow')[] = ['red', 'blue', 'green', 'yellow'];
@@ -44,7 +50,18 @@ function createUnoDeck(): Card[] {
   return deck.sort(() => Math.random() - 0.5);
 }
 
-export const FamCardsUno: React.FC<FamCardsUnoProps> = ({ onGameEnd }) => {
+export const FamCardsUno: React.FC<FamCardsUnoProps> = ({ 
+  onGameEnd,
+  tableParticipants,
+  currentUserId,
+  onActiveTurnChange
+}) => {
+  const p1 = tableParticipants?.[0];
+  const p2 = tableParticipants?.[1];
+  const p1Name = p1?.name || 'Du (Ich)';
+  const p2Name = p2?.name || (p2?.isBot ? 'Familien-KI' : 'Spieler 2');
+  const isP2Bot = p2 ? !!p2.isBot : true;
+
   const [deck, setDeck] = useState<Card[]>([]);
   const [discardPile, setDiscardPile] = useState<Card[]>([]);
   const [playerHand, setPlayerHand] = useState<Card[]>([]);
@@ -54,8 +71,15 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({ onGameEnd }) => {
   const [showColorPicker, setShowColorPicker] = useState<boolean>(false);
   const [pendingWildCard, setPendingWildCard] = useState<Card | null>(null);
   const [calledUno, setCalledUno] = useState<boolean>(false);
-  const [gameMessage, setGameMessage] = useState<string>('Match color or number!');
+  const [gameMessage, setGameMessage] = useState<string>('Bediene Farbe oder Zahl!');
   const [winner, setWinner] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (onActiveTurnChange) {
+      const activeId = currentTurn === 'player' ? (p1?.id || 'p1') : (p2?.id || 'p2');
+      onActiveTurnChange(activeId);
+    }
+  }, [currentTurn, p1?.id, p2?.id, onActiveTurnChange]);
 
   // Initialize round
   const startNewGame = () => {
@@ -139,12 +163,13 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({ onGameEnd }) => {
     // Check Victory
     const handCount = player === 'player' ? playerHand.length - 1 : botHand.length - 1;
     if (handCount === 0) {
-      setWinner(player === 'player' ? 'You' : 'Family AI Bot');
+      const winnerName = player === 'player' ? p1Name : p2Name;
+      setWinner(winnerName);
       sound.playVictory();
       try {
         confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
       } catch (e) {}
-      if (onGameEnd) onGameEnd(player === 'player' ? 'You' : 'Bot');
+      if (onGameEnd) onGameEnd(winnerName);
       return;
     }
 
@@ -249,14 +274,29 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({ onGameEnd }) => {
   return (
     <div className="flex flex-col items-center max-w-xl mx-auto w-full select-none text-slate-100">
       
-      {/* Bot Hand Area */}
-      <div className="w-full flex items-center justify-between bg-slate-900/80 border border-slate-800 p-2.5 rounded-2xl mb-4 text-xs">
-        <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
-          <span className="font-bold text-slate-300">Family AI Bot:</span>
-          <span className="bg-slate-800 px-2 py-0.5 rounded-full font-mono text-amber-300">
-            {botHand.length} Cards
-          </span>
+      {/* Opponent Hand Area */}
+      <div className={`w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3 rounded-2xl mb-4 text-xs transition ${currentTurn === 'bot' ? 'ring-2 ring-amber-400/80 bg-amber-950/20' : ''}`}>
+        <div className="flex items-center gap-2.5">
+          {p2?.avatar ? (
+            <AvatarDisplay avatar={p2.avatar} size="sm" />
+          ) : (
+            <div className="w-8 h-8 rounded-xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center font-bold text-indigo-300">
+              ★
+            </div>
+          )}
+          <div>
+            <div className="font-bold text-slate-200 flex items-center gap-1.5">
+              <span>{p2Name}</span>
+              {currentTurn === 'bot' && (
+                <span className="text-[10px] bg-amber-400 text-slate-950 px-1.5 py-0.2 rounded-full font-black animate-pulse">
+                  Am Zug
+                </span>
+              )}
+            </div>
+            <div className="text-[11px] text-slate-400 font-mono">
+              <span className="text-amber-400 font-bold">{botHand.length}</span> Karten auf der Hand
+            </div>
+          </div>
         </div>
 
         {/* Bot Card backs */}

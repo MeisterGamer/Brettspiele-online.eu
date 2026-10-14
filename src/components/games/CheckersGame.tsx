@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { sound } from '../../services/sound';
 import confetti from 'canvas-confetti';
 import { RefreshCw, Trophy, Bot, Users, Crown, Sparkles } from 'lucide-react';
@@ -11,11 +11,28 @@ type PieceType = {
 
 type BoardState = (PieceType | null)[][];
 
+import { RoomParticipant } from '../../types';
+import { AvatarDisplay } from '../avatar/AvatarDisplay';
+
 interface CheckersGameProps {
   onGameEnd?: (winner: string) => void;
+  tableParticipants?: RoomParticipant[];
+  currentUserId?: string;
+  onActiveTurnChange?: (turnPlayerId: string) => void;
 }
 
-export const CheckersGame: React.FC<CheckersGameProps> = ({ onGameEnd }) => {
+export const CheckersGame: React.FC<CheckersGameProps> = ({ 
+  onGameEnd,
+  tableParticipants,
+  currentUserId,
+  onActiveTurnChange
+}) => {
+  const p1 = tableParticipants?.[0];
+  const p2 = tableParticipants?.[1];
+  const p1Name = p1?.name || 'Rot (Du)';
+  const p2Name = p2?.name || (p2?.isBot ? 'KI-Bot' : 'Schwarz (Spieler 2)');
+  const isP2Bot = p2 ? !!p2.isBot : true;
+
   // Initialize standard 8x8 checkers board
   const initBoard = (): BoardState => {
     const b: BoardState = Array(8).fill(null).map(() => Array(8).fill(null));
@@ -43,7 +60,14 @@ export const CheckersGame: React.FC<CheckersGameProps> = ({ onGameEnd }) => {
   const [validMoves, setValidMoves] = useState<[number, number][]>([]);
   const [turn, setTurn] = useState<'red' | 'black'>('red');
   const [winner, setWinner] = useState<string | null>(null);
-  const [mode, setMode] = useState<'bot' | 'local2p'>('bot');
+  const [mode, setMode] = useState<'bot' | 'local2p'>(() => isP2Bot ? 'bot' : 'local2p');
+
+  useEffect(() => {
+    if (onActiveTurnChange) {
+      const activeId = turn === 'red' ? (p1?.id || 'p1') : (p2?.id || 'p2');
+      onActiveTurnChange(activeId);
+    }
+  }, [turn, p1?.id, p2?.id, onActiveTurnChange]);
 
   const getMovesForPiece = (r: number, c: number, currentBoard: BoardState): [number, number][] => {
     const piece = currentBoard[r][c];
@@ -216,16 +240,26 @@ export const CheckersGame: React.FC<CheckersGameProps> = ({ onGameEnd }) => {
   return (
     <div className="flex flex-col items-center max-w-lg mx-auto w-full select-none text-slate-100">
       
-      {/* Header bar */}
-      <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3.5 rounded-2xl mb-3 text-xs shadow-xl">
-        <div className="flex items-center gap-2">
-          <div
-            className="w-4 h-4 rounded-full border border-red-300 shadow"
-            style={{
-              background: 'radial-gradient(circle at 35% 35%, #ff4b72, #b91c1c)',
-            }}
-          />
-          <span className="font-bold text-slate-200">Red (You): <strong className="text-rose-400 font-mono">{redPieces}</strong></span>
+      {/* Header bar with realistic player badges, avatars and piece count */}
+      <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3 sm:p-3.5 rounded-2xl mb-3 text-xs shadow-xl">
+        <div className={`flex items-center gap-2 p-1 rounded-xl transition ${turn === 'red' && !winner ? 'bg-rose-950/40 ring-1 ring-rose-500/50' : ''}`}>
+          {p1?.avatar ? (
+            <AvatarDisplay avatar={p1.avatar} size="sm" />
+          ) : (
+            <div
+              className="w-5 h-5 rounded-full border border-red-300 shadow"
+              style={{
+                background: 'radial-gradient(circle at 35% 35%, #ff4b72, #b91c1c)',
+              }}
+            />
+          )}
+          <div>
+            <div className="font-bold text-slate-200 flex items-center gap-1">
+              <span>{p1Name}</span>
+              <span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />
+            </div>
+            <div className="text-[11px] text-rose-400 font-mono">Steine: {redPieces}</div>
+          </div>
         </div>
 
         <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
@@ -238,7 +272,7 @@ export const CheckersGame: React.FC<CheckersGameProps> = ({ onGameEnd }) => {
               mode === 'bot' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400'
             }`}
           >
-            <Bot className="w-3.5 h-3.5" /> AI
+            <Bot className="w-3.5 h-3.5" /> KI
           </button>
           <button
             onClick={() => {
@@ -249,18 +283,28 @@ export const CheckersGame: React.FC<CheckersGameProps> = ({ onGameEnd }) => {
               mode === 'local2p' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400'
             }`}
           >
-            <Users className="w-3.5 h-3.5" /> 2P Pass
+            <Users className="w-3.5 h-3.5" /> 2P Duell
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="font-bold text-slate-200">Black ({mode === 'bot' ? 'AI' : 'P2'}): <strong className="text-slate-300 font-mono">{blackPieces}</strong></span>
-          <div
-            className="w-4 h-4 rounded-full border border-slate-500 shadow"
-            style={{
-              background: 'radial-gradient(circle at 35% 35%, #475569, #0f172a)',
-            }}
-          />
+        <div className={`flex items-center gap-2 p-1 rounded-xl transition ${turn === 'black' && !winner ? 'bg-slate-800/80 ring-1 ring-slate-400/50' : ''}`}>
+          <div className="text-right">
+            <div className="font-bold text-slate-200 flex items-center gap-1 justify-end">
+              <span className="w-2 h-2 rounded-full bg-slate-400 inline-block" />
+              <span>{p2Name}</span>
+            </div>
+            <div className="text-[11px] text-slate-400 font-mono">Steine: {blackPieces}</div>
+          </div>
+          {p2?.avatar ? (
+            <AvatarDisplay avatar={p2.avatar} size="sm" />
+          ) : (
+            <div
+              className="w-5 h-5 rounded-full border border-slate-500 shadow"
+              style={{
+                background: 'radial-gradient(circle at 35% 35%, #475569, #0f172a)',
+              }}
+            />
+          )}
         </div>
       </div>
 
@@ -268,11 +312,11 @@ export const CheckersGame: React.FC<CheckersGameProps> = ({ onGameEnd }) => {
       <div className="mb-2 text-center text-xs font-semibold">
         {winner ? (
           <div className="text-amber-300 font-bold flex items-center gap-2 animate-bounce bg-amber-500/10 px-4 py-1 rounded-full border border-amber-400/30">
-            <Trophy className="w-4 h-4 text-amber-400" /> {winner} Wins the Checkers Match!
+            <Trophy className="w-4 h-4 text-amber-400" /> {winner === 'Red' ? p1Name : p2Name} gewinnt die Partie! 🏆
           </div>
         ) : (
           <span className="text-slate-300">
-            Current Turn: <strong className={turn === 'red' ? 'text-rose-400' : 'text-slate-200'}>{turn === 'red' ? 'Red Player' : 'Black Player'}</strong>
+            Am Zug: <strong className={turn === 'red' ? 'text-rose-400' : 'text-slate-200'}>{turn === 'red' ? `${p1Name} (Rot)` : `${p2Name} (Schwarz)`}</strong>
           </span>
         )}
       </div>

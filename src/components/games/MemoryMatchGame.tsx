@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { sound } from '../../services/sound';
 import confetti from 'canvas-confetti';
-import { RefreshCw, Trophy, Brain, Sparkles } from 'lucide-react';
+import { RefreshCw, Trophy, Brain, Sparkles, Users, Bot } from 'lucide-react';
+import { RoomParticipant } from '../../types';
+import { AvatarDisplay } from '../avatar/AvatarDisplay';
 
 interface AnimalCard {
   id: number;
@@ -24,16 +26,39 @@ const ANIMALS = [
 ];
 
 interface MemoryMatchGameProps {
-  onGameEnd?: (moves: number) => void;
+  onGameEnd?: (movesOrWinner: any) => void;
+  tableParticipants?: RoomParticipant[];
+  currentUserId?: string;
+  onActiveTurnChange?: (turnPlayerId: string) => void;
 }
 
-export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({ onGameEnd }) => {
+export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({ 
+  onGameEnd,
+  tableParticipants,
+  currentUserId,
+  onActiveTurnChange
+}) => {
+  const p1 = tableParticipants?.[0];
+  const p2 = tableParticipants?.[1];
+  const p1Name = p1?.name || 'Spieler 1';
+  const p2Name = p2?.name || (p2?.isBot ? 'Gedächtnis-KI' : 'Spieler 2');
+
   const [cards, setCards] = useState<AnimalCard[]>([]);
   const [flippedIndices, setFlippedIndices] = useState<number[]>([]);
   const [moves, setMoves] = useState<number>(0);
   const [matchedPairs, setMatchedPairs] = useState<number>(0);
   const [isLocked, setIsLocked] = useState<boolean>(false);
   const [gameOver, setGameOver] = useState<boolean>(false);
+  const [mode, setMode] = useState<'solo' | 'duel'>('duel');
+  const [currentTurn, setCurrentTurn] = useState<1 | 2>(1);
+  const [scores, setScores] = useState({ p1: 0, p2: 0 });
+
+  useEffect(() => {
+    if (onActiveTurnChange && mode === 'duel') {
+      const activeId = currentTurn === 1 ? (p1?.id || 'p1') : (p2?.id || 'p2');
+      onActiveTurnChange(activeId);
+    }
+  }, [currentTurn, p1?.id, p2?.id, mode, onActiveTurnChange]);
 
   const initGame = () => {
     sound.playCardDeal();
@@ -53,6 +78,8 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({ onGameEnd }) =
     setMatchedPairs(0);
     setIsLocked(false);
     setGameOver(false);
+    setCurrentTurn(1);
+    setScores({ p1: 0, p2: 0 });
   };
 
   useEffect(() => {
@@ -76,7 +103,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({ onGameEnd }) =
 
       const [firstIdx, secondIdx] = newFlipped;
       if (cards[firstIdx].animalId === cards[secondIdx].animalId) {
-        // Real match!
+        // Real match! Current player scores and keeps turn
         sound.playReward();
         setTimeout(() => {
           setCards((prev) => {
@@ -89,6 +116,10 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({ onGameEnd }) =
           setIsLocked(false);
           const pairs = matchedPairs + 1;
           setMatchedPairs(pairs);
+          setScores((s) => ({
+            ...s,
+            [currentTurn === 1 ? 'p1' : 'p2']: s[currentTurn === 1 ? 'p1' : 'p2'] + 1,
+          }));
 
           if (pairs === ANIMALS.length) {
             setGameOver(true);
@@ -96,11 +127,14 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({ onGameEnd }) =
             try {
               confetti({ particleCount: 90, spread: 75 });
             } catch (e) {}
-            if (onGameEnd) onGameEnd(moves + 1);
+            if (onGameEnd) {
+              const winnerName = scores.p1 >= scores.p2 ? p1Name : p2Name;
+              onGameEnd(winnerName);
+            }
           }
         }, 350);
       } else {
-        // Not a match, flip back
+        // Not a match, flip back and pass turn
         setTimeout(() => {
           setCards((prev) => {
             const updated = [...prev];
@@ -110,6 +144,9 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({ onGameEnd }) =
           });
           setFlippedIndices([]);
           setIsLocked(false);
+          if (mode === 'duel') {
+            setCurrentTurn((t) => (t === 1 ? 2 : 1));
+          }
         }, 900);
       }
     }
@@ -118,26 +155,78 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({ onGameEnd }) =
   return (
     <div className="flex flex-col items-center max-w-lg mx-auto w-full select-none text-slate-100">
       
-      {/* Score Header */}
-      <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3 rounded-2xl mb-4 text-xs shadow-md">
-        <div className="flex items-center gap-2">
-          <Brain className="w-4 h-4 text-purple-400" />
-          <span className="font-bold text-slate-300">Moves:</span>
-          <span className="font-mono text-amber-400 font-bold text-sm">{moves}</span>
+      {/* Header bar with Player 1, Mode switcher, and Player 2 */}
+      <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3 sm:p-3.5 rounded-2xl mb-4 text-xs shadow-xl">
+        <div className={`flex items-center gap-2 p-1 rounded-xl transition ${currentTurn === 1 && mode === 'duel' && !gameOver ? 'bg-indigo-950/40 ring-1 ring-indigo-500/60' : ''}`}>
+          {p1?.avatar ? (
+            <AvatarDisplay avatar={p1.avatar} size="sm" />
+          ) : (
+            <div className="w-6 h-6 rounded-full bg-indigo-500/30 border border-indigo-400 flex items-center justify-center font-bold text-xs text-indigo-300">
+              1
+            </div>
+          )}
+          <div>
+            <div className="font-bold text-slate-200">{p1Name}</div>
+            <div className="text-[11px] text-amber-400 font-mono">
+              {mode === 'duel' ? `${scores.p1} Paare` : `${moves} Züge`}
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-slate-400">Animals Found:</span>
-          <span className="font-mono text-emerald-400 font-bold text-sm">
-            {matchedPairs} / {ANIMALS.length}
-          </span>
+        {/* Mode Toggle */}
+        <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+          <button
+            onClick={() => { setMode('duel'); initGame(); }}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+              mode === 'duel' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" /> 2P Duell
+          </button>
+          <button
+            onClick={() => { setMode('solo'); initGame(); }}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+              mode === 'solo' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400'
+            }`}
+          >
+            <Brain className="w-3.5 h-3.5" /> Solo
+          </button>
         </div>
+
+        {mode === 'duel' ? (
+          <div className={`flex items-center gap-2 p-1 rounded-xl transition ${currentTurn === 2 && !gameOver ? 'bg-rose-950/40 ring-1 ring-rose-500/60' : ''}`}>
+            <div className="text-right">
+              <div className="font-bold text-slate-200">{p2Name}</div>
+              <div className="text-[11px] text-rose-400 font-mono">{scores.p2} Paare</div>
+            </div>
+            {p2?.avatar ? (
+              <AvatarDisplay avatar={p2.avatar} size="sm" />
+            ) : (
+              <div className="w-6 h-6 rounded-full bg-rose-500/30 border border-rose-400 flex items-center justify-center font-bold text-xs text-rose-300">
+                2
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 text-xs text-slate-300">
+            <span>Paare:</span>
+            <span className="font-mono text-emerald-400 font-bold">{matchedPairs}/{ANIMALS.length}</span>
+          </div>
+        )}
       </div>
 
       {gameOver && (
         <div className="mb-3 text-sm font-bold text-amber-300 flex items-center gap-2 animate-bounce bg-amber-500/10 border border-amber-500/30 px-4 py-2 rounded-2xl">
           <Trophy className="w-5 h-5 text-amber-400" />
-          <span>Brilliant Memory! All {ANIMALS.length} animal pairs matched in {moves} moves!</span>
+          <span>
+            {mode === 'duel'
+              ? scores.p1 > scores.p2
+                ? `🏆 ${p1Name} gewinnt mit ${scores.p1} Paaren!`
+                : scores.p2 > scores.p1
+                ? `🏆 ${p2Name} gewinnt mit ${scores.p2} Paaren!`
+                : `Unentschieden! Beide haben ${scores.p1} Paare!`
+              : `Großartig! Alle ${ANIMALS.length} Paare in ${moves} Zügen gefunden!`}
+          </span>
         </div>
       )}
 

@@ -1,11 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { sound } from '../../services/sound';
 import confetti from 'canvas-confetti';
-import { RefreshCw, Trophy, Play, CheckCircle2, Dices, Sparkles } from 'lucide-react';
+import { RefreshCw, Trophy, Play, CheckCircle2, Dices, Sparkles, Bot, Users } from 'lucide-react';
 import { TABLE_BACKGROUNDS } from '../../services/gameImages';
+import { RoomParticipant } from '../../types';
+import { AvatarDisplay } from '../avatar/AvatarDisplay';
 
 interface YatzyGameProps {
   onGameEnd?: (score: number) => void;
+  tableParticipants?: RoomParticipant[];
+  currentUserId?: string;
+  onActiveTurnChange?: (turnPlayerId: string) => void;
 }
 
 type CategoryKey =
@@ -23,13 +28,31 @@ type CategoryKey =
   | 'yatzy'
   | 'chance';
 
-export const YatzyGame: React.FC<YatzyGameProps> = ({ onGameEnd }) => {
+export const YatzyGame: React.FC<YatzyGameProps> = ({ 
+  onGameEnd,
+  tableParticipants,
+  currentUserId,
+  onActiveTurnChange
+}) => {
+  const p1 = tableParticipants?.[0];
+  const p2 = tableParticipants?.[1];
+  const p1Name = p1?.name || 'Spieler 1';
+  const p2Name = p2?.name || (p2?.isBot ? 'Kniffel-KI' : 'Spieler 2');
+
+  const [activePlayerIndex, setActivePlayerIndex] = useState<number>(0);
   const [dice, setDice] = useState<number[]>([1, 2, 3, 4, 5]);
   const [held, setHeld] = useState<boolean[]>([false, false, false, false, false]);
   const [rollsLeft, setRollsLeft] = useState<number>(3);
   const [scores, setScores] = useState<Partial<Record<CategoryKey, number>>>({});
   const [isRolling, setIsRolling] = useState<boolean>(false);
   const [gameOver, setGameOver] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (onActiveTurnChange) {
+      const activeP = tableParticipants?.[activePlayerIndex];
+      onActiveTurnChange(activeP?.id || (activePlayerIndex === 0 ? 'p1' : 'p2'));
+    }
+  }, [activePlayerIndex, tableParticipants, onActiveTurnChange]);
 
   const rollDice = () => {
     if (rollsLeft === 0 || isRolling || gameOver) return;
@@ -226,17 +249,70 @@ export const YatzyGame: React.FC<YatzyGameProps> = ({ onGameEnd }) => {
   return (
     <div className="flex flex-col items-center max-w-xl mx-auto w-full select-none text-slate-100">
       
-      {/* Top Banner */}
-      <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3.5 rounded-2xl mb-3 text-xs shadow-xl">
-        <div className="flex items-center gap-2">
-          <span className="font-bold text-slate-300">Total Score:</span>
-          <span className="font-mono text-base font-black text-amber-400">{totalScore} Pts</span>
-          {upperSum >= 63 && (
-            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold border border-emerald-500/30">
-              +35 Upper Bonus!
-            </span>
+      {/* Top Banner with Player Avatars and Score */}
+      <div className="w-full bg-slate-900/90 border border-slate-800 p-3 sm:p-4 rounded-2xl mb-3 text-xs shadow-xl space-y-2.5">
+        {/* Players Turn Bar */}
+        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+          <div className="flex items-center gap-2">
+            {p1?.avatar ? (
+              <div className="p-0.5 rounded-xl ring-2 ring-amber-400 shadow">
+                <AvatarDisplay avatar={p1.avatar} size="sm" />
+              </div>
+            ) : (
+              <div className="w-7 h-7 rounded-xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-xs font-bold text-amber-300">
+                #1
+              </div>
+            )}
+            <div>
+              <div className="font-bold text-white text-xs flex items-center gap-1.5">
+                <span>{p1Name}</span>
+                {activePlayerIndex === 0 && (
+                  <span className="text-[10px] bg-amber-400 text-slate-950 px-1.5 py-0.5 rounded-full font-black animate-pulse">
+                    AM WÜRFELN
+                  </span>
+                )}
+              </div>
+              <div className="text-[10px] text-slate-400">Kniffel-Würfelbecher</div>
+            </div>
+          </div>
+
+          {p2 && (
+            <div className="flex items-center gap-2 text-right">
+              <div>
+                <div className="font-bold text-white text-xs flex items-center gap-1.5 justify-end">
+                  {activePlayerIndex === 1 && (
+                    <span className="text-[10px] bg-amber-400 text-slate-950 px-1.5 py-0.5 rounded-full font-black animate-pulse">
+                      AM WÜRFELN
+                    </span>
+                  )}
+                  <span>{p2Name}</span>
+                </div>
+                <div className="text-[10px] text-slate-400">{p2.isBot ? 'KI-Herausforderer' : 'Mitspieler'}</div>
+              </div>
+              {p2.avatar ? (
+                <div className="p-0.5 rounded-xl ring-2 ring-indigo-400 shadow">
+                  <AvatarDisplay avatar={p2.avatar} size="sm" />
+                </div>
+              ) : (
+                <div className="w-7 h-7 rounded-xl bg-indigo-500/20 border border-indigo-500/50 flex items-center justify-center text-xs font-bold text-indigo-300">
+                  #2
+                </div>
+              )}
+            </div>
           )}
         </div>
+
+        {/* Score & Rolls Counter */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-slate-300">Gesamtpunkte:</span>
+            <span className="font-mono text-base font-black text-amber-400">{totalScore} Pkt</span>
+            {upperSum >= 63 && (
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold border border-emerald-500/30">
+                +35 Bonus!
+              </span>
+            )}
+          </div>
 
         <div className="flex items-center gap-2">
           <span className="text-slate-400">Rolls Left:</span>
@@ -252,6 +328,7 @@ export const YatzyGame: React.FC<YatzyGameProps> = ({ onGameEnd }) => {
           </div>
         </div>
       </div>
+    </div>
 
       {/* 5 REAL 3D IVORY CASINO DICE IN GREEN VELVET ROLLING TRAY */}
       <div className="relative w-full rounded-3xl p-6 mb-4 flex flex-col items-center overflow-hidden border-4 border-emerald-950 bg-slate-950 shadow-2xl">

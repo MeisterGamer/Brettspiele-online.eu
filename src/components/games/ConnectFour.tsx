@@ -4,27 +4,57 @@ import confetti from 'canvas-confetti';
 import { RefreshCw, Trophy, Users, Bot, ArrowDown, Sparkles } from 'lucide-react';
 import { TABLE_BACKGROUNDS } from '../../services/gameImages';
 
+import { RoomParticipant } from '../../types';
+import { AvatarDisplay } from '../avatar/AvatarDisplay';
+
 interface ConnectFourProps {
   onGameEnd?: (winner: 'player' | 'opponent' | 'draw') => void;
-  isOnlineRoom?: boolean;
+  tableParticipants?: RoomParticipant[];
+  currentUserId?: string;
+  onActiveTurnChange?: (turnPlayerId: string) => void;
 }
 
 const ROWS = 6;
 const COLS = 7;
 
-type CellValue = 1 | 2 | null; // 1 = Red (You), 2 = Yellow (Opponent/Bot)
+type CellValue = 1 | 2 | null; // 1 = Red, 2 = Yellow
 
-export const ConnectFour: React.FC<ConnectFourProps> = ({ onGameEnd }) => {
+export const ConnectFour: React.FC<ConnectFourProps> = ({ 
+  onGameEnd, 
+  tableParticipants, 
+  currentUserId,
+  onActiveTurnChange 
+}) => {
+  const p1 = tableParticipants?.[0];
+  const p2 = tableParticipants?.[1];
+
+  const p1Name = p1?.name || 'Spieler 1 (Rot)';
+  const p2Name = p2?.name || (p2?.isBot ? 'KI-Gegner' : 'Spieler 2 (Gelb)');
+  const isP2Bot = p2 ? !!p2.isBot : true;
+
   const [board, setBoard] = useState<CellValue[][]>(() =>
     Array(ROWS).fill(null).map(() => Array(COLS).fill(null))
   );
   const [currentPlayer, setCurrentPlayer] = useState<1 | 2>(1);
   const [winner, setWinner] = useState<1 | 2 | 'draw' | null>(null);
   const [winningCells, setWinningCells] = useState<[number, number][]>([]);
-  const [playMode, setPlayMode] = useState<'bot' | 'local2p'>('bot');
+  const [playMode, setPlayMode] = useState<'bot' | 'local2p'>(() => isP2Bot ? 'bot' : 'local2p');
   const [scores, setScores] = useState({ p1: 0, p2: 0 });
   const [hoverCol, setHoverCol] = useState<number | null>(null);
   const [isBotThinking, setIsBotThinking] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (p2) {
+      setPlayMode(p2.isBot ? 'bot' : 'local2p');
+    }
+  }, [p2?.id, p2?.isBot]);
+
+  useEffect(() => {
+    if (onActiveTurnChange) {
+      const activeId = currentPlayer === 1 ? (p1?.id || 'p1') : (p2?.id || 'p2');
+      onActiveTurnChange(activeId);
+    }
+  }, [currentPlayer, p1?.id, p2?.id, onActiveTurnChange]);
 
   // Check victory condition
   const checkWin = (grid: CellValue[][]): { winner: 1 | 2 | null; cells: [number, number][] } => {
@@ -224,18 +254,27 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({ onGameEnd }) => {
   return (
     <div className="flex flex-col items-center max-w-xl mx-auto w-full select-none text-slate-100">
       
-      {/* Header bar with realistic player badges and score */}
-      <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3.5 rounded-2xl mb-4 text-xs font-semibold shadow-xl">
-        <div className="flex items-center gap-2.5">
-          {/* Realistic 3D Red Disc Badge */}
-          <div
-            className="w-5 h-5 rounded-full border border-red-300 shadow-md"
-            style={{
-              background: 'radial-gradient(circle at 35% 35%, #ff4b72, #e11d48 70%, #9f1239)',
-              boxShadow: '0 2px 5px rgba(225, 29, 72, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.6)'
-            }}
-          />
-          <span className="text-slate-200">You (Red): <strong className="text-rose-400 font-mono text-sm">{scores.p1}</strong></span>
+      {/* Header bar with realistic player badges, avatars and scores */}
+      <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3 sm:p-4 rounded-2xl mb-4 text-xs font-semibold shadow-xl">
+        <div className={`flex items-center gap-2.5 p-1.5 rounded-xl transition ${currentPlayer === 1 && !winner ? 'bg-rose-950/40 border border-rose-500/40 ring-1 ring-rose-500/50' : ''}`}>
+          {p1?.avatar ? (
+            <AvatarDisplay avatar={p1.avatar} size="sm" />
+          ) : (
+            <div
+              className="w-6 h-6 rounded-full border border-red-300 shadow-md"
+              style={{
+                background: 'radial-gradient(circle at 35% 35%, #ff4b72, #e11d48 70%, #9f1239)',
+                boxShadow: '0 2px 5px rgba(225, 29, 72, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.6)'
+              }}
+            />
+          )}
+          <div>
+            <div className="text-slate-200 font-bold flex items-center gap-1">
+              <span>{p1Name}</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />
+            </div>
+            <div className="text-[11px] text-rose-400 font-mono">Punkte: {scores.p1}</div>
+          </div>
         </div>
 
         {/* Mode Toggle */}
@@ -250,7 +289,7 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({ onGameEnd }) => {
               playMode === 'bot' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Bot className="w-3.5 h-3.5" /> Family AI
+            <Bot className="w-3.5 h-3.5" /> KI-Duell
           </button>
           <button
             onClick={() => {
@@ -262,20 +301,29 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({ onGameEnd }) => {
               playMode === 'local2p' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Users className="w-3.5 h-3.5" /> Pass & Play
+            <Users className="w-3.5 h-3.5" /> 2P Familientisch
           </button>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          <span className="text-slate-200">{playMode === 'bot' ? 'AI Bot' : 'Player 2'} (Yellow): <strong className="text-amber-400 font-mono text-sm">{scores.p2}</strong></span>
-          {/* Realistic 3D Yellow Disc Badge */}
-          <div
-            className="w-5 h-5 rounded-full border border-amber-200 shadow-md"
-            style={{
-              background: 'radial-gradient(circle at 35% 35%, #fef08a, #f59e0b 70%, #b45309)',
-              boxShadow: '0 2px 5px rgba(245, 158, 11, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.8)'
-            }}
-          />
+        <div className={`flex items-center gap-2.5 p-1.5 rounded-xl transition ${currentPlayer === 2 && !winner ? 'bg-amber-950/40 border border-amber-500/40 ring-1 ring-amber-500/50' : ''}`}>
+          <div className="text-right">
+            <div className="text-slate-200 font-bold flex items-center gap-1 justify-end">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />
+              <span>{p2Name}</span>
+            </div>
+            <div className="text-[11px] text-amber-400 font-mono">Punkte: {scores.p2}</div>
+          </div>
+          {p2?.avatar ? (
+            <AvatarDisplay avatar={p2.avatar} size="sm" />
+          ) : (
+            <div
+              className="w-6 h-6 rounded-full border border-amber-200 shadow-md"
+              style={{
+                background: 'radial-gradient(circle at 35% 35%, #fef08a, #f59e0b 70%, #b45309)',
+                boxShadow: '0 2px 5px rgba(245, 158, 11, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.8)'
+              }}
+            />
+          )}
         </div>
       </div>
 
@@ -286,12 +334,10 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({ onGameEnd }) => {
             <Trophy className="w-5 h-5 text-amber-400" />
             <span>
               {winner === 'draw'
-                ? 'Game Drawn! Well played!'
+                ? 'Unentschieden! Tolle Partie!'
                 : winner === 1
-                ? 'Red Player Triumphs! 🎉'
-                : playMode === 'bot'
-                ? 'AI Bot won this round!'
-                : 'Yellow Player Triumphs! 🎉'}
+                ? `🏆 ${p1Name} (Rot) hat gewonnen!`
+                : `🏆 ${p2Name} (Gelb) hat gewonnen!`}
             </span>
           </div>
         ) : (
@@ -303,12 +349,12 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({ onGameEnd }) => {
             />
             <span>
               {isBotThinking
-                ? 'Family AI is calculating best drop...'
+                ? `${p2Name} überlegt den nächsten Zug...`
                 : currentPlayer === 1
-                ? 'Your Turn (Click column to drop Red Disc)'
+                ? `${p1Name} ist am Zug (Klicke auf Spalte für roten Chip)`
                 : playMode === 'bot'
-                ? 'Bot’s Turn'
-                : 'Player 2’s Turn (Click column to drop Yellow)'}
+                ? `${p2Name} ist am Zug`
+                : `${p2Name} ist am Zug (Klicke auf Spalte für gelben Chip)`}
             </span>
           </div>
         )}

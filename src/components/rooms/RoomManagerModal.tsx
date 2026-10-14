@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { GameRoom, UserProfile, GameInfo } from '../../types';
 import { sound } from '../../services/sound';
 import { AvatarDisplay } from '../avatar/AvatarDisplay';
+import { multiplayerService } from '../../services/multiplayerService';
 import { 
   Users, 
   Plus, 
@@ -13,7 +14,8 @@ import {
   Play, 
   Check, 
   ArrowRight,
-  ShieldCheck
+  ShieldCheck,
+  Bot
 } from 'lucide-react';
 
 interface RoomManagerModalProps {
@@ -53,33 +55,15 @@ export const RoomManagerModal: React.FC<RoomManagerModalProps> = ({
     e.preventDefault();
     sound.playReward();
     const game = availableGames.find((g) => g.id === selectedGameId) || availableGames[0];
-    const generatedCode = `FAM-${Math.floor(100 + Math.random() * 900)}`;
 
-    const newRoom: GameRoom = {
-      id: `room_${Date.now()}`,
-      code: generatedCode,
+    const newRoom = multiplayerService.createRoom(currentUser, {
       name: roomName,
       gameId: game.id,
       gameTitle: game.title,
-      isPrivate,
-      hostName: currentUser.name,
       maxPlayers,
-      currentPlayers: 1,
-      status: 'lobby',
+      isPrivate,
       voiceChatActive: enableVoice,
-      createdAt: 'Just now',
-      participants: [
-        {
-          id: currentUser.id,
-          name: currentUser.name,
-          avatar: currentUser.avatar,
-          isHost: true,
-          isReady: true,
-          score: 0,
-          ping: 18,
-        },
-      ],
-    };
+    });
 
     onCreateRoom(newRoom);
     onClose();
@@ -91,11 +75,12 @@ export const RoomManagerModal: React.FC<RoomManagerModalProps> = ({
     const found = publicRooms.find((r) => r.code === formatted || r.code.replace('-', '') === formatted);
     if (found) {
       sound.playReward();
-      onJoinRoom(found);
+      const updated = multiplayerService.joinRoom(found.code, currentUser) || found;
+      onJoinRoom(updated);
       onClose();
     } else {
       sound.playError();
-      setJoinCodeError(`Room with code "${formatted}" was not found. Try FAM-101.`);
+      setJoinCodeError(`Tisch mit Code "${formatted}" nicht gefunden. Versuche FAM-101 oder FAM-777.`);
     }
   };
 
@@ -217,22 +202,41 @@ export const RoomManagerModal: React.FC<RoomManagerModalProps> = ({
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => {
-                        sound.playReward();
-                        onJoinRoom(room);
-                        onClose();
-                      }}
-                      className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition flex items-center justify-center gap-1.5 shrink-0"
-                    >
-                      <Play className="w-3.5 h-3.5 fill-current" /> Join Table
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {room.participants.length < room.maxPlayers && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            sound.playClick();
+                            const updated = multiplayerService.addBotToRoom(room.id);
+                            if (updated) {
+                              onJoinRoom(updated);
+                            }
+                          }}
+                          className="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 font-semibold text-xs border border-slate-700 transition flex items-center gap-1"
+                          title="Fügt dem Tisch einen KI-Mitspieler hinzu"
+                        >
+                          <Bot className="w-3.5 h-3.5" /> + Bot
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          sound.playReward();
+                          const updated = multiplayerService.joinRoom(room.code, currentUser) || room;
+                          onJoinRoom(updated);
+                          onClose();
+                        }}
+                        className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition flex items-center justify-center gap-1.5"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" /> Platz nehmen
+                      </button>
+                    </div>
                   </div>
                 ))}
 
                 {filteredRooms.length === 0 && (
                   <div className="text-center py-8 text-slate-400 text-xs">
-                    No active rooms matched your search. Click "Host New Room" to start one!
+                    Aktuell keine offenen Tische vorhanden. Klicke oben auf „Neuen Tisch eröffnen“, um als Erster einen Familientisch zu starten!
                   </div>
                 )}
               </div>
