@@ -45,6 +45,7 @@ app.get('/api/health', (_req, res) => {
 
 // Authentication and user management routes
 app.use('/api/auth', authRouter);
+app.use('/api/users', authRouter);
 // Web-Setup Wizard routes
 app.use('/api/setup', setupRouter);
 

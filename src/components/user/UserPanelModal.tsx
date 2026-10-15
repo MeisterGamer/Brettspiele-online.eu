@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { UserProfile, MatchHistoryItem } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { UserProfile, MatchHistoryItem, FamilyFriend } from '../../types';
 import { sound } from '../../services/sound';
 import { AvatarDisplay } from '../avatar/AvatarDisplay';
+import { friendsService, STARTER_FAMILY_MEMBERS } from '../../services/friendsService';
+import { FriendsListModal } from '../friends/FriendsListModal';
 import { 
   User, 
   Crown, 
@@ -27,7 +29,12 @@ import {
   Award,
   Smartphone,
   Download,
-  Trash2
+  Trash2,
+  UserPlus,
+  Copy,
+  Check,
+  Star,
+  Share2
 } from 'lucide-react';
 
 interface UserPanelModalProps {
@@ -39,6 +46,8 @@ interface UserPanelModalProps {
   onOpenLoginSwitcher: () => void;
   onLogout: () => void;
   onOpenAndroidModal?: () => void;
+  onOpenFriendsList?: () => void;
+  onInviteFriendToGame?: (friend: FamilyFriend) => void;
 }
 
 export const UserPanelModal: React.FC<UserPanelModalProps> = ({
@@ -50,14 +59,31 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
   onOpenLoginSwitcher,
   onLogout,
   onOpenAndroidModal,
+  onOpenFriendsList,
+  onInviteFriendToGame,
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'stats' | 'history' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'friends' | 'stats' | 'history' | 'settings'>('overview');
   
+  // Friends list state
+  const [friends, setFriends] = useState<FamilyFriend[]>([]);
+  const [isFriendsModalOpen, setIsFriendsModalOpen] = useState<boolean>(false);
+  const [quickAddId, setQuickAddId] = useState<string>('');
+  const [quickAddSuccess, setQuickAddSuccess] = useState<string | null>(null);
+  const [quickAddError, setQuickAddError] = useState<string | null>(null);
+  const [isAddingFriend, setIsAddingFriend] = useState<boolean>(false);
+  const [copiedId, setCopiedId] = useState<boolean>(false);
+
   // Settings edit state
   const [nameInput, setNameInput] = useState<string>(user.name);
   const [clanInput, setClanInput] = useState<string>(user.clanName);
   const [roleInput, setRoleInput] = useState<any>(user.familyRole);
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (isOpen && user) {
+      setFriends(friendsService.getFriends(user.id));
+    }
+  }, [isOpen, user]);
 
   if (!isOpen) return null;
 
@@ -79,6 +105,40 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
     });
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
+  };
+
+  const onlineFriendsCount = friends.filter((f) => f.status === 'online' || f.status === 'in-game').length;
+
+  const handleCopyOwnId = async () => {
+    sound.playChip();
+    try {
+      await navigator.clipboard.writeText(user.id);
+      setCopiedId(true);
+      setTimeout(() => setCopiedId(false), 2000);
+    } catch {
+      setCopiedId(true);
+      setTimeout(() => setCopiedId(false), 2000);
+    }
+  };
+
+  const handleQuickAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickAddId.trim()) return;
+    setIsAddingFriend(true);
+    setQuickAddError(null);
+    setQuickAddSuccess(null);
+
+    const res = await friendsService.addFriend(user.id, quickAddId.trim());
+    setIsAddingFriend(false);
+    if (res.success && res.friend) {
+      setFriends(friendsService.getFriends(user.id));
+      setQuickAddSuccess(`✓ "${res.friend.name}" hinzugefügt!`);
+      setQuickAddId('');
+      setTimeout(() => setQuickAddSuccess(null), 3000);
+    } else {
+      sound.playError();
+      setQuickAddError(res.error || 'Fehler beim Hinzufügen.');
+    }
   };
 
   return (
@@ -146,7 +206,21 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
             </div>
 
             {/* Header Action Buttons */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => {
+                  sound.playClick();
+                  setIsFriendsModalOpen(true);
+                }}
+                className="px-3 py-1.5 rounded-xl bg-amber-500/30 hover:bg-amber-500/40 border border-amber-300/40 backdrop-blur-md text-amber-200 font-bold text-xs transition flex items-center gap-1.5 shadow-sm"
+                title="Freundesliste & Online-Status öffnen"
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>Freunde ({onlineFriendsCount})</span>
+                {onlineFriendsCount > 0 && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse" />
+                )}
+              </button>
               <button
                 onClick={() => {
                   sound.playClick();
@@ -155,7 +229,7 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
                 className="px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-md text-white font-bold text-xs transition flex items-center gap-1.5"
                 title="Profil wechseln"
               >
-                <Users className="w-3.5 h-3.5" /> Profil wechseln
+                <User className="w-3.5 h-3.5" /> Wechseln
               </button>
               <button
                 onClick={() => {
@@ -172,20 +246,36 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex border-b border-slate-800 bg-slate-900/60 px-6 gap-2">
+        <div className="flex border-b border-slate-800 bg-slate-900/60 px-6 gap-2 overflow-x-auto">
           <button
             onClick={() => { sound.playClick(); setActiveTab('overview'); }}
-            className={`py-3 px-3 text-xs font-bold border-b-2 transition flex items-center gap-2 ${
+            className={`py-3 px-3 text-xs font-bold border-b-2 transition flex items-center gap-2 shrink-0 ${
               activeTab === 'overview'
                 ? 'border-amber-400 text-amber-300'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <User className="w-4 h-4" /> Übersicht & Level
+            <User className="w-4 h-4" /> Übersicht
+          </button>
+          <button
+            onClick={() => { sound.playClick(); setActiveTab('friends'); }}
+            className={`py-3 px-3 text-xs font-bold border-b-2 transition flex items-center gap-2 shrink-0 ${
+              activeTab === 'friends'
+                ? 'border-amber-400 text-amber-300'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Users className="w-4 h-4" /> Familie & Freunde ({friends.length})
+            {onlineFriendsCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-mono border border-emerald-500/40 font-bold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                {onlineFriendsCount}
+              </span>
+            )}
           </button>
           <button
             onClick={() => { sound.playClick(); setActiveTab('stats'); }}
-            className={`py-3 px-3 text-xs font-bold border-b-2 transition flex items-center gap-2 ${
+            className={`py-3 px-3 text-xs font-bold border-b-2 transition flex items-center gap-2 shrink-0 ${
               activeTab === 'stats'
                 ? 'border-amber-400 text-amber-300'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -195,7 +285,7 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
           </button>
           <button
             onClick={() => { sound.playClick(); setActiveTab('history'); }}
-            className={`py-3 px-3 text-xs font-bold border-b-2 transition flex items-center gap-2 ${
+            className={`py-3 px-3 text-xs font-bold border-b-2 transition flex items-center gap-2 shrink-0 ${
               activeTab === 'history'
                 ? 'border-amber-400 text-amber-300'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -205,13 +295,13 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
           </button>
           <button
             onClick={() => { sound.playClick(); setActiveTab('settings'); }}
-            className={`py-3 px-3 text-xs font-bold border-b-2 transition flex items-center gap-2 ${
+            className={`py-3 px-3 text-xs font-bold border-b-2 transition flex items-center gap-2 shrink-0 ${
               activeTab === 'settings'
                 ? 'border-amber-400 text-amber-300'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Settings className="w-4 h-4" /> Einstellungen & Sicherheit
+            <Settings className="w-4 h-4" /> Einstellungen
           </button>
         </div>
 
@@ -318,10 +408,304 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
                 </button>
               </div>
 
+              {/* Family & Friends Network Card */}
+              <div className="bg-gradient-to-r from-slate-800/80 via-slate-800/50 to-indigo-950/30 border border-slate-700/70 rounded-2xl p-4 sm:p-5 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold border border-amber-500/30">
+                      <Users className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-sm text-white flex items-center gap-2">
+                        <span>Familien-Netzwerk</span>
+                        {onlineFriendsCount > 0 && (
+                          <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.2 rounded-full font-bold border border-emerald-500/30 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            {onlineFriendsCount} online
+                          </span>
+                        )}
+                      </h4>
+                      <p className="text-xs text-slate-400">Deine Mitspieler und Familienkontakte am Spieletisch</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        sound.playClick();
+                        setActiveTab('friends');
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-bold transition flex items-center gap-1.5"
+                    >
+                      <span>Verwalten ({friends.length})</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        sound.playClick();
+                        setIsFriendsModalOpen(true);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold transition flex items-center gap-1.5 shadow"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span>Freundesliste</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Quick Friends Avatars row */}
+                <div className="flex flex-wrap items-center gap-3 pt-1">
+                  {friends.slice(0, 5).map((f) => {
+                    const badge = friendsService.getStatusBadge(f.status);
+                    return (
+                      <div
+                        key={f.id}
+                        onClick={() => {
+                          sound.playClick();
+                          setActiveTab('friends');
+                        }}
+                        className="flex items-center gap-2 bg-slate-900/60 hover:bg-slate-900 border border-slate-700/60 p-1.5 pr-3 rounded-2xl cursor-pointer transition"
+                        title={`${f.name} - ${badge.label}${f.currentGame ? `: ${f.currentGame}` : ''}`}
+                      >
+                        <div className="relative">
+                          <AvatarDisplay avatar={f.avatar} size="sm" showBadge={f.familyRole.slice(0, 1)} />
+                          <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-slate-900 ${badge.dotBg}`} />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-white truncate max-w-[100px]">{f.name}</div>
+                          <div className="text-[10px] text-slate-400 leading-none">{badge.label}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  
+                  {friends.length > 5 && (
+                    <button
+                      onClick={() => setActiveTab('friends')}
+                      className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold flex items-center justify-center hover:bg-slate-700 transition"
+                    >
+                      +{friends.length - 5}
+                    </button>
+                  )}
+                </div>
+
+                {/* Own Player ID bar */}
+                <div className="pt-2 border-t border-slate-700/40 flex items-center justify-between text-xs">
+                  <span className="text-slate-400">
+                    Deine Spieler-ID: <strong className="text-amber-300 font-mono">{user.id}</strong>
+                  </span>
+                  <button
+                    onClick={handleCopyOwnId}
+                    className="text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 transition"
+                  >
+                    {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedId ? 'Kopiert!' : 'Kopieren'}</span>
+                  </button>
+                </div>
+              </div>
+
             </div>
           )}
 
-          {/* TAB 2: STATISTIKEN */}
+          {/* TAB 2: FAMILIE & FREUNDE */}
+          {activeTab === 'friends' && (
+            <div className="space-y-5">
+              
+              {/* Personal ID share header */}
+              <div className="bg-gradient-to-r from-amber-950/40 via-slate-800 to-indigo-950/40 border border-amber-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-400/20 text-amber-400 flex items-center justify-center font-bold border border-amber-400/30">
+                    <Share2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-amber-300">
+                      Deine Spieler-ID (Mit Familie teilen)
+                    </div>
+                    <div className="text-sm font-mono font-black text-white">{user.id}</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleCopyOwnId}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                      copiedId
+                        ? 'bg-emerald-500 text-slate-950'
+                        : 'bg-amber-400 hover:bg-amber-300 text-slate-950 shadow'
+                    }`}
+                  >
+                    {copiedId ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedId ? 'ID kopiert! ✓' : 'ID kopieren'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => setIsFriendsModalOpen(true)}
+                    className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition flex items-center gap-1.5 shadow"
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    <span>Vollbild-Center</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick Add Friend form */}
+              <div className="bg-slate-800/50 border border-slate-700/70 rounded-2xl p-4 space-y-3">
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <UserPlus className="w-4 h-4 text-amber-400" />
+                  <span>Familienmitglied per ID hinzufügen</span>
+                </h4>
+
+                {quickAddError && (
+                  <div className="p-2.5 bg-rose-500/20 border border-rose-500/40 rounded-xl text-xs font-bold text-rose-300 flex items-center gap-2">
+                    <span>⚠ {quickAddError}</span>
+                  </div>
+                )}
+                {quickAddSuccess && (
+                  <div className="p-2.5 bg-emerald-500/20 border border-emerald-500/40 rounded-xl text-xs font-bold text-emerald-300 flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-400" />
+                    <span>{quickAddSuccess}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleQuickAdd} className="flex flex-col sm:flex-row items-stretch gap-2.5">
+                  <input
+                    type="text"
+                    required
+                    value={quickAddId}
+                    onChange={(e) => setQuickAddId(e.target.value)}
+                    placeholder="Spieler-ID eingeben (z.B. fam_papa_01 oder Mama)"
+                    className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isAddingFriend || !quickAddId.trim()}
+                    className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 disabled:opacity-50 text-slate-950 font-black text-xs transition flex items-center justify-center gap-1.5 shrink-0 shadow"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>{isAddingFriend ? 'Prüfe...' : 'Hinzufügen'}</span>
+                  </button>
+                </form>
+              </div>
+
+              {/* Friends list inside panel */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs text-slate-400 px-1">
+                  <span>Familienmitglieder ({friends.length})</span>
+                  <span className="text-emerald-400 font-semibold">{onlineFriendsCount} gerade online</span>
+                </div>
+
+                {friends.length === 0 ? (
+                  <div className="p-6 text-center bg-slate-800/30 border border-slate-800 rounded-2xl text-slate-400 space-y-2">
+                    <Users className="w-8 h-8 mx-auto text-slate-600" />
+                    <p className="font-semibold text-xs">Noch keine Familienmitglieder hinzugefügt.</p>
+                    <button
+                      onClick={() => {
+                        sound.playReward();
+                        friendsService.saveFriends(user.id, STARTER_FAMILY_MEMBERS);
+                        setFriends(STARTER_FAMILY_MEMBERS);
+                      }}
+                      className="px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition inline-flex items-center gap-1.5"
+                    >
+                      <Sparkles className="w-3 h-3" /> Muster-Familie laden
+                    </button>
+                  </div>
+                ) : (
+                  friends.map((friend) => {
+                    const badge = friendsService.getStatusBadge(friend.status);
+                    return (
+                      <div
+                        key={friend.id}
+                        className="p-3 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/60 rounded-2xl flex items-center justify-between gap-3 transition"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="relative shrink-0">
+                            <AvatarDisplay avatar={friend.avatar} size="sm" showBadge={friend.familyRole.slice(0, 1)} />
+                            <span 
+                              className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-slate-900 ${badge.dotBg}`}
+                              title={badge.label}
+                            />
+                          </div>
+
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-sm text-white truncate">{friend.name}</span>
+                              <span className="text-[10px] bg-slate-700 text-slate-300 px-1.5 py-0.2 rounded font-semibold shrink-0">
+                                Lvl {friend.level}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2 text-[11px] mt-0.5">
+                              <span className={`font-semibold flex items-center gap-1 ${badge.textClass}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${badge.colorClass}`} />
+                                <span>{badge.label}</span>
+                              </span>
+                              {friend.currentGame && (
+                                <span className="text-amber-200/90 font-medium flex items-center gap-1">
+                                  <span>•</span>
+                                  <Gamepad2 className="w-3 h-3 text-amber-400" />
+                                  <span className="truncate max-w-[150px]">{friend.currentGame}</span>
+                                </span>
+                              )}
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                ID: {friend.id}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          {(friend.status === 'online' || friend.status === 'in-game') && onInviteFriendToGame && (
+                            <button
+                              onClick={() => {
+                                sound.playReward();
+                                onInviteFriendToGame(friend);
+                              }}
+                              className="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition flex items-center gap-1"
+                              title="Zum Tisch einladen"
+                            >
+                              <Gamepad2 className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Einladen</span>
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => {
+                              const updated = friendsService.toggleFavorite(user.id, friend.id);
+                              setFriends(updated);
+                            }}
+                            className={`p-1.5 rounded-xl border transition ${
+                              friend.isFavorite
+                                ? 'bg-amber-500/20 border-amber-500/40 text-amber-400'
+                                : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-amber-400'
+                            }`}
+                            title="Favorit"
+                          >
+                            <Star className={`w-3.5 h-3.5 ${friend.isFavorite ? 'fill-current' : ''}`} />
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`"${friend.name}" aus Freundesliste entfernen?`)) {
+                                const updated = friendsService.removeFriend(user.id, friend.id);
+                                setFriends(updated);
+                              }
+                            }}
+                            className="p-1.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 transition"
+                            title="Entfernen"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+            </div>
+          )}
+
+          {/* TAB 3: STATISTIKEN */}
           {activeTab === 'stats' && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -581,6 +965,23 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
         </div>
 
       </div>
+
+      {/* Embedded Fullscreen Friends List Center */}
+      <FriendsListModal
+        isOpen={isFriendsModalOpen}
+        onClose={() => {
+          setIsFriendsModalOpen(false);
+          setFriends(friendsService.getFriends(user.id));
+        }}
+        currentUser={user}
+        onInviteToGame={(friend) => {
+          setIsFriendsModalOpen(false);
+          if (onInviteFriendToGame) {
+            onInviteFriendToGame(friend);
+          }
+        }}
+      />
     </div>
   );
 };
+

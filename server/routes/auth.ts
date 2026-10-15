@@ -462,6 +462,49 @@ authRouter.get('/users', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/users/lookup/:id
+ * Lookup a user by ID or Username to add as a family friend
+ */
+authRouter.get('/lookup/:id', async (req: Request, res: Response) => {
+  try {
+    const rawId = req.params.id ? decodeURIComponent(req.params.id).trim() : '';
+    if (!rawId) {
+      return res.status(400).json({ success: false, error: 'Keine Spieler-ID angegeben.' });
+    }
+
+    // Try finding by ID first
+    let user = await findUserById(rawId);
+    // If not found, try username
+    if (!user) {
+      user = await findUserByEmailOrUsername(rawId);
+    }
+
+    if (!user) {
+      return res.status(404).json({ success: false, error: `Kein Spieler mit der ID "${rawId}" gefunden.` });
+    }
+
+    const formatted = formatUserResponse(user);
+    // Return safe public profile for friends list
+    return res.json({
+      success: true,
+      user: {
+        id: formatted.id,
+        name: formatted.name,
+        familyRole: formatted.familyRole,
+        clanName: formatted.clanName,
+        level: formatted.level,
+        avatar: formatted.avatar,
+        isVip: formatted.isVip,
+        joinedDate: formatted.joinedDate,
+      },
+    });
+  } catch (error: any) {
+    console.error('[User Lookup Error]:', error);
+    return res.status(500).json({ success: false, error: 'Fehler bei der Spielersuche.' });
+  }
+});
+
+/**
  * GET /api/auth/status
  * Returns live status of MariaDB and SMTP server
  */
@@ -473,3 +516,4 @@ authRouter.get('/status', async (_req: Request, res: Response) => {
     serverTime: new Date().toISOString(),
   });
 });
+

@@ -48,6 +48,7 @@ import { AdminSystemModal } from './components/admin/AdminSystemModal';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
 import { LoginModal } from './components/auth/LoginModal';
 import { UserPanelModal } from './components/user/UserPanelModal';
+import { FriendsListModal } from './components/friends/FriendsListModal';
 import { AndroidAppModal } from './components/pwa/AndroidAppModal';
 import { PWAInstallButton } from './components/pwa/PWAInstallButton';
 import { OfflineIndicator } from './components/pwa/OfflineIndicator';
@@ -203,6 +204,7 @@ export default function App() {
   const [isAdminOpen, setIsAdminOpen] = useState<boolean>(false);
   const [isLoginOpen, setIsLoginOpen] = useState<boolean>(false);
   const [isUserPanelOpen, setIsUserPanelOpen] = useState<boolean>(false);
+  const [isFriendsOpen, setIsFriendsOpen] = useState<boolean>(false);
   const [isAndroidAppModalOpen, setIsAndroidAppModalOpen] = useState<boolean>(false);
 
   // Voice Chat participants in current table (starts empty, real family joins dynamically)
@@ -459,6 +461,20 @@ export default function App() {
               }}
               onClear={() => setNotifications([])}
             />
+
+            {/* Family & Friends Center launcher */}
+            <button
+              onClick={() => {
+                sound.playClick();
+                setIsFriendsOpen(true);
+              }}
+              className="p-2 sm:px-2.5 sm:py-1.5 rounded-2xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-amber-300 transition border border-slate-700/60 flex items-center gap-1.5 relative shadow-sm"
+              title="Familie & Freundesliste (Online-Status)"
+            >
+              <Users className="w-4 h-4 text-amber-400" />
+              <span className="hidden lg:inline text-xs font-bold">Freunde</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse ring-2 ring-slate-900" />
+            </button>
 
             {/* User Profile / Account Center launcher */}
             <button
@@ -1232,6 +1248,47 @@ export default function App() {
         onOpenAndroidModal={() => {
           setIsUserPanelOpen(false);
           setIsAndroidAppModalOpen(true);
+        }}
+        onOpenFriendsList={() => {
+          setIsUserPanelOpen(false);
+          setIsFriendsOpen(true);
+        }}
+        onInviteFriendToGame={(friend) => {
+          sound.playReward();
+          if (activeGame) {
+            setNotifications((prev) => [
+              {
+                id: `invite_${Date.now()}`,
+                title: 'Spieleinladung gesendet',
+                message: `Einladung an ${friend.name} für ${activeGame.title} gesendet!`,
+                type: 'invite',
+                timestamp: 'Gerade eben',
+                read: false,
+              },
+              ...prev,
+            ]);
+          }
+        }}
+      />
+
+      {/* Standalone Family & Friends Modal */}
+      <FriendsListModal
+        isOpen={isFriendsOpen}
+        onClose={() => setIsFriendsOpen(false)}
+        currentUser={user}
+        onInviteToGame={(friend) => {
+          sound.playReward();
+          setNotifications((prev) => [
+            {
+              id: `invite_${Date.now()}`,
+              title: 'Spieleinladung gesendet',
+              message: `Einladung an ${friend.name} wurde gesendet!`,
+              type: 'invite',
+              timestamp: 'Gerade eben',
+              read: false,
+            },
+            ...prev,
+          ]);
         }}
       />
 

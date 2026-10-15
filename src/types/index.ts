@@ -79,6 +79,23 @@ export interface AdminAuditLog {
   details: string;
 }
 
+export type FriendOnlineStatus = 'online' | 'in-game' | 'away' | 'offline';
+
+export interface FamilyFriend {
+  id: string; // User ID
+  name: string;
+  avatar: AvatarConfig;
+  familyRole: 'Child' | 'Teen' | 'Parent' | 'Grandparent' | 'Family Champion' | string;
+  clanName?: string;
+  level: number;
+  status: FriendOnlineStatus;
+  currentGame?: string | null;
+  lastSeen?: string;
+  addedAt: string;
+  isFavorite?: boolean;
+  notes?: string;
+}
+
 export interface UserProfile {
   id: string;
   name: string;
@@ -98,6 +115,7 @@ export interface UserProfile {
   streakDays: number;
   lastDailyClaim: string; // YYYY-MM-DD
   matchHistory?: MatchHistoryItem[];
+  friends?: FamilyFriend[];
   stats: {
     gamesPlayed: number;
     gamesWon: number;
