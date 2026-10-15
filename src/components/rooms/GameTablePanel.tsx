@@ -43,7 +43,7 @@ export const GameTablePanel: React.FC<GameTablePanelProps> = ({
   const [activeEmote, setActiveEmote] = useState<{ emoji: string; senderName: string } | null>(null);
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
 
-  // Listen for multiplayer emotes and updates
+  // Listen for multiplayer emotes
   useEffect(() => {
     const unsubscribe = multiplayerService.subscribe((event: MultiplayerEvent) => {
       if (event.type === 'TABLE_EMOTE' && event.roomCode === room.code) {
@@ -51,12 +51,9 @@ export const GameTablePanel: React.FC<GameTablePanelProps> = ({
         setActiveEmote({ emoji: event.emoji, senderName: event.senderName });
         setTimeout(() => setActiveEmote(null), 2500);
       }
-      if (event.type === 'ROOM_STATE_SYNC' && event.room.id === room.id) {
-        onUpdateRoom(event.room);
-      }
     });
     return () => unsubscribe();
-  }, [room.code, room.id, onUpdateRoom]);
+  }, [room.code]);
 
   const handleCopyCode = () => {
     sound.playClick();

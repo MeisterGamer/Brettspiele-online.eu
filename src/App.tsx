@@ -693,7 +693,6 @@ export default function App() {
                 activeTurnPlayerId={currentTurnPlayerId}
                 onUpdateRoom={(updated) => {
                   setCurrentRoom(updated);
-                  multiplayerService.updateRoomState(updated);
                   setPublicRooms(multiplayerService.getRooms());
                 }}
                 onInviteFriend={() => setIsShareOpen(true)}

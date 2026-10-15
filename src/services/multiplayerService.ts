@@ -352,7 +352,10 @@ class MultiplayerService {
         this.channel.postMessage(event);
       } catch (e) {}
     }
-    this.handleIncomingEvent(event, false);
+    // Only dispatch non-state events locally; room state is already updated in memory
+    if (event.type !== 'ROOM_STATE_SYNC' && event.type !== 'ROOMS_UPDATED') {
+      this.handleIncomingEvent(event, false);
+    }
   }
 
   public getRooms(): GameRoom[] {
@@ -595,7 +598,7 @@ class MultiplayerService {
   public updateRoomState(room: GameRoom): void {
     const rooms = this.getRooms();
     const updated = rooms.map((r) => (r.id === room.id ? room : r));
-    this.saveRooms(updated);
+    this.saveRooms(updated, false);
     this.sendWsOrPost({ type: 'ROOM_STATE_SYNC', room });
   }
 
