@@ -127,7 +127,8 @@ export const GameTablePanel: React.FC<GameTablePanelProps> = ({
                 {room.name}
               </h3>
               <span className="inline-flex items-center gap-1 text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                <Radio className="w-2.5 h-2.5 animate-pulse text-emerald-400" /> Live Tisch
+                <Wifi className="w-2.5 h-2.5 animate-pulse text-emerald-400" />
+                {multiplayerService.isRealtimeConnected() ? 'WebSocket Live' : 'Echtzeit-Synchron'}
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 mt-0.5">

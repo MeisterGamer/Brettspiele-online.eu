@@ -74,7 +74,12 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-import { setupWebSocketServer, getRoomsList } from './server/multiplayer/wsServer.js';
+import { 
+  setupWebSocketServer, 
+  getRoomsList, 
+  getRoomEventsSince, 
+  handleExternalGameAction 
+} from './server/multiplayer/wsServer.js';
 
 // Authentication and user management routes
 app.use('/api/auth', authRouter);
@@ -85,6 +90,35 @@ app.use('/api/setup', setupRouter);
 // Public rooms API for multiplayer synchronization
 app.get('/api/rooms', (_req, res) => {
   res.json({ rooms: getRoomsList() });
+});
+
+// Multiplayer HTTP Fallback & Diagnostic APIs
+app.get('/api/multiplayer/status', (_req, res) => {
+  res.json({
+    status: 'ok',
+    wsSupported: true,
+    wsPath: '/ws',
+    nginxSnippet: 'location /ws { proxy_pass http://127.0.0.1:5555; proxy_http_version 1.1; proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade"; proxy_set_header Host $host; }',
+  });
+});
+
+app.post('/api/multiplayer/action', (req, res) => {
+  const { roomCode, gameType, action, payload, senderId } = req.body;
+  if (!roomCode || !action) {
+    return res.status(400).json({ error: 'Missing roomCode or action' });
+  }
+  const event = handleExternalGameAction(roomCode, gameType || 'general', action, payload, senderId || 'anonymous');
+  res.json({ success: true, event });
+});
+
+app.get('/api/multiplayer/events', (req, res) => {
+  const roomCode = String(req.query.roomCode || '');
+  const since = parseInt(String(req.query.since || '0'), 10);
+  if (!roomCode) {
+    return res.status(400).json({ error: 'Missing roomCode' });
+  }
+  const events = getRoomEventsSince(roomCode, isNaN(since) ? 0 : since);
+  res.json({ events });
 });
 
 // Initialize MariaDB

@@ -115,6 +115,9 @@ class MultiplayerService {
       // 3. Connect to real WebSocket server
       this.connectWebSocket();
 
+      // 4. Start HTTP polling fallback for proxies where WebSockets are not forwarded
+      this.startPollingFallback();
+
       // Initial HTTP fetch of rooms
       this.fetchRoomsFromHttp();
     }
@@ -128,6 +131,10 @@ class MultiplayerService {
         user,
       }));
     }
+  }
+
+  public isRealtimeConnected(): boolean {
+    return Boolean(this.isConnected && this.socket && this.socket.readyState === WebSocket.OPEN);
   }
 
   private connectWebSocket() {
@@ -173,24 +180,61 @@ class MultiplayerService {
         this.scheduleReconnect();
       };
 
-      this.socket.onerror = (err) => {
-        console.warn('[WS] Connection issue, retrying...', err);
-        this.socket?.close();
+      this.socket.onerror = () => {
+        // Quietly close without filling console with repeated red errors; HTTP fallback handles sync
+        try {
+          this.socket?.close();
+        } catch (e) {}
       };
     } catch (e) {
-      console.warn('[WS] Init failed, scheduling reconnect', e);
       this.scheduleReconnect();
     }
   }
 
   private scheduleReconnect() {
     if (this.reconnectTimer) return;
-    const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 10000);
+    // Gradual exponential backoff (2.5s, 5s, 10s, up to 30s)
+    const delay = Math.min(2500 * Math.pow(1.5, this.reconnectAttempts), 30000);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.reconnectAttempts++;
       this.connectWebSocket();
     }, delay);
+  }
+
+  private lastPolledEventId = 0;
+  private pollInterval: any = null;
+
+  private startPollingFallback() {
+    if (this.pollInterval || typeof window === 'undefined') return;
+    this.pollInterval = setInterval(async () => {
+      // If WebSocket is actively connected, WS takes priority
+      if (this.isConnected && this.socket?.readyState === WebSocket.OPEN) {
+        return;
+      }
+      if (!this.currentRoomCode) {
+        return;
+      }
+
+      try {
+        const res = await fetch(
+          `/api/multiplayer/events?roomCode=${encodeURIComponent(this.currentRoomCode)}&since=${this.lastPolledEventId}`
+        );
+        if (res.ok) {
+          const json = await res.json();
+          if (Array.isArray(json.events) && json.events.length > 0) {
+            for (const item of json.events) {
+              if (item.id > this.lastPolledEventId) {
+                this.lastPolledEventId = item.id;
+              }
+              if (item.data) {
+                this.handleIncomingEvent(item.data, true);
+              }
+            }
+          }
+        }
+      } catch (e) {}
+    }, 600);
   }
 
   private async fetchRoomsFromHttp() {
@@ -269,14 +313,26 @@ class MultiplayerService {
     });
   }
 
-  private sendWsOrPost(event: any) {
+  private async sendWsOrPost(event: any) {
+    let sentViaWs = false;
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       try {
         this.socket.send(JSON.stringify(event));
-      } catch (e) {
-        console.error('[WS] Send failed:', e);
-      }
+        sentViaWs = true;
+      } catch (e) {}
     }
+
+    // If WebSocket is not connected or in case of game action, push to HTTP endpoint
+    if (!sentViaWs && (event.type === 'GAME_ACTION' || event.type === 'TABLE_EMOTE' || event.type === 'ROOM_STATE_SYNC')) {
+      try {
+        fetch('/api/multiplayer/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(event),
+        }).catch(() => {});
+      } catch (e) {}
+    }
+
     // Also post locally so caller receives it
     if (this.channel) {
       try {

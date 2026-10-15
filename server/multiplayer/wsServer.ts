@@ -54,8 +54,60 @@ export function broadcast(msg: any, filter?: (client: ClientConnection) => boole
   }
 }
 
+export interface RoomEvent {
+  id: number;
+  timestamp: number;
+  data: any;
+}
+
+let globalEventSequence = 1;
+const roomEventBuffers = new Map<string, RoomEvent[]>();
+
+export function recordRoomEvent(roomCode: string, data: any): RoomEvent {
+  const norm = roomCode.trim().toUpperCase();
+  const list = roomEventBuffers.get(norm) || [];
+  const event: RoomEvent = {
+    id: globalEventSequence++,
+    timestamp: Date.now(),
+    data,
+  };
+  list.push(event);
+  if (list.length > 100) {
+    list.shift();
+  }
+  roomEventBuffers.set(norm, list);
+  return event;
+}
+
+export function getRoomEventsSince(roomCode: string, sinceId: number): RoomEvent[] {
+  const norm = roomCode.trim().toUpperCase();
+  const list = roomEventBuffers.get(norm) || [];
+  return list.filter((e) => e.id > sinceId);
+}
+
+export function handleExternalGameAction(
+  roomCode: string,
+  gameType: string,
+  action: string,
+  payload: any,
+  senderId: string
+): RoomEvent {
+  const msg = {
+    type: 'GAME_ACTION',
+    roomCode,
+    gameType,
+    action,
+    payload,
+    senderId,
+  };
+  broadcastToRoom(roomCode, msg);
+  return recordRoomEvent(roomCode, msg);
+}
+
 export function broadcastToRoom(roomCode: string, msg: any, excludeUserId?: string): void {
   const norm = roomCode.trim().toUpperCase();
+  recordRoomEvent(roomCode, msg);
+
   broadcast(msg, (c) => {
     if (!c.roomCode) return false;
     const clientNorm = c.roomCode.trim().toUpperCase();
@@ -70,7 +122,29 @@ export function broadcastToRoom(roomCode: string, msg: any, excludeUserId?: stri
 }
 
 export function setupWebSocketServer(httpServer: Server): WebSocketServer {
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  const wss = new WebSocketServer({ noServer: true });
+
+  httpServer.on('upgrade', (request, socket, head) => {
+    try {
+      const host = request.headers.host || 'localhost';
+      const url = new URL(request.url || '', `http://${host}`);
+      const pathname = url.pathname;
+
+      if (
+        pathname === '/ws' ||
+        pathname === '/ws/' ||
+        pathname.startsWith('/ws') ||
+        pathname === '/api/ws' ||
+        pathname === '/api/ws/'
+      ) {
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          wss.emit('connection', ws, request);
+        });
+      }
+    } catch (e) {
+      console.warn('[WS Upgrade Error]', e);
+    }
+  });
 
   // Keep-alive heartbeat interval
   const pingInterval = setInterval(() => {
