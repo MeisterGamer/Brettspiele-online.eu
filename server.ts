@@ -103,11 +103,16 @@ app.get('/api/multiplayer/status', (_req, res) => {
 });
 
 app.post('/api/multiplayer/action', (req, res) => {
-  const { roomCode, gameType, action, payload, senderId } = req.body;
+  const roomCode = req.body.roomCode;
+  const action = req.body.action || req.body.type;
+  const gameType = req.body.gameType || 'general';
+  const payload = req.body.payload !== undefined ? req.body.payload : req.body;
+  const senderId = req.body.senderId || 'anonymous';
+
   if (!roomCode || !action) {
     return res.status(400).json({ error: 'Missing roomCode or action' });
   }
-  const event = handleExternalGameAction(roomCode, gameType || 'general', action, payload, senderId || 'anonymous');
+  const event = handleExternalGameAction(roomCode, gameType, action, payload, senderId);
   res.json({ success: true, event });
 });
 

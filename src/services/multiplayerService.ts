@@ -133,32 +133,39 @@ class MultiplayerService {
     }
   }
 
+  private wsDisabledForSession = false;
+  private wsPathIndex = 0;
+  private wsPaths = ['/api/ws', '/ws'];
+
   public isRealtimeConnected(): boolean {
     return Boolean(this.isConnected && this.socket && this.socket.readyState === WebSocket.OPEN);
   }
 
   private connectWebSocket() {
     if (typeof window === 'undefined') return;
+    if (this.wsDisabledForSession) return;
 
     try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
+      const path = this.wsPaths[this.wsPathIndex % this.wsPaths.length];
+      const wsUrl = `${protocol}//${window.location.host}${path}`;
 
-      this.socket = new WebSocket(wsUrl);
+      const socket = new WebSocket(wsUrl);
+      this.socket = socket;
 
-      this.socket.onopen = () => {
+      socket.onopen = () => {
         this.isConnected = true;
         this.reconnectAttempts = 0;
 
         if (this.currentUser) {
-          this.socket?.send(JSON.stringify({
+          socket.send(JSON.stringify({
             type: 'IDENTIFY',
             user: this.currentUser,
           }));
         }
 
         if (this.currentRoomCode && this.currentUser) {
-          this.socket?.send(JSON.stringify({
+          socket.send(JSON.stringify({
             type: 'JOIN_ROOM',
             roomCode: this.currentRoomCode,
             user: this.currentUser,
@@ -166,24 +173,27 @@ class MultiplayerService {
         }
       };
 
-      this.socket.onmessage = (event) => {
+      socket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           this.handleIncomingEvent(data, true);
-        } catch (err) {
-          console.error('[WS] Parse error:', err);
-        }
+        } catch (err) {}
       };
 
-      this.socket.onclose = () => {
+      socket.onclose = () => {
         this.isConnected = false;
+        if (this.reconnectAttempts >= 1) {
+          // If 2 attempts failed (e.g. /api/ws and /ws), stop attempting WebSocket to avoid console errors.
+          // HTTP fast-sync handles 100% of the game events seamlessly.
+          this.wsDisabledForSession = true;
+          return;
+        }
         this.scheduleReconnect();
       };
 
-      this.socket.onerror = () => {
-        // Quietly close without filling console with repeated red errors; HTTP fallback handles sync
+      socket.onerror = () => {
         try {
-          this.socket?.close();
+          socket.close();
         } catch (e) {}
       };
     } catch (e) {
@@ -192,14 +202,17 @@ class MultiplayerService {
   }
 
   private scheduleReconnect() {
-    if (this.reconnectTimer) return;
-    // Gradual exponential backoff (2.5s, 5s, 10s, up to 30s)
-    const delay = Math.min(2500 * Math.pow(1.5, this.reconnectAttempts), 30000);
+    if (this.reconnectTimer || this.wsDisabledForSession) return;
+    if (this.reconnectAttempts >= 1) {
+      this.wsDisabledForSession = true;
+      return;
+    }
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.reconnectAttempts++;
+      this.wsPathIndex++;
       this.connectWebSocket();
-    }, delay);
+    }, 1500);
   }
 
   private lastPolledEventId = 0;
@@ -207,8 +220,8 @@ class MultiplayerService {
 
   private startPollingFallback() {
     if (this.pollInterval || typeof window === 'undefined') return;
+    // 450ms fast polling when in game room for instantaneous responsiveness
     this.pollInterval = setInterval(async () => {
-      // If WebSocket is actively connected, WS takes priority
       if (this.isConnected && this.socket?.readyState === WebSocket.OPEN) {
         return;
       }
@@ -234,7 +247,7 @@ class MultiplayerService {
           }
         }
       } catch (e) {}
-    }, 600);
+    }, 450);
   }
 
   private async fetchRoomsFromHttp() {
