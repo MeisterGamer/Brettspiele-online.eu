@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { sound } from '../../services/sound';
-import confetti from 'canvas-confetti';
-import { RefreshCw, Trophy, Bell, Layers, Plus } from 'lucide-react';
+import confetti from '../../services/confetti';
+import { TABLE_BACKGROUNDS } from '../../services/gameImages';
+import { RefreshCw, Trophy, Bell, Layers, Wifi } from 'lucide-react';
+import { RoomParticipant } from '../../types';
+import { AvatarDisplay } from '../avatar/AvatarDisplay';
+import { multiplayerService } from '../../services/multiplayerService';
 
 export type CardColor = 'red' | 'blue' | 'green' | 'yellow' | 'wild';
 export type CardValue = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | 'skip' | 'reverse' | '+2' | 'wild' | '+4';
@@ -12,14 +16,13 @@ export interface Card {
   value: CardValue;
 }
 
-import { RoomParticipant } from '../../types';
-import { AvatarDisplay } from '../avatar/AvatarDisplay';
-
 interface FamCardsUnoProps {
   onGameEnd?: (winner: string) => void;
   tableParticipants?: RoomParticipant[];
   currentUserId?: string;
   onActiveTurnChange?: (turnPlayerId: string) => void;
+  roomCode?: string;
+  isHost?: boolean;
 }
 
 const COLORS: ('red' | 'blue' | 'green' | 'yellow')[] = ['red', 'blue', 'green', 'yellow'];
@@ -29,9 +32,7 @@ function createUnoDeck(): Card[] {
   let id = 1;
 
   for (const c of COLORS) {
-    // One 0 per color
     deck.push({ id: `c_${id++}`, color: c, value: '0' });
-    // Two of 1-9, skip, reverse, +2
     const values: CardValue[] = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'skip', 'reverse', '+2'];
     for (let count = 0; count < 2; count++) {
       for (const val of values) {
@@ -40,13 +41,11 @@ function createUnoDeck(): Card[] {
     }
   }
 
-  // 4 Wild and 4 Wild +4
   for (let i = 0; i < 4; i++) {
     deck.push({ id: `c_${id++}`, color: 'wild', value: 'wild' });
     deck.push({ id: `c_${id++}`, color: 'wild', value: '+4' });
   }
 
-  // Shuffle
   return deck.sort(() => Math.random() - 0.5);
 }
 
@@ -54,13 +53,20 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
   onGameEnd,
   tableParticipants,
   currentUserId,
-  onActiveTurnChange
+  onActiveTurnChange,
+  roomCode,
+  isHost
 }) => {
   const p1 = tableParticipants?.[0];
   const p2 = tableParticipants?.[1];
-  const p1Name = p1?.name || 'Du (Ich)';
+  const p1Name = p1?.name || 'Spieler 1';
   const p2Name = p2?.name || (p2?.isBot ? 'Familien-KI' : 'Spieler 2');
   const isP2Bot = p2 ? !!p2.isBot : true;
+
+  const isOnlineMultiplayer = Boolean(roomCode && p1 && p2 && !p2.isBot);
+  const isPlayer1 = currentUserId === p1?.id;
+  const isPlayer2 = currentUserId === p2?.id;
+  const myRole: 'player' | 'bot' = isPlayer2 ? 'bot' : 'player';
 
   const [deck, setDeck] = useState<Card[]>([]);
   const [discardPile, setDiscardPile] = useState<Card[]>([]);
@@ -74,6 +80,8 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
   const [gameMessage, setGameMessage] = useState<string>('Bediene Farbe oder Zahl!');
   const [winner, setWinner] = useState<string | null>(null);
 
+  const isMyTurn = !isOnlineMultiplayer ? (currentTurn === 'player') : (currentTurn === myRole);
+
   useEffect(() => {
     if (onActiveTurnChange) {
       const activeId = currentTurn === 'player' ? (p1?.id || 'p1') : (p2?.id || 'p2');
@@ -82,33 +90,92 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
   }, [currentTurn, p1?.id, p2?.id, onActiveTurnChange]);
 
   // Initialize round
-  const startNewGame = () => {
+  const startNewGame = (broadcast = true) => {
     sound.playCardDeal();
     const newDeck = createUnoDeck();
     const pHand = newDeck.splice(0, 7);
     const bHand = newDeck.splice(0, 7);
 
-    // Initial discard (cannot be wild +4 for simplicity)
     let firstCard = newDeck.shift()!;
     while (firstCard.value === '+4') {
       newDeck.push(firstCard);
       firstCard = newDeck.shift()!;
     }
 
+    const initActiveColor = firstCard.color === 'wild' ? 'red' : firstCard.color;
+
     setPlayerHand(pHand);
     setBotHand(bHand);
     setDiscardPile([firstCard]);
-    setActiveColor(firstCard.color === 'wild' ? 'red' : firstCard.color);
+    setActiveColor(initActiveColor);
     setDeck(newDeck);
     setCurrentTurn('player');
     setWinner(null);
     setCalledUno(false);
-    setGameMessage('Your turn! Match the top card.');
+    setGameMessage(`${p1Name} beginnt! Gleiche Farbe oder Zahl ablegen.`);
+
+    if (broadcast && roomCode) {
+      multiplayerService.sendGameAction(
+        roomCode,
+        'uno',
+        'INIT_GAME',
+        {
+          deck: newDeck,
+          playerHand: pHand,
+          botHand: bHand,
+          firstCard,
+          activeColor: initActiveColor,
+        },
+        currentUserId || 'p1'
+      );
+    }
   };
 
   useEffect(() => {
-    startNewGame();
+    if (!isOnlineMultiplayer || isHost) {
+      startNewGame(Boolean(isOnlineMultiplayer && isHost));
+    }
   }, []);
+
+  // Listen to remote WebSocket actions
+  useEffect(() => {
+    if (!roomCode || !isOnlineMultiplayer) return;
+
+    const unsubscribe = multiplayerService.subscribeToGameActions((evt) => {
+      if (evt.roomCode !== roomCode || evt.gameType !== 'uno') return;
+      if (evt.senderId === currentUserId) return;
+
+      if (evt.action === 'INIT_GAME') {
+        const { deck: remoteDeck, playerHand: remotePHand, botHand: remoteBHand, firstCard, activeColor: remoteColor } = evt.payload;
+        setDeck(remoteDeck);
+        setPlayerHand(remotePHand);
+        setBotHand(remoteBHand);
+        setDiscardPile([firstCard]);
+        setActiveColor(remoteColor);
+        setCurrentTurn('player');
+        setWinner(null);
+        setCalledUno(false);
+        setGameMessage(`${p1Name} beginnt! Gleiche Farbe oder Zahl ablegen.`);
+        sound.playCardDeal();
+      } else if (evt.action === 'PLAY_CARD') {
+        const { card, newColor, player } = evt.payload;
+        executePlayInternal(card, newColor, player);
+      } else if (evt.action === 'DRAW_CARD') {
+        const { player } = evt.payload;
+        executeDrawInternal(player);
+      } else if (evt.action === 'CALL_UNO') {
+        const { player } = evt.payload;
+        const name = player === 'player' ? p1Name : p2Name;
+        sound.playReward();
+        setCalledUno(true);
+        setGameMessage(`🔥 ${name} hat UNO gerufen!`);
+      } else if (evt.action === 'RESET') {
+        startNewGame(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [roomCode, isOnlineMultiplayer, currentUserId, playerHand, botHand, deck, discardPile, activeColor, p1Name, p2Name]);
 
   const topCard = discardPile[discardPile.length - 1];
 
@@ -121,11 +188,11 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
   };
 
   const handlePlayCard = (card: Card) => {
-    if (currentTurn !== 'player' || winner) return;
+    if (!isMyTurn || winner) return;
 
     if (!canPlayCard(card)) {
       sound.playError();
-      setGameMessage('That card cannot be played! Must match color or number.');
+      setGameMessage('Diese Karte kann nicht gelegt werden! Gleiche Farbe oder Symbol.');
       return;
     }
 
@@ -136,17 +203,17 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
       return;
     }
 
-    executePlay(card, card.color, 'player');
+    executePlay(card, card.color, myRole);
   };
 
   const handleSelectWildColor = (chosenColor: 'red' | 'blue' | 'green' | 'yellow') => {
     if (!pendingWildCard) return;
     setShowColorPicker(false);
-    executePlay(pendingWildCard, chosenColor, 'player');
+    executePlay(pendingWildCard, chosenColor, myRole);
     setPendingWildCard(null);
   };
 
-  const executePlay = (card: Card, newColor: CardColor, player: 'player' | 'bot') => {
+  const executePlayInternal = (card: Card, newColor: CardColor, player: 'player' | 'bot') => {
     sound.playCardDeal();
 
     // Remove from hand
@@ -160,16 +227,18 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
     setDiscardPile((prev) => [...prev, card]);
     setActiveColor(newColor);
 
+    const playerName = player === 'player' ? p1Name : p2Name;
+    const oppName = player === 'player' ? p2Name : p1Name;
+
     // Check Victory
     const handCount = player === 'player' ? playerHand.length - 1 : botHand.length - 1;
-    if (handCount === 0) {
-      const winnerName = player === 'player' ? p1Name : p2Name;
-      setWinner(winnerName);
+    if (handCount <= 0) {
+      setWinner(playerName);
       sound.playVictory();
       try {
         confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
       } catch (e) {}
-      if (onGameEnd) onGameEnd(winnerName);
+      if (onGameEnd) onGameEnd(playerName);
       return;
     }
 
@@ -178,21 +247,35 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
 
     if (card.value === 'skip' || card.value === 'reverse') {
       sound.playClick();
-      setGameMessage(`${player === 'player' ? 'You' : 'Bot'} played SKIP! Turn skipped!`);
+      setGameMessage(`${playerName} hat AUSSETZEN gelegt! ${oppName} wird übersprungen!`);
       nextTurn = player; // keep turn
     } else if (card.value === '+2') {
       sound.playReward();
-      setGameMessage(`${player === 'player' ? 'You' : 'Bot'} dropped DRAW TWO!`);
+      setGameMessage(`${playerName} hat +2 gelegt! ${oppName} zieht 2 Karten!`);
       drawCards(nextTurn, 2);
     } else if (card.value === '+4') {
       sound.playReward();
-      setGameMessage(`${player === 'player' ? 'You' : 'Bot'} dropped WILD DRAW FOUR!`);
+      setGameMessage(`${playerName} hat +4 FARBWAHL gelegt! ${oppName} zieht 4 Karten!`);
       drawCards(nextTurn, 4);
     } else {
-      setGameMessage(`${nextTurn === 'player' ? 'Your' : 'Bot’s'} turn.`);
+      setGameMessage(`${nextTurn === 'player' ? p1Name : p2Name} ist am Zug.`);
     }
 
     setCurrentTurn(nextTurn);
+  };
+
+  const executePlay = (card: Card, newColor: CardColor, player: 'player' | 'bot') => {
+    executePlayInternal(card, newColor, player);
+
+    if (roomCode) {
+      multiplayerService.sendGameAction(
+        roomCode,
+        'uno',
+        'PLAY_CARD',
+        { card, newColor, player },
+        currentUserId || 'p1'
+      );
+    }
   };
 
   const drawCards = (target: 'player' | 'bot', count: number) => {
@@ -210,33 +293,51 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
     }
   };
 
-  const handlePlayerDraw = () => {
-    if (currentTurn !== 'player' || winner) return;
+  const executeDrawInternal = (target: 'player' | 'bot') => {
     sound.playCardDeal();
-
     let currentDeck = [...deck];
     if (currentDeck.length === 0) currentDeck = createUnoDeck();
     const drawn = currentDeck.shift()!;
     setDeck(currentDeck);
-    setPlayerHand((prev) => [...prev, drawn]);
 
-    // Check if newly drawn card is playable
-    if (canPlayCard(drawn)) {
-      setGameMessage(`Drew ${drawn.color} ${drawn.value} - you can play it!`);
+    if (target === 'player') {
+      setPlayerHand((prev) => [...prev, drawn]);
     } else {
-      setGameMessage('No playable cards drawn. Turn passed to Bot.');
-      setCurrentTurn('bot');
+      setBotHand((prev) => [...prev, drawn]);
+    }
+
+    const playerName = target === 'player' ? p1Name : p2Name;
+    const oppName = target === 'player' ? p2Name : p1Name;
+
+    if (canPlayCard(drawn)) {
+      setGameMessage(`${playerName} hat ${drawn.color} ${drawn.value} gezogen und kann legen!`);
+    } else {
+      setGameMessage(`${playerName} hat gezogen. Keine passende Karte – Zug geht an ${oppName}.`);
+      setCurrentTurn(target === 'player' ? 'bot' : 'player');
     }
   };
 
-  // Bot Turn Automation
+  const handlePlayerDraw = () => {
+    if (!isMyTurn || winner) return;
+    executeDrawInternal(myRole);
+
+    if (roomCode) {
+      multiplayerService.sendGameAction(
+        roomCode,
+        'uno',
+        'DRAW_CARD',
+        { player: myRole },
+        currentUserId || 'p1'
+      );
+    }
+  };
+
+  // Bot Turn Automation (Only runs if opponent is actually a Bot)
   useEffect(() => {
-    if (currentTurn === 'bot' && !winner) {
+    if (currentTurn === 'bot' && (!isOnlineMultiplayer || isP2Bot) && !winner) {
       const timer = setTimeout(() => {
-        // Find playable card in bot hand
         const playable = botHand.filter(canPlayCard);
         if (playable.length > 0) {
-          // Play card (prioritize action or matching color)
           const chosen = playable[0];
           let chosenColor: CardColor = chosen.color;
           if (chosen.color === 'wild') {
@@ -248,18 +349,16 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
           }
           executePlay(chosen, chosenColor, 'bot');
         } else {
-          // Bot must draw
           drawCards('bot', 1);
-          setGameMessage('Bot had no match and drew a card.');
+          setGameMessage('KI hatte keine passende Karte und hat gezogen.');
           setCurrentTurn('player');
         }
       }, 1000);
 
       return () => clearTimeout(timer);
     }
-  }, [currentTurn, botHand, activeColor, topCard, winner]);
+  }, [currentTurn, botHand, activeColor, topCard, winner, isOnlineMultiplayer, isP2Bot]);
 
-  // Color display helper
   const getColorBg = (c: CardColor) => {
     switch (c) {
       case 'red': return 'bg-rose-600 text-white border-rose-500';
@@ -271,14 +370,29 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
     }
   };
 
+  // Which hand is displayed at the bottom for this user?
+  const myHand = myRole === 'bot' ? botHand : playerHand;
+  const oppHand = myRole === 'bot' ? playerHand : botHand;
+  const oppParticipant = myRole === 'bot' ? p1 : p2;
+  const oppName = myRole === 'bot' ? p1Name : p2Name;
+  const isOppTurn = myRole === 'bot' ? currentTurn === 'player' : currentTurn === 'bot';
+
   return (
     <div className="flex flex-col items-center max-w-xl mx-auto w-full select-none text-slate-100">
       
+      {/* Online indicator */}
+      {isOnlineMultiplayer && (
+        <div className="mb-2 flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 text-xs font-semibold shadow">
+          <Wifi className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+          <span>Echte Online-Synchronisation aktiv ({isPlayer1 ? 'Du bist Spieler 1' : 'Du bist Spieler 2'})</span>
+        </div>
+      )}
+
       {/* Opponent Hand Area */}
-      <div className={`w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3 rounded-2xl mb-4 text-xs transition ${currentTurn === 'bot' ? 'ring-2 ring-amber-400/80 bg-amber-950/20' : ''}`}>
+      <div className={`w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3 rounded-2xl mb-4 text-xs transition ${isOppTurn ? 'ring-2 ring-amber-400/80 bg-amber-950/20' : ''}`}>
         <div className="flex items-center gap-2.5">
-          {p2?.avatar ? (
-            <AvatarDisplay avatar={p2.avatar} size="sm" />
+          {oppParticipant?.avatar ? (
+            <AvatarDisplay avatar={oppParticipant.avatar} size="sm" />
           ) : (
             <div className="w-8 h-8 rounded-xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center font-bold text-indigo-300">
               ★
@@ -286,22 +400,22 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
           )}
           <div>
             <div className="font-bold text-slate-200 flex items-center gap-1.5">
-              <span>{p2Name}</span>
-              {currentTurn === 'bot' && (
+              <span>{oppName}</span>
+              {isOppTurn && (
                 <span className="text-[10px] bg-amber-400 text-slate-950 px-1.5 py-0.2 rounded-full font-black animate-pulse">
                   Am Zug
                 </span>
               )}
             </div>
             <div className="text-[11px] text-slate-400 font-mono">
-              <span className="text-amber-400 font-bold">{botHand.length}</span> Karten auf der Hand
+              <span className="text-amber-400 font-bold">{oppHand.length}</span> Karten auf der Hand
             </div>
           </div>
         </div>
 
-        {/* Bot Card backs */}
+        {/* Opponent Card backs */}
         <div className="flex -space-x-4 overflow-hidden">
-          {botHand.slice(0, 7).map((_, i) => (
+          {oppHand.slice(0, 7).map((_, i) => (
             <div
               key={i}
               className="w-8 h-12 rounded-lg bg-indigo-950 border border-indigo-700/60 shadow-md flex items-center justify-center font-bold text-[9px] text-amber-400"
@@ -309,15 +423,15 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
               ★
             </div>
           ))}
-          {botHand.length > 7 && (
+          {oppHand.length > 7 && (
             <div className="w-8 h-12 rounded-lg bg-indigo-900 flex items-center justify-center text-[10px] font-bold">
-              +{botHand.length - 7}
+              +{oppHand.length - 7}
             </div>
           )}
         </div>
 
         <div className="text-[11px] font-semibold text-slate-400">
-          Active Color: <strong className="uppercase font-bold" style={{ color: activeColor === 'yellow' ? '#F59E0B' : activeColor }}>{activeColor}</strong>
+          Farbe: <strong className="uppercase font-bold" style={{ color: activeColor === 'yellow' ? '#F59E0B' : activeColor }}>{activeColor}</strong>
         </div>
       </div>
 
@@ -326,7 +440,7 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
         
         {/* Real Tabletop Background Photo */}
         <img
-          src="https://images.unsplash.com/photo-1541278107931-e006523892df?auto=format&fit=crop&w=800&q=80"
+          src={TABLE_BACKGROUNDS.feltGreen}
           alt="Card Table Texture"
           referrerPolicy="no-referrer"
           className="absolute inset-0 w-full h-full object-cover filter brightness-[0.25] contrast-125"
@@ -338,7 +452,7 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
           {winner ? (
             <div className="text-lg font-bold text-amber-300 flex items-center gap-2 animate-bounce bg-black/50 backdrop-blur-md px-4 py-2 rounded-2xl border border-amber-500/40">
               <Trophy className="w-6 h-6 text-amber-400" />
-              <span>{winner} Won the FamCards Match! 🎉</span>
+              <span>{winner} hat die Runde gewonnen! 🎉</span>
             </div>
           ) : (
             <p className="text-xs font-semibold text-emerald-200 bg-emerald-950/90 backdrop-blur-sm px-4 py-1.5 rounded-full border border-emerald-600 shadow-md">
@@ -353,11 +467,11 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
           {/* Draw Deck with Stacked 3D Card Edge Shadows */}
           <button
             onClick={handlePlayerDraw}
-            disabled={currentTurn !== 'player' || !!winner}
+            disabled={!isMyTurn || !!winner}
             className={`w-22 h-32 rounded-2xl bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 border-2 border-indigo-400 shadow-2xl flex flex-col items-center justify-center gap-1.5 transition-all relative ${
-              currentTurn === 'player' && !winner
-                ? 'hover:scale-105 ring-4 ring-indigo-400/60 animate-pulse shadow-indigo-500/30'
-                : 'opacity-70'
+              isMyTurn && !winner
+                ? 'hover:scale-105 ring-4 ring-indigo-400/60 animate-pulse shadow-indigo-500/30 cursor-pointer'
+                : 'opacity-70 cursor-not-allowed'
             }`}
             style={{
               boxShadow: '4px 4px 0px rgba(15, 23, 42, 0.9), 8px 8px 0px rgba(2, 6, 23, 0.7)'
@@ -365,7 +479,7 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
           >
             <div className="w-16 h-24 rounded-xl border border-indigo-500/40 bg-indigo-950/50 flex flex-col items-center justify-center">
               <Layers className="w-6 h-6 text-amber-400" />
-              <span className="text-[10px] font-black text-amber-300 font-display mt-1">DRAW</span>
+              <span className="text-[10px] font-black text-amber-300 font-display mt-1">ZIEHEN</span>
             </div>
           </button>
 
@@ -395,7 +509,7 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
 
         {/* Active Color Ring */}
         <div className="relative z-10 mt-4 flex items-center gap-2 text-xs text-slate-200 bg-black/60 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/10 shadow">
-          <span>Target Color:</span>
+          <span>Aktuelle Farbe:</span>
           <span
             className="w-4 h-4 rounded-full ring-2 ring-white shadow"
             style={{
@@ -415,7 +529,7 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
       {/* UNO Call & Player Hand Header */}
       <div className="w-full flex items-center justify-between mb-2 px-1">
         <span className="text-xs font-bold text-slate-300">
-          Your Cards ({playerHand.length}):
+          Deine Hand ({myHand.length} Karten):
         </span>
 
         {/* UNO Shout Button */}
@@ -423,22 +537,25 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
           onClick={() => {
             sound.playReward();
             setCalledUno(true);
-            setGameMessage('SHOUTED UNO! 🔥');
+            setGameMessage(`🔥 ${myRole === 'player' ? p1Name : p2Name} hat UNO gerufen!`);
+            if (roomCode) {
+              multiplayerService.sendGameAction(roomCode, 'uno', 'CALL_UNO', { player: myRole }, currentUserId || 'p1');
+            }
           }}
           className={`px-3 py-1 rounded-xl text-xs font-black tracking-wider transition flex items-center gap-1 shadow-md ${
-            playerHand.length <= 2
-              ? 'bg-rose-600 hover:bg-rose-500 text-white animate-bounce ring-2 ring-white'
+            myHand.length <= 2
+              ? 'bg-rose-600 hover:bg-rose-500 text-white animate-bounce ring-2 ring-white cursor-pointer'
               : 'bg-slate-800 text-slate-400 opacity-60'
           }`}
         >
-          <Bell className="w-3.5 h-3.5" /> SHOUT UNO!
+          <Bell className="w-3.5 h-3.5" /> UNO RUFEN!
         </button>
       </div>
 
       {/* Player Hand Cards Scroll */}
       <div className="w-full overflow-x-auto pb-3 pt-1 flex gap-2.5 justify-start sm:justify-center px-1">
-        {playerHand.map((card) => {
-          const playable = canPlayCard(card) && currentTurn === 'player' && !winner;
+        {myHand.map((card) => {
+          const playable = canPlayCard(card) && isMyTurn && !winner;
           return (
             <button
               key={card.id}
@@ -476,18 +593,18 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
       {showColorPicker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl">
-            <h3 className="text-base font-bold text-white mb-3">Choose Next Color:</h3>
+            <h3 className="text-base font-bold text-white mb-3">Farbe wählen:</h3>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { color: 'red', label: 'Red', bg: 'bg-rose-600 hover:bg-rose-500' },
-                { color: 'blue', label: 'Blue', bg: 'bg-blue-600 hover:bg-blue-500' },
-                { color: 'green', label: 'Green', bg: 'bg-emerald-600 hover:bg-emerald-500' },
-                { color: 'yellow', label: 'Yellow', bg: 'bg-amber-500 hover:bg-amber-400 text-slate-950' },
+                { color: 'red', label: 'Rot', bg: 'bg-rose-600 hover:bg-rose-500' },
+                { color: 'blue', label: 'Blau', bg: 'bg-blue-600 hover:bg-blue-500' },
+                { color: 'green', label: 'Grün', bg: 'bg-emerald-600 hover:bg-emerald-500' },
+                { color: 'yellow', label: 'Gelb', bg: 'bg-amber-500 hover:bg-amber-400 text-slate-950' },
               ].map((c) => (
                 <button
                   key={c.color}
                   onClick={() => handleSelectWildColor(c.color as any)}
-                  className={`py-3 rounded-2xl font-bold text-sm shadow-md transition ${c.bg}`}
+                  className={`py-3 rounded-2xl font-bold text-sm shadow-md transition cursor-pointer ${c.bg}`}
                 >
                   {c.label}
                 </button>
@@ -500,10 +617,15 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
       {/* Bottom Controls */}
       <div className="mt-3 flex items-center gap-3">
         <button
-          onClick={startNewGame}
-          className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition flex items-center gap-1.5 border border-slate-700"
+          onClick={() => {
+            startNewGame(true);
+            if (roomCode) {
+              multiplayerService.sendGameAction(roomCode, 'uno', 'RESET', {}, currentUserId || 'p1');
+            }
+          }}
+          className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition flex items-center gap-1.5 border border-slate-700 cursor-pointer"
         >
-          <RefreshCw className="w-3.5 h-3.5" /> Restart Round
+          <RefreshCw className="w-3.5 h-3.5" /> Neue Runde
         </button>
       </div>
     </div>

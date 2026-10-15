@@ -1,7 +1,7 @@
 import React from 'react';
 import { UserProfile } from '../../types';
 import { sound } from '../../services/sound';
-import confetti from 'canvas-confetti';
+import confetti from '../../services/confetti';
 import { Crown, Sparkles, Check, Zap, Shield, Flame, X, Star } from 'lucide-react';
 
 interface VipModalProps {

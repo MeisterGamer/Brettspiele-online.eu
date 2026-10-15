@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { UserProfile } from '../../types';
 import { sound } from '../../services/sound';
-import confetti from 'canvas-confetti';
+import confetti from '../../services/confetti';
 import { Gift, Flame, Coins, Sparkles, Check, X, Gem, Award } from 'lucide-react';
 
 interface DailyRewardModalProps {

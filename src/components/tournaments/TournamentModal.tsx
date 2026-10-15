@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Tournament, UserProfile } from '../../types';
 import { sound } from '../../services/sound';
-import confetti from 'canvas-confetti';
+import confetti from '../../services/confetti';
+import { TABLE_BACKGROUNDS } from '../../services/gameImages';
 import { 
   Trophy, 
   Calendar, 
@@ -114,10 +115,10 @@ export const TournamentModal: React.FC<TournamentModalProps> = ({
                 <img
                   src={
                     activeTourney.id === 'tourney-oct-grandmaster'
-                      ? 'https://images.unsplash.com/photo-1541278107931-e006523892df?auto=format&fit=crop&w=800&q=80'
+                      ? TABLE_BACKGROUNDS.mahogany
                       : activeTourney.id === 'tourney-spooky-kniffel'
-                      ? 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&w=800&q=80'
-                      : 'https://images.unsplash.com/photo-1606167668584-78701c57f13d?auto=format&fit=crop&w=800&q=80'
+                      ? TABLE_BACKGROUNDS.feltGreen
+                      : TABLE_BACKGROUNDS.slateZen
                   }
                   alt={activeTourney.title}
                   referrerPolicy="no-referrer"

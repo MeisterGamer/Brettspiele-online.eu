@@ -154,7 +154,13 @@ export default function App() {
   const [currentTurnPlayerId, setCurrentTurnPlayerId] = useState<string | null>(null);
   const [currentRoom, setCurrentRoom] = useState<GameRoom | null>(null);
 
-  // Cross-tab multiplayer synchronization
+  // WebSocket & multiplayer synchronization
+  useEffect(() => {
+    if (user) {
+      multiplayerService.identifyUser(user);
+    }
+  }, [user]);
+
   useEffect(() => {
     const unsubscribe = multiplayerService.subscribe((event: MultiplayerEvent) => {
       if (event.type === 'ROOMS_UPDATED') {
@@ -706,6 +712,8 @@ export default function App() {
                   tableParticipants={currentRoom?.participants}
                   currentUserId={user.id}
                   onActiveTurnChange={setCurrentTurnPlayerId}
+                  roomCode={currentRoom?.code}
+                  isHost={currentRoom?.participants[0]?.id === user.id}
                 />
               )}
               {activeGame.engine === 'chess' && (
@@ -714,6 +722,8 @@ export default function App() {
                   tableParticipants={currentRoom?.participants}
                   currentUserId={user.id}
                   onActiveTurnChange={setCurrentTurnPlayerId}
+                  roomCode={currentRoom?.code}
+                  isHost={currentRoom?.participants[0]?.id === user.id}
                 />
               )}
               {activeGame.engine === 'connect-four' && (
@@ -722,6 +732,8 @@ export default function App() {
                   tableParticipants={currentRoom?.participants}
                   currentUserId={user.id}
                   onActiveTurnChange={setCurrentTurnPlayerId}
+                  roomCode={currentRoom?.code}
+                  isHost={currentRoom?.participants[0]?.id === user.id}
                 />
               )}
               {activeGame.engine === 'fam-cards' && (
@@ -730,6 +742,8 @@ export default function App() {
                   tableParticipants={currentRoom?.participants}
                   currentUserId={user.id}
                   onActiveTurnChange={setCurrentTurnPlayerId}
+                  roomCode={currentRoom?.code}
+                  isHost={currentRoom?.participants[0]?.id === user.id}
                 />
               )}
               {activeGame.engine === 'checkers' && (
@@ -738,6 +752,8 @@ export default function App() {
                   tableParticipants={currentRoom?.participants}
                   currentUserId={user.id}
                   onActiveTurnChange={setCurrentTurnPlayerId}
+                  roomCode={currentRoom?.code}
+                  isHost={currentRoom?.participants[0]?.id === user.id}
                 />
               )}
               {activeGame.engine === 'battleship' && (
@@ -746,6 +762,8 @@ export default function App() {
                   tableParticipants={currentRoom?.participants}
                   currentUserId={user.id}
                   onActiveTurnChange={setCurrentTurnPlayerId}
+                  roomCode={currentRoom?.code}
+                  isHost={currentRoom?.participants[0]?.id === user.id}
                 />
               )}
               {activeGame.engine === 'yatzy' && (
@@ -754,6 +772,8 @@ export default function App() {
                   tableParticipants={currentRoom?.participants}
                   currentUserId={user.id}
                   onActiveTurnChange={setCurrentTurnPlayerId}
+                  roomCode={currentRoom?.code}
+                  isHost={currentRoom?.participants[0]?.id === user.id}
                 />
               )}
               {activeGame.engine === 'memory-match' && (
@@ -762,6 +782,8 @@ export default function App() {
                   tableParticipants={currentRoom?.participants}
                   currentUserId={user.id}
                   onActiveTurnChange={setCurrentTurnPlayerId}
+                  roomCode={currentRoom?.code}
+                  isHost={currentRoom?.participants[0]?.id === user.id}
                 />
               )}
               {activeGame.engine === 'dots-boxes' && (
@@ -770,6 +792,8 @@ export default function App() {
                   tableParticipants={currentRoom?.participants}
                   currentUserId={user.id}
                   onActiveTurnChange={setCurrentTurnPlayerId}
+                  roomCode={currentRoom?.code}
+                  isHost={currentRoom?.participants[0]?.id === user.id}
                 />
               )}
               {activeGame.engine === 'tictactoe' && (
@@ -778,6 +802,8 @@ export default function App() {
                   tableParticipants={currentRoom?.participants}
                   currentUserId={user.id}
                   onActiveTurnChange={setCurrentTurnPlayerId}
+                  roomCode={currentRoom?.code}
+                  isHost={currentRoom?.participants[0]?.id === user.id}
                 />
               )}
             </div>
@@ -788,11 +814,14 @@ export default function App() {
             
             {/* Hero Banner with Real Photography */}
             <div className="relative rounded-3xl overflow-hidden border border-indigo-700/50 shadow-2xl min-h-[300px] flex items-center bg-slate-900">
-              {/* Real Photography Background */}
+              {/* Arcade Hero Visual */}
               <img
                 src={HERO_BANNER_IMAGE}
                 alt="Family Game Night"
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                  e.currentTarget.src = HERO_BANNER_FALLBACK;
+                }}
                 className="absolute inset-0 w-full h-full object-cover object-center filter brightness-[0.4] contrast-105"
               />
               <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-950/80 to-transparent" />

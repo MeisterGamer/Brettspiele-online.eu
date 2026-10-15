@@ -68,36 +68,178 @@ export type MultiplayerEvent =
   | { type: 'ROOMS_UPDATED'; rooms: GameRoom[] }
   | { type: 'ROOM_STATE_SYNC'; room: GameRoom }
   | { type: 'GAME_MOVE'; roomCode: string; moveData: any; senderId: string }
-  | { type: 'TABLE_EMOTE'; roomCode: string; emoji: string; senderName: string; senderId: string };
+  | { type: 'GAME_ACTION'; roomCode: string; gameType: string; action: string; payload: any; senderId: string }
+  | { type: 'SYNC_GAME_STATE'; roomCode: string; gameType: string; gameState: any; senderId: string }
+  | { type: 'TABLE_EMOTE'; roomCode: string; emoji: string; senderName: string; senderId: string }
+  | { type: 'ROOM_CHAT'; roomCode: string; text: string; senderName: string; senderId: string; timestamp: number };
 
 class MultiplayerService {
+  private socket: WebSocket | null = null;
   private channel: BroadcastChannel | null = null;
   private listeners: ((event: MultiplayerEvent) => void)[] = [];
+  private gameListeners: ((event: { roomCode: string; gameType: string; action: string; payload: any; senderId: string }) => void)[] = [];
+  private currentUser: UserProfile | null = null;
+  private currentRoomCode: string | null = null;
+  private reconnectAttempts = 0;
+  private reconnectTimer: any = null;
+  private isConnected = false;
+  private cachedRooms: GameRoom[] = initialPublicRooms;
 
   constructor() {
-    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-      try {
-        this.channel = new BroadcastChannel(CHANNEL_NAME);
-        this.channel.onmessage = (msg) => {
-          if (msg.data) {
-            this.notifyListeners(msg.data);
-          }
-        };
-      } catch (e) {
-        console.warn('BroadcastChannel not supported', e);
-      }
-    }
-
-    // Storage fallback for cross-tab communication
     if (typeof window !== 'undefined') {
+      // 1. Setup BroadcastChannel for fast tab-to-tab sync
+      if ('BroadcastChannel' in window) {
+        try {
+          this.channel = new BroadcastChannel(CHANNEL_NAME);
+          this.channel.onmessage = (msg) => {
+            if (msg.data) {
+              this.handleIncomingEvent(msg.data, false);
+            }
+          };
+        } catch (e) {
+          console.warn('BroadcastChannel not supported', e);
+        }
+      }
+
+      // 2. Storage fallback
       window.addEventListener('storage', (e) => {
         if (e.key === STORAGE_KEY && e.newValue) {
           try {
             const parsed = JSON.parse(e.newValue);
+            this.cachedRooms = parsed;
             this.notifyListeners({ type: 'ROOMS_UPDATED', rooms: parsed });
           } catch (err) {}
         }
       });
+
+      // 3. Connect to real WebSocket server
+      this.connectWebSocket();
+
+      // Initial HTTP fetch of rooms
+      this.fetchRoomsFromHttp();
+    }
+  }
+
+  public identifyUser(user: UserProfile) {
+    this.currentUser = user;
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      this.socket.send(JSON.stringify({
+        type: 'IDENTIFY',
+        user,
+      }));
+    }
+  }
+
+  private connectWebSocket() {
+    if (typeof window === 'undefined') return;
+
+    try {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+      this.socket = new WebSocket(wsUrl);
+
+      this.socket.onopen = () => {
+        this.isConnected = true;
+        this.reconnectAttempts = 0;
+
+        if (this.currentUser) {
+          this.socket?.send(JSON.stringify({
+            type: 'IDENTIFY',
+            user: this.currentUser,
+          }));
+        }
+
+        if (this.currentRoomCode && this.currentUser) {
+          this.socket?.send(JSON.stringify({
+            type: 'JOIN_ROOM',
+            roomCode: this.currentRoomCode,
+            user: this.currentUser,
+          }));
+        }
+      };
+
+      this.socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          this.handleIncomingEvent(data, true);
+        } catch (err) {
+          console.error('[WS] Parse error:', err);
+        }
+      };
+
+      this.socket.onclose = () => {
+        this.isConnected = false;
+        this.scheduleReconnect();
+      };
+
+      this.socket.onerror = (err) => {
+        console.warn('[WS] Connection issue, retrying...', err);
+        this.socket?.close();
+      };
+    } catch (e) {
+      console.warn('[WS] Init failed, scheduling reconnect', e);
+      this.scheduleReconnect();
+    }
+  }
+
+  private scheduleReconnect() {
+    if (this.reconnectTimer) return;
+    const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 10000);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.reconnectAttempts++;
+      this.connectWebSocket();
+    }, delay);
+  }
+
+  private async fetchRoomsFromHttp() {
+    try {
+      const res = await fetch('/api/rooms');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.rooms) && data.rooms.length > 0) {
+          this.cachedRooms = data.rooms;
+          this.saveRooms(data.rooms, false);
+          this.notifyListeners({ type: 'ROOMS_UPDATED', rooms: data.rooms });
+        }
+      }
+    } catch (e) {}
+  }
+
+  private handleIncomingEvent(event: MultiplayerEvent, fromServer = false) {
+    if (event.type === 'ROOMS_UPDATED') {
+      this.cachedRooms = event.rooms;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(event.rooms));
+      } catch (e) {}
+    } else if (event.type === 'ROOM_STATE_SYNC') {
+      const idx = this.cachedRooms.findIndex((r) => r.id === event.room.id || r.code === event.room.code);
+      if (idx !== -1) {
+        this.cachedRooms[idx] = event.room;
+      } else {
+        this.cachedRooms = [event.room, ...this.cachedRooms];
+      }
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.cachedRooms));
+      } catch (e) {}
+    } else if (event.type === 'GAME_ACTION') {
+      this.gameListeners.forEach((l) => {
+        try {
+          l(event);
+        } catch (err) {
+          console.error('[WS] Game listener error:', err);
+        }
+      });
+    }
+
+    this.notifyListeners(event);
+
+    // Relay to local BroadcastChannel if received from server
+    if (fromServer && this.channel) {
+      try {
+        this.channel.postMessage(event);
+      } catch (e) {}
     }
   }
 
@@ -105,6 +247,15 @@ class MultiplayerService {
     this.listeners.push(callback);
     return () => {
       this.listeners = this.listeners.filter((l) => l !== callback);
+    };
+  }
+
+  public subscribeToGameActions(
+    callback: (event: { roomCode: string; gameType: string; action: string; payload: any; senderId: string }) => void
+  ): () => void {
+    this.gameListeners.push(callback);
+    return () => {
+      this.gameListeners = this.gameListeners.filter((l) => l !== callback);
     };
   }
 
@@ -118,13 +269,21 @@ class MultiplayerService {
     });
   }
 
-  private post(event: MultiplayerEvent) {
+  private sendWsOrPost(event: any) {
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      try {
+        this.socket.send(JSON.stringify(event));
+      } catch (e) {
+        console.error('[WS] Send failed:', e);
+      }
+    }
+    // Also post locally so caller receives it
     if (this.channel) {
       try {
         this.channel.postMessage(event);
       } catch (e) {}
     }
-    this.notifyListeners(event);
+    this.handleIncomingEvent(event, false);
   }
 
   public getRooms(): GameRoom[] {
@@ -133,19 +292,22 @@ class MultiplayerService {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed: GameRoom[] = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          this.cachedRooms = parsed;
+          return parsed;
+        }
       }
     } catch (e) {}
-    this.saveRooms(initialPublicRooms, false);
-    return initialPublicRooms;
+    return this.cachedRooms;
   }
 
   public saveRooms(rooms: GameRoom[], broadcast = true): void {
     if (typeof window === 'undefined') return;
+    this.cachedRooms = rooms;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(rooms));
       if (broadcast) {
-        this.post({ type: 'ROOMS_UPDATED', rooms });
+        this.sendWsOrPost({ type: 'ROOMS_UPDATED', rooms });
       }
     } catch (e) {}
   }
@@ -173,8 +335,9 @@ class MultiplayerService {
       voiceChatActive: boolean;
     }
   ): GameRoom {
-    const rooms = this.getRooms();
+    this.currentUser = host;
     const code = `FAM-${Math.floor(100 + Math.random() * 900)}`;
+    this.currentRoomCode = code;
 
     const hostParticipant: RoomParticipant = {
       id: host.id,
@@ -183,7 +346,7 @@ class MultiplayerService {
       isHost: true,
       isReady: true,
       score: 0,
-      ping: Math.floor(15 + Math.random() * 12),
+      ping: 15,
       isBot: false,
       seatIndex: 0,
     };
@@ -204,37 +367,46 @@ class MultiplayerService {
       participants: [hostParticipant],
     };
 
-    const updated = [newRoom, ...rooms];
-    this.saveRooms(updated);
-    this.post({ type: 'ROOM_STATE_SYNC', room: newRoom });
+    this.sendWsOrPost({
+      type: 'CREATE_ROOM',
+      host,
+      config,
+    });
+
+    const updated = [newRoom, ...this.getRooms()];
+    this.saveRooms(updated, false);
     return newRoom;
   }
 
   public joinRoom(roomCode: string, user: UserProfile): GameRoom | null {
-    const rooms = this.getRooms();
+    this.currentUser = user;
+    this.currentRoomCode = roomCode;
+
+    this.sendWsOrPost({
+      type: 'JOIN_ROOM',
+      roomCode,
+      user,
+    });
+
     const room = this.getRoomByCode(roomCode);
     if (!room) return null;
 
-    // Check if user is already seated
     const existingIndex = room.participants.findIndex((p) => p.id === user.id);
     let updatedRoom: GameRoom;
 
     if (existingIndex !== -1) {
-      // Refresh user avatar/name
       const updatedParticipants = [...room.participants];
       updatedParticipants[existingIndex] = {
         ...updatedParticipants[existingIndex],
         name: user.name,
         avatar: user.avatar,
-        ping: Math.floor(15 + Math.random() * 15),
+        ping: 18,
       };
       updatedRoom = { ...room, participants: updatedParticipants };
     } else {
       if (room.participants.length >= room.maxPlayers) {
-        // Room full
         return room;
       }
-
       const newParticipant: RoomParticipant = {
         id: user.id,
         name: user.name,
@@ -242,11 +414,10 @@ class MultiplayerService {
         isHost: false,
         isReady: true,
         score: 0,
-        ping: Math.floor(18 + Math.random() * 20),
+        ping: 20,
         isBot: false,
         seatIndex: room.participants.length,
       };
-
       updatedRoom = {
         ...room,
         currentPlayers: room.participants.length + 1,
@@ -254,15 +425,37 @@ class MultiplayerService {
       };
     }
 
-    const updatedRooms = rooms.map((r) => (r.id === updatedRoom.id ? updatedRoom : r));
-    this.saveRooms(updatedRooms);
-    this.post({ type: 'ROOM_STATE_SYNC', room: updatedRoom });
+    const updatedRooms = this.getRooms().map((r) => (r.id === updatedRoom.id ? updatedRoom : r));
+    this.saveRooms(updatedRooms, false);
     return updatedRoom;
   }
 
+  public leaveRoom(roomCode: string, userId: string): void {
+    if (this.currentRoomCode === roomCode) {
+      this.currentRoomCode = null;
+    }
+    this.sendWsOrPost({
+      type: 'LEAVE_ROOM',
+      roomCode,
+      userId,
+    });
+  }
+
+  public setRoomGame(roomCode: string, gameId: string, gameTitle: string): void {
+    this.sendWsOrPost({
+      type: 'SET_ROOM_GAME',
+      roomCode,
+      gameId,
+      gameTitle,
+    });
+  }
+
+  public addHumanSimPlayerToRoom(roomIdOrCode: string): GameRoom | null {
+    return this.addBotToRoom(roomIdOrCode);
+  }
+
   public addBotToRoom(roomIdOrCode: string): GameRoom | null {
-    const rooms = this.getRooms();
-    const target = rooms.find((r) => r.id === roomIdOrCode || r.code === roomIdOrCode);
+    const target = this.getRoomByCode(roomIdOrCode) || this.getRooms().find((r) => r.id === roomIdOrCode);
     if (!target) return null;
 
     if (target.participants.length >= target.maxPlayers) {
@@ -271,6 +464,13 @@ class MultiplayerService {
 
     const nextSeat = target.participants.length;
     const botPreset = FAMILY_BOT_PRESETS[nextSeat % FAMILY_BOT_PRESETS.length];
+
+    this.sendWsOrPost({
+      type: 'ADD_BOT',
+      roomCode: target.code,
+      botPreset,
+    });
+
     const botParticipant: RoomParticipant = {
       id: `bot_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       name: botPreset.name,
@@ -289,57 +489,22 @@ class MultiplayerService {
       participants: [...target.participants, botParticipant],
     };
 
-    const updatedRooms = rooms.map((r) => (r.id === updatedRoom.id ? updatedRoom : r));
-    this.saveRooms(updatedRooms);
-    this.post({ type: 'ROOM_STATE_SYNC', room: updatedRoom });
-    return updatedRoom;
-  }
-
-  public addHumanSimPlayerToRoom(roomIdOrCode: string, name?: string): GameRoom | null {
-    const rooms = this.getRooms();
-    const target = rooms.find((r) => r.id === roomIdOrCode || r.code === roomIdOrCode);
-    if (!target) return null;
-
-    if (target.participants.length >= target.maxPlayers) {
-      return target;
-    }
-
-    const nextSeat = target.participants.length;
-    const defaultNames = ['Mama Sarah', 'Bruder Felix', 'Schwester Mia', 'Opa Heinz'];
-    const playerName = name || defaultNames[nextSeat % defaultNames.length];
-    const botPreset = FAMILY_BOT_PRESETS[nextSeat % FAMILY_BOT_PRESETS.length];
-
-    const humanParticipant: RoomParticipant = {
-      id: `sim_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-      name: playerName,
-      avatar: botPreset.avatar,
-      isHost: false,
-      isReady: true,
-      score: 0,
-      ping: 22,
-      isBot: false,
-      seatIndex: nextSeat,
-    };
-
-    const updatedRoom: GameRoom = {
-      ...target,
-      currentPlayers: target.participants.length + 1,
-      participants: [...target.participants, humanParticipant],
-    };
-
-    const updatedRooms = rooms.map((r) => (r.id === updatedRoom.id ? updatedRoom : r));
-    this.saveRooms(updatedRooms);
-    this.post({ type: 'ROOM_STATE_SYNC', room: updatedRoom });
+    const updatedRooms = this.getRooms().map((r) => (r.id === updatedRoom.id ? updatedRoom : r));
+    this.saveRooms(updatedRooms, false);
     return updatedRoom;
   }
 
   public removeParticipant(roomIdOrCode: string, participantId: string): GameRoom | null {
-    const rooms = this.getRooms();
-    const target = rooms.find((r) => r.id === roomIdOrCode || r.code === roomIdOrCode);
+    const target = this.getRoomByCode(roomIdOrCode) || this.getRooms().find((r) => r.id === roomIdOrCode);
     if (!target) return null;
 
+    this.sendWsOrPost({
+      type: 'REMOVE_PARTICIPANT',
+      roomCode: target.code,
+      participantId,
+    });
+
     const filtered = target.participants.filter((p) => p.id !== participantId);
-    // Re-index seats
     const reindexed = filtered.map((p, idx) => ({ ...p, seatIndex: idx }));
 
     const updatedRoom: GameRoom = {
@@ -349,14 +514,12 @@ class MultiplayerService {
       hostName: reindexed[0]?.name || target.hostName,
     };
 
-    // If host was removed, promote next participant to host
     if (reindexed.length > 0 && !reindexed.some((p) => p.isHost)) {
       reindexed[0].isHost = true;
     }
 
-    const updatedRooms = rooms.map((r) => (r.id === updatedRoom.id ? updatedRoom : r));
-    this.saveRooms(updatedRooms);
-    this.post({ type: 'ROOM_STATE_SYNC', room: updatedRoom });
+    const updatedRooms = this.getRooms().map((r) => (r.id === updatedRoom.id ? updatedRoom : r));
+    this.saveRooms(updatedRooms, false);
     return updatedRoom;
   }
 
@@ -364,25 +527,42 @@ class MultiplayerService {
     const rooms = this.getRooms();
     const updated = rooms.map((r) => (r.id === room.id ? room : r));
     this.saveRooms(updated);
-    this.post({ type: 'ROOM_STATE_SYNC', room });
+    this.sendWsOrPost({ type: 'ROOM_STATE_SYNC', room });
   }
 
-  public sendGameMove(roomCode: string, moveData: any, senderId: string): void {
-    this.post({
-      type: 'GAME_MOVE',
+  public sendGameAction(roomCode: string, gameType: string, action: string, payload: any, senderId: string): void {
+    this.sendWsOrPost({
+      type: 'GAME_ACTION',
       roomCode,
-      moveData,
+      gameType,
+      action,
+      payload,
       senderId,
     });
   }
 
+  public sendGameMove(roomCode: string, moveData: any, senderId: string): void {
+    this.sendGameAction(roomCode, 'general', 'MOVE', moveData, senderId);
+  }
+
   public sendTableEmote(roomCode: string, emoji: string, senderName: string, senderId: string): void {
-    this.post({
+    this.sendWsOrPost({
       type: 'TABLE_EMOTE',
       roomCode,
       emoji,
       senderName,
       senderId,
+    });
+  }
+
+  public sendChatMessage(roomCode: string, text: string, senderName: string, senderId: string): void {
+    this.sendWsOrPost({
+      type: 'ROOM_CHAT',
+      roomCode,
+      text,
+      senderName,
+      senderId,
+      timestamp: Date.now(),
     });
   }
 }

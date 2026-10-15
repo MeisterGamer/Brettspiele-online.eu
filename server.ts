@@ -35,6 +35,37 @@ const defaultPort = isAiStudio ? 3000 : 5555;
 const envPort = process.env.APP_PORT || (process.env.PORT === '8080' && isAiStudio ? '3000' : process.env.PORT);
 const PORT = argPort || (envPort ? parseInt(envPort, 10) : defaultPort);
 
+// Security headers: CSP & modern Permissions-Policy
+app.use((_req, res, next) => {
+  res.setHeader(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",
+      "worker-src 'self' blob:",
+      "child-src 'self' blob:",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com data:",
+      "img-src 'self' data: blob: https://images.unsplash.com https://*.unsplash.com",
+      "connect-src 'self' blob: data: https://images.unsplash.com https://*.unsplash.com https://fonts.googleapis.com https://fonts.gstatic.com ws: wss:",
+      "media-src 'self' blob: data:",
+      "object-src 'none'",
+      "base-uri 'self'",
+    ].join('; ')
+  );
+
+  res.setHeader(
+    'Permissions-Policy',
+    'microphone=(self), camera=(), geolocation=(), payment=()'
+  );
+
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+  next();
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -43,11 +74,18 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+import { setupWebSocketServer, getRoomsList } from './server/multiplayer/wsServer.js';
+
 // Authentication and user management routes
 app.use('/api/auth', authRouter);
 app.use('/api/users', authRouter);
 // Web-Setup Wizard routes
 app.use('/api/setup', setupRouter);
+
+// Public rooms API for multiplayer synchronization
+app.get('/api/rooms', (_req, res) => {
+  res.json({ rooms: getRoomsList() });
+});
 
 // Initialize MariaDB
 try {
@@ -96,6 +134,9 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`[FamPlay Server] 🚀 Full-Stack server running on http://0.0.0.0:${PORT}`);
   console.log(`[FamPlay Server] 🔒 Mandatory Login & MariaDB authentication active.`);
 });
+
+// Mount real-time WebSocket server for 100% online multiplayer
+setupWebSocketServer(server);
 
 server.on('error', (err: any) => {
   if (err.code === 'EADDRINUSE') {

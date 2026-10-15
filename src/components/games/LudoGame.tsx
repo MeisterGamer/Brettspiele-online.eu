@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { sound } from '../../services/sound';
-import confetti from 'canvas-confetti';
+import confetti from '../../services/confetti';
 import { 
   RefreshCw, 
   Trophy, 
@@ -16,6 +16,8 @@ import {
 import { TABLE_BACKGROUNDS } from '../../services/gameImages';
 import { RoomParticipant } from '../../types';
 import { AvatarDisplay } from '../avatar/AvatarDisplay';
+import { multiplayerService } from '../../services/multiplayerService';
+import { Wifi } from 'lucide-react';
 
 type PlayerColor = 'red' | 'blue' | 'green' | 'yellow';
 
@@ -31,6 +33,8 @@ interface LudoGameProps {
   tableParticipants?: RoomParticipant[];
   currentUserId?: string;
   onActiveTurnChange?: (turnPlayerId: string) => void;
+  roomCode?: string;
+  isHost?: boolean;
 }
 
 // 40 spaces track coordinates mapped onto an 11x11 grid (traditional German Mensch-ärgere-dich-nicht layout)
@@ -118,7 +122,9 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   onGameEnd,
   tableParticipants,
   currentUserId,
-  onActiveTurnChange
+  onActiveTurnChange,
+  roomCode,
+  isHost
 }) => {
   const colorMap: Record<PlayerColor, RoomParticipant | undefined> = {
     red: tableParticipants?.[0],
@@ -126,6 +132,11 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     green: tableParticipants?.[2],
     yellow: tableParticipants?.[3],
   };
+
+  const isOnlineMultiplayer = Boolean(roomCode && tableParticipants && tableParticipants.length >= 2);
+  const myColor: PlayerColor | null = isOnlineMultiplayer
+    ? ((['red', 'blue', 'green', 'yellow'] as PlayerColor[]).find((c) => colorMap[c]?.id === currentUserId) || null)
+    : null;
 
   const getPlayerLabel = (color: PlayerColor) => {
     const p = colorMap[color];
@@ -152,6 +163,8 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   const [lastActionLog, setLastActionLog] = useState<string>(() => 
     `Willkommen am Familientisch! ${getPlayerLabel('red')} beginnt. Bitte würfeln.`
   );
+
+  const isMyTurn = !isOnlineMultiplayer || !myColor || activeTurn === myColor;
 
   useEffect(() => {
     if (onActiveTurnChange) {
@@ -185,9 +198,39 @@ export const LudoGame: React.FC<LudoGameProps> = ({
 
   const [movablePieces, setMovablePieces] = useState<number[]>([]);
 
+  // WebSocket Multiplayer synchronization
+  useEffect(() => {
+    if (!roomCode) return;
+
+    const unsubscribe = multiplayerService.subscribeToGameActions((evt) => {
+      if (evt.roomCode !== roomCode || evt.gameType !== 'ludo') return;
+      if (evt.senderId === currentUserId) return;
+
+      if (evt.action === 'ROLL_DICE') {
+        const { color, roll } = evt.payload;
+        sound.playDiceRoll();
+        setDiceValue(roll);
+        setIsRolling(false);
+        sound.playChip();
+        evaluateMoves(color, roll);
+      } else if (evt.action === 'MOVE_PIECE') {
+        const { pieceId, roll } = evt.payload;
+        applyMovePiece(pieceId, roll);
+      } else if (evt.action === 'RESET') {
+        resetGameInternal();
+      }
+    });
+
+    return () => unsubscribe();
+  }, [roomCode, currentUserId, pieces, activeTurn, movablePieces, diceValue]);
+
   // Roll the dice
   const handleRollDice = () => {
     if (isRolling || winner || movablePieces.length > 0) return;
+    if (isOnlineMultiplayer && !isMyTurn) {
+      sound.playError();
+      return;
+    }
     setIsRolling(true);
     sound.playDiceRoll();
 
@@ -202,6 +245,16 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         setIsRolling(false);
         sound.playChip();
         evaluateMoves(activeTurn, finalVal);
+
+        if (roomCode) {
+          multiplayerService.sendGameAction(
+            roomCode,
+            'ludo',
+            'ROLL_DICE',
+            { color: activeTurn, roll: finalVal },
+            currentUserId || 'p1'
+          );
+        }
       }
     }, 60);
   };
@@ -297,14 +350,11 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     return validIds[0];
   };
 
-  // Move the selected piece
-  const handleMovePiece = (pieceId: number, rollOverride?: number) => {
-    if (!movablePieces.includes(pieceId)) return;
-    const roll = rollOverride ?? diceValue;
-    if (!roll) return;
-
+  // Apply the move to pieces and game state
+  const applyMovePiece = (pieceId: number, roll: number) => {
     sound.playChip();
-    const movingPiece = pieces.find((p) => p.id === pieceId)!;
+    const movingPiece = pieces.find((p) => p.id === pieceId);
+    if (!movingPiece) return;
     let targetPos = movingPiece.position;
     let captureOccurred = false;
     let capturedName = '';
@@ -357,6 +407,24 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     }, 400);
   };
 
+  // Move the selected piece
+  const handleMovePiece = (pieceId: number, rollOverride?: number) => {
+    if (!movablePieces.includes(pieceId)) return;
+    const roll = rollOverride ?? diceValue;
+    if (!roll) return;
+
+    if (isOnlineMultiplayer && myColor && activeTurn !== myColor) {
+      sound.playError();
+      return;
+    }
+
+    applyMovePiece(pieceId, roll);
+
+    if (roomCode) {
+      multiplayerService.sendGameAction(roomCode, 'ludo', 'MOVE_PIECE', { pieceId, roll }, currentUserId || 'p1');
+    }
+  };
+
   const checkWinCondition = (color: PlayerColor, rolledSix: boolean) => {
     // Current positions after move
     const playerPieces = pieces.filter((p) => p.color === color);
@@ -398,8 +466,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     }
   };
 
-  const resetGame = () => {
-    sound.playClick();
+  const resetGameInternal = () => {
     setPieces([
       { id: 1, color: 'red', position: -1 },
       { id: 2, color: 'red', position: -1 },
@@ -424,6 +491,14 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     setMovablePieces([]);
     setWinner(null);
     setLastActionLog('Neues Spiel gestartet. Rot beginnt. Bitte würfeln.');
+  };
+
+  const resetGame = () => {
+    sound.playClick();
+    resetGameInternal();
+    if (roomCode) {
+      multiplayerService.sendGameAction(roomCode, 'ludo', 'RESET', {}, currentUserId || 'p1');
+    }
   };
 
   // Render a 3D Realistic Halma Cone Figure (Holzkegel mit Kugelspitze)
@@ -701,15 +776,17 @@ export const LudoGame: React.FC<LudoGameProps> = ({
               <span>Würfelbecher</span>
             </h3>
             <p className="text-[11px] text-slate-400">
-              {activeTurn === 'red' || gameMode === 'pass'
-                ? 'Klicke zum Würfeln (Bei 6 darfst du raus und nochmal!)'
-                : 'KI würfelt automatisch...'}
+              {isOnlineMultiplayer
+                ? (isMyTurn ? 'Du bist am Zug! Klicke zum Würfeln.' : `Warte auf ${getPlayerLabel(activeTurn)}...`)
+                : (activeTurn === 'red' || gameMode === 'pass'
+                  ? 'Klicke zum Würfeln (Bei 6 darfst du raus und nochmal!)'
+                  : 'KI würfelt automatisch...')}
             </p>
           </div>
 
           {/* 3D Rolling Dice & Leather Cup Station */}
           <div
-            onClick={() => (activeTurn === 'red' || gameMode === 'pass') && handleRollDice()}
+            onClick={() => (!isOnlineMultiplayer ? (activeTurn === 'red' || gameMode === 'pass') : isMyTurn) && handleRollDice()}
             className={`w-36 h-36 rounded-2xl flex flex-col items-center justify-center relative cursor-pointer transition-all duration-300 ${
               isRolling ? 'scale-105 rotate-6' : 'hover:scale-105'
             } ${

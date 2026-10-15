@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { sound } from '../../services/sound';
-import confetti from 'canvas-confetti';
+import confetti from '../../services/confetti';
 import { RefreshCw, Trophy, Bot, Users, Crown, Sparkles } from 'lucide-react';
 import { TABLE_BACKGROUNDS } from '../../services/gameImages';
 
@@ -14,24 +14,39 @@ type BoardState = (PieceType | null)[][];
 import { RoomParticipant } from '../../types';
 import { AvatarDisplay } from '../avatar/AvatarDisplay';
 
+import { multiplayerService } from '../../services/multiplayerService';
+import { Wifi } from 'lucide-react';
+
 interface CheckersGameProps {
   onGameEnd?: (winner: string) => void;
   tableParticipants?: RoomParticipant[];
   currentUserId?: string;
   onActiveTurnChange?: (turnPlayerId: string) => void;
+  roomCode?: string;
+  isHost?: boolean;
 }
 
 export const CheckersGame: React.FC<CheckersGameProps> = ({ 
   onGameEnd,
   tableParticipants,
   currentUserId,
-  onActiveTurnChange
+  onActiveTurnChange,
+  roomCode,
 }) => {
   const p1 = tableParticipants?.[0];
   const p2 = tableParticipants?.[1];
   const p1Name = p1?.name || 'Rot (Du)';
   const p2Name = p2?.name || (p2?.isBot ? 'KI-Bot' : 'Schwarz (Spieler 2)');
   const isP2Bot = p2 ? !!p2.isBot : true;
+
+  const isOnlineMultiplayer = Boolean(roomCode && p1 && p2 && !p2.isBot);
+  const myPlayer: 'red' | 'black' | null = isOnlineMultiplayer
+    ? currentUserId === p1?.id
+      ? 'red'
+      : currentUserId === p2?.id
+      ? 'black'
+      : null
+    : null;
 
   // Initialize standard 8x8 checkers board
   const initBoard = (): BoardState => {
@@ -60,7 +75,17 @@ export const CheckersGame: React.FC<CheckersGameProps> = ({
   const [validMoves, setValidMoves] = useState<[number, number][]>([]);
   const [turn, setTurn] = useState<'red' | 'black'>('red');
   const [winner, setWinner] = useState<string | null>(null);
-  const [mode, setMode] = useState<'bot' | 'local2p'>(() => isP2Bot ? 'bot' : 'local2p');
+  const [mode, setMode] = useState<'bot' | 'local2p' | 'online'>(() => 
+    isOnlineMultiplayer ? 'online' : (isP2Bot ? 'bot' : 'local2p')
+  );
+
+  useEffect(() => {
+    if (isOnlineMultiplayer) {
+      setMode('online');
+    } else {
+      setMode(isP2Bot ? 'bot' : 'local2p');
+    }
+  }, [isOnlineMultiplayer, isP2Bot]);
 
   useEffect(() => {
     if (onActiveTurnChange) {
@@ -68,6 +93,79 @@ export const CheckersGame: React.FC<CheckersGameProps> = ({
       onActiveTurnChange(activeId);
     }
   }, [turn, p1?.id, p2?.id, onActiveTurnChange]);
+
+  // WebSocket Multiplayer synchronization
+  useEffect(() => {
+    if (!roomCode) return;
+
+    const unsubscribe = multiplayerService.subscribeToGameActions((event) => {
+      if (event.gameType !== 'checkers' || event.roomCode !== roomCode) return;
+      if (event.senderId === currentUserId) return;
+
+      if (event.action === 'MOVE') {
+        const { from, to } = event.payload;
+        applyRemoteCheckersMove(from[0], from[1], to[0], to[1]);
+      } else if (event.action === 'RESET') {
+        sound.playClick();
+        setBoard(initBoard());
+        setTurn('red');
+        setSelectedPos(null);
+        setValidMoves([]);
+        setWinner(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [roomCode, currentUserId, onGameEnd]);
+
+  const applyRemoteCheckersMove = (fromR: number, fromC: number, toR: number, toC: number) => {
+    setBoard((prev) => {
+      const movingPiece = prev[fromR][fromC];
+      if (!movingPiece) return prev;
+
+      sound.playPieceDrop();
+      const newBoard = prev.map((row) => [...row]);
+      const pieceCopy = { ...movingPiece };
+
+      newBoard[fromR][fromC] = null;
+
+      if (Math.abs(toR - fromR) === 2) {
+        sound.playReward();
+        const capturedR = (fromR + toR) / 2;
+        const capturedC = (fromC + toC) / 2;
+        newBoard[capturedR][capturedC] = null;
+      }
+
+      if (pieceCopy.player === 'red' && toR === 0) {
+        pieceCopy.isKing = true;
+      } else if (pieceCopy.player === 'black' && toR === 7) {
+        pieceCopy.isKing = true;
+      }
+
+      newBoard[toR][toC] = pieceCopy;
+
+      let redCount = 0;
+      let blackCount = 0;
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          if (newBoard[r][c]?.player === 'red') redCount++;
+          if (newBoard[r][c]?.player === 'black') blackCount++;
+        }
+      }
+
+      if (redCount === 0 || blackCount === 0) {
+        const winPlayer = redCount > 0 ? p1Name : p2Name;
+        setWinner(winPlayer);
+        sound.playVictory();
+        try { confetti({ particleCount: 80, spread: 70 }); } catch (e) {}
+        if (onGameEnd) onGameEnd(winPlayer);
+      } else {
+        setTurn(pieceCopy.player === 'red' ? 'black' : 'red');
+      }
+
+      return newBoard;
+    });
+  };
 
   const getMovesForPiece = (r: number, c: number, currentBoard: BoardState): [number, number][] => {
     const piece = currentBoard[r][c];
@@ -106,13 +204,54 @@ export const CheckersGame: React.FC<CheckersGameProps> = ({
     return moves;
   };
 
+  const executeBotMove = (currentBoard: BoardState) => {
+    const allMoves: { from: [number, number]; to: [number, number]; isJump: boolean }[] = [];
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        if (currentBoard[r][c]?.player === 'black') {
+          const moves = getMovesForPiece(r, c, currentBoard);
+          for (const [toR, toC] of moves) {
+            allMoves.push({
+              from: [r, c],
+              to: [toR, toC],
+              isJump: Math.abs(toR - r) === 2,
+            });
+          }
+        }
+      }
+    }
+
+    if (allMoves.length === 0) {
+      setWinner(p1Name);
+      sound.playVictory();
+      if (onGameEnd) onGameEnd(p1Name);
+      return;
+    }
+
+    const jumpMoves = allMoves.filter((m) => m.isJump);
+    const chosen = jumpMoves.length > 0
+      ? jumpMoves[Math.floor(Math.random() * jumpMoves.length)]
+      : allMoves[Math.floor(Math.random() * allMoves.length)];
+
+    executeMove(chosen.from[0], chosen.from[1], chosen.to[0], chosen.to[1]);
+  };
+
   const handleCellClick = (r: number, c: number) => {
     if (winner) return;
+
+    if (isOnlineMultiplayer && myPlayer && turn !== myPlayer) {
+      sound.playError();
+      return;
+    }
 
     const piece = board[r][c];
 
     // Select piece
     if (piece && piece.player === turn) {
+      if (isOnlineMultiplayer && myPlayer && piece.player !== myPlayer) {
+        sound.playError();
+        return;
+      }
       sound.playClick();
       setSelectedPos([r, c]);
       const moves = getMovesForPiece(r, c, board);
@@ -150,6 +289,14 @@ export const CheckersGame: React.FC<CheckersGameProps> = ({
     }
 
     newBoard[toR][toC] = movingPiece;
+
+    if (roomCode) {
+      multiplayerService.sendGameAction(roomCode, 'checkers', 'MOVE', {
+        from: [fromR, fromC],
+        to: [toR, toC],
+      }, currentUserId || 'p1');
+    }
+
     setBoard(newBoard);
     setSelectedPos(null);
     setValidMoves([]);
@@ -165,7 +312,7 @@ export const CheckersGame: React.FC<CheckersGameProps> = ({
     }
 
     if (redCount === 0 || blackCount === 0) {
-      const winPlayer = redCount > 0 ? 'Red' : 'Black';
+      const winPlayer = redCount > 0 ? p1Name : p2Name;
       setWinner(winPlayer);
       sound.playVictory();
       try {
@@ -185,41 +332,6 @@ export const CheckersGame: React.FC<CheckersGameProps> = ({
       }, 650);
     }
   };
-
-  const executeBotMove = (currentBoard: BoardState) => {
-    const allBlackMoves: { from: [number, number]; to: [number, number]; isJump: boolean }[] = [];
-
-    for (let r = 0; r < 8; r++) {
-      for (let c = 0; c < 8; c++) {
-        if (currentBoard[r][c]?.player === 'black') {
-          const pieceMoves = getMovesForPiece(r, c, currentBoard);
-          for (const [tr, tc] of pieceMoves) {
-            allBlackMoves.push({
-              from: [r, c],
-              to: [tr, tc],
-              isJump: Math.abs(tr - r) === 2,
-            });
-          }
-        }
-      }
-    }
-
-    if (allBlackMoves.length === 0) {
-      setWinner('Red');
-      sound.playVictory();
-      if (onGameEnd) onGameEnd('Red');
-      return;
-    }
-
-    // Prioritize jumps
-    const jumpMoves = allBlackMoves.filter((m) => m.isJump);
-    const chosenMove = jumpMoves.length > 0
-      ? jumpMoves[Math.floor(Math.random() * jumpMoves.length)]
-      : allBlackMoves[Math.floor(Math.random() * allBlackMoves.length)];
-
-    executeMove(chosenMove.from[0], chosenMove.from[1], chosenMove.to[0], chosenMove.to[1]);
-  };
-
   const resetGame = () => {
     sound.playClick();
     setBoard(initBoard());
@@ -227,6 +339,10 @@ export const CheckersGame: React.FC<CheckersGameProps> = ({
     setValidMoves([]);
     setTurn('red');
     setWinner(null);
+
+    if (roomCode) {
+      multiplayerService.sendGameAction(roomCode, 'checkers', 'RESET', {}, currentUserId || 'p1');
+    }
   };
 
   // Piece counts
@@ -262,30 +378,37 @@ export const CheckersGame: React.FC<CheckersGameProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
-          <button
-            onClick={() => {
-              setMode('bot');
-              resetGame();
-            }}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition ${
-              mode === 'bot' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400'
-            }`}
-          >
-            <Bot className="w-3.5 h-3.5" /> KI
-          </button>
-          <button
-            onClick={() => {
-              setMode('local2p');
-              resetGame();
-            }}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition ${
-              mode === 'local2p' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" /> 2P Duell
-          </button>
-        </div>
+        {isOnlineMultiplayer ? (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-black">
+            <Wifi className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+            <span>LIVE-DAME ({myPlayer ? `Du bist ${myPlayer === 'red' ? 'Rot' : 'Schwarz'}` : 'Zuschauer'})</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+            <button
+              onClick={() => {
+                setMode('bot');
+                resetGame();
+              }}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition ${
+                mode === 'bot' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400'
+              }`}
+            >
+              <Bot className="w-3.5 h-3.5" /> KI
+            </button>
+            <button
+              onClick={() => {
+                setMode('local2p');
+                resetGame();
+              }}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition ${
+                mode === 'local2p' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" /> 2P Duell
+            </button>
+          </div>
+        )}
 
         <div className={`flex items-center gap-2 p-1 rounded-xl transition ${turn === 'black' && !winner ? 'bg-slate-800/80 ring-1 ring-slate-400/50' : ''}`}>
           <div className="text-right">

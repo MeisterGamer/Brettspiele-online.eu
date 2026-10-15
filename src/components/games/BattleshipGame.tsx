@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { sound } from '../../services/sound';
-import confetti from 'canvas-confetti';
+import confetti from '../../services/confetti';
 import { RefreshCw, Trophy, Target, Shield, Crosshair, AlertCircle, Flame, Waves, Bot, Users } from 'lucide-react';
 import { NAVAL_FLEET_PHOTOS, TABLE_BACKGROUNDS } from '../../services/gameImages';
 import { RoomParticipant } from '../../types';
@@ -26,23 +26,35 @@ const SHIPS: ShipDef[] = [
   { id: 'destroyer', ...NAVAL_FLEET_PHOTOS.destroyer },
 ];
 
+import { multiplayerService } from '../../services/multiplayerService';
+import { Wifi } from 'lucide-react';
+
 interface BattleshipGameProps {
   onGameEnd?: (winner: string) => void;
   tableParticipants?: RoomParticipant[];
   currentUserId?: string;
   onActiveTurnChange?: (turnPlayerId: string) => void;
+  roomCode?: string;
+  isHost?: boolean;
 }
 
 export const BattleshipGame: React.FC<BattleshipGameProps> = ({ 
   onGameEnd,
   tableParticipants,
   currentUserId,
-  onActiveTurnChange
+  onActiveTurnChange,
+  roomCode,
 }) => {
   const p1 = tableParticipants?.[0];
   const p2 = tableParticipants?.[1];
   const p1Name = p1?.name || 'Admiral (Du)';
   const p2Name = p2?.name || (p2?.isBot ? 'KI Flottenadmiral' : 'Gegnerischer Admiral');
+  const isP2Bot = p2 ? !!p2.isBot : true;
+
+  const isOnlineMultiplayer = Boolean(roomCode && p1 && p2 && !p2.isBot);
+  const isPlayer1 = currentUserId === p1?.id;
+  const isPlayer2 = currentUserId === p2?.id;
+
   const generateRandomFleet = (): CellState[][] => {
     const grid: CellState[][] = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill('empty'));
 
@@ -87,17 +99,131 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
     Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill('empty'))
   );
 
-  const [turn, setTurn] = useState<'player' | 'enemy'>('player');
+  // Turn: 'p1' or 'p2' (or 'player' / 'enemy' in local)
+  const [activeTurn, setActiveTurn] = useState<string>(() => isOnlineMultiplayer ? (p1?.id || 'p1') : 'player');
   const [winner, setWinner] = useState<string | null>(null);
-  const [statusMessage, setStatusMessage] = useState<string>('Select enemy grid coordinates to launch radar missile!');
+  const [statusMessage, setStatusMessage] = useState<string>('Wähle Zielkoordinaten auf dem Radar zum Feuern!');
   const [lastStrikeResult, setLastStrikeResult] = useState<'hit' | 'miss' | null>(null);
+
+  const isMyTurn = isOnlineMultiplayer
+    ? activeTurn === currentUserId
+    : activeTurn === 'player';
 
   useEffect(() => {
     if (onActiveTurnChange) {
-      const activeId = turn === 'player' ? (p1?.id || 'p1') : (p2?.id || 'p2');
-      onActiveTurnChange(activeId);
+      if (isOnlineMultiplayer) {
+        onActiveTurnChange(activeTurn);
+      } else {
+        const activeId = activeTurn === 'player' ? (p1?.id || 'p1') : (p2?.id || 'p2');
+        onActiveTurnChange(activeId);
+      }
     }
-  }, [turn, p1?.id, p2?.id, onActiveTurnChange]);
+  }, [activeTurn, p1?.id, p2?.id, isOnlineMultiplayer, onActiveTurnChange]);
+
+  // Real-time WebSocket event handler for online Battleship
+  useEffect(() => {
+    if (!roomCode || !isOnlineMultiplayer) return;
+
+    const unsubscribe = multiplayerService.subscribeToGameActions((event) => {
+      if (event.gameType !== 'battleship' || event.roomCode !== roomCode) return;
+      if (event.senderId === currentUserId) return;
+
+      if (event.action === 'FIRE') {
+        const { r, c } = event.payload;
+        // The opponent fired at our grid! Check our playerGrid
+        const cellVal = playerGrid[r][c];
+        const isHit = cellVal !== 'empty';
+
+        setPlayerDamage((prev) => {
+          const next = prev.map((row) => [...row]);
+          next[r][c] = isHit ? 'hit' : 'miss';
+
+          let totalDmg = 0;
+          next.forEach((row) => row.forEach((cell) => { if (cell === 'hit') totalDmg++; }));
+          const allSunk = totalDmg >= 14;
+
+          // Send back FIRE_RESULT
+          multiplayerService.sendGameAction(roomCode, 'battleship', 'FIRE_RESULT', {
+            r,
+            c,
+            isHit,
+            shipId: isHit ? cellVal : null,
+            allSunk,
+            targetPlayerId: currentUserId,
+          }, currentUserId || 'p2');
+
+          if (isHit) {
+            sound.playError();
+            const hitShip = SHIPS.find((s) => s.id === cellVal);
+            const coordName = `${String.fromCharCode(65 + r)}${c + 1}`;
+            setStatusMessage(`ALARM: Gegner traf deine ${hitShip?.name || 'Flotte'} bei [${coordName}]! ⚠️`);
+          } else {
+            sound.playPieceDrop();
+            setStatusMessage(`Gegner feuerte ins Wasser!`);
+          }
+
+          if (allSunk) {
+            const winName = p1?.id === currentUserId ? p2Name : p1Name;
+            setWinner(winName);
+            sound.playVictory();
+            try { confetti({ particleCount: 100, spread: 80 }); } catch (e) {}
+            if (onGameEnd) onGameEnd(winName);
+          } else {
+            // Turn passes to us!
+            setActiveTurn(currentUserId || 'p1');
+          }
+
+          return next;
+        });
+
+      } else if (event.action === 'FIRE_RESULT') {
+        const { r, c, isHit, shipId, allSunk } = event.payload;
+        const coordName = `${String.fromCharCode(65 + r)}${c + 1}`;
+
+        setEnemyRevealed((prev) => {
+          const next = prev.map((row) => [...row]);
+          next[r][c] = isHit ? 'hit' : 'miss';
+          return next;
+        });
+
+        if (isHit) {
+          sound.playReward();
+          setLastStrikeResult('hit');
+          const hitShip = SHIPS.find((s) => s.id === shipId);
+          setStatusMessage(`VOLLTREFFER! Feindliches Schiff ${hitShip?.name || ''} bei [${coordName}] getroffen! 🔥`);
+        } else {
+          sound.playPieceDrop();
+          setLastStrikeResult('miss');
+          setStatusMessage(`Wasser! Torpedo verfehlte bei [${coordName}]. 🌊`);
+        }
+
+        if (allSunk) {
+          const myName = currentUserId === p1?.id ? p1Name : p2Name;
+          setWinner(myName);
+          sound.playVictory();
+          try { confetti({ particleCount: 100, spread: 80 }); } catch (e) {}
+          if (onGameEnd) onGameEnd(myName);
+        } else {
+          // Turn passes to opponent
+          const otherId = currentUserId === p1?.id ? (p2?.id || 'p2') : (p1?.id || 'p1');
+          setActiveTurn(otherId);
+        }
+
+      } else if (event.action === 'RESET') {
+        sound.playClick();
+        setPlayerGrid(generateRandomFleet());
+        setEnemyGrid(generateRandomFleet());
+        setEnemyRevealed(Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill('empty')));
+        setPlayerDamage(Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill('empty')));
+        setActiveTurn(p1?.id || 'p1');
+        setWinner(null);
+        setLastStrikeResult(null);
+        setStatusMessage('Flotten neu formiert! Gefechtsbereit.');
+      }
+    });
+
+    return () => unsubscribe();
+  }, [roomCode, isOnlineMultiplayer, currentUserId, playerGrid, p1?.id, p2?.id, p1Name, p2Name, onGameEnd]);
 
   // Calculate damage per ship class
   const getEnemyShipHits = (shipId: string): number => {
@@ -125,8 +251,25 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
   };
 
   const handlePlayerFire = (r: number, c: number) => {
-    if (turn !== 'player' || winner || enemyRevealed[r][c] !== 'empty') return;
+    if (winner || enemyRevealed[r][c] !== 'empty') return;
+    if (!isMyTurn) {
+      sound.playError();
+      return;
+    }
 
+    if (isOnlineMultiplayer) {
+      // In online mode, send FIRE action to room
+      sound.playClick();
+      const coordName = `${String.fromCharCode(65 + r)}${c + 1}`;
+      setStatusMessage(`Torpedo auf [${coordName}] abgefeuert... Telemetrie wird empfangen...`);
+
+      if (roomCode) {
+        multiplayerService.sendGameAction(roomCode, 'battleship', 'FIRE', { r, c }, currentUserId || 'p1');
+      }
+      return;
+    }
+
+    // Local Bot Mode
     sound.playClick();
     const cellValue = enemyGrid[r][c];
     const isHit = cellValue !== 'empty';
@@ -141,11 +284,11 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
       sound.playReward();
       setLastStrikeResult('hit');
       const hitShip = SHIPS.find((s) => s.id === cellValue);
-      setStatusMessage(`DIRECT EXPLOSIVE HIT on enemy ${hitShip?.name || 'vessel'} at [${coordName}]! 🔥`);
+      setStatusMessage(`DIREKTER TREFFER auf feindliches ${hitShip?.name || 'Schiff'} bei [${coordName}]! 🔥`);
     } else {
       sound.playPieceDrop();
       setLastStrikeResult('miss');
-      setStatusMessage(`Missed into ocean deep waters at [${coordName}]. 🌊`);
+      setStatusMessage(`Ins Wasser geschossen bei [${coordName}]. 🌊`);
     }
 
     // Check if all enemy ships are sunk (total ship cells = 4 + 3 + 3 + 2 + 2 = 14)
@@ -153,17 +296,17 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
     newRevealed.forEach((row) => row.forEach((cell) => { if (cell === 'hit') totalHits++; }));
 
     if (totalHits >= 14) {
-      setWinner('Admiral Player (You)');
+      setWinner(p1Name);
       sound.playVictory();
       try {
         confetti({ particleCount: 100, spread: 80 });
       } catch (e) {}
-      if (onGameEnd) onGameEnd('Player');
+      if (onGameEnd) onGameEnd(p1Name);
       return;
     }
 
     // Enemy AI turn
-    setTurn('enemy');
+    setActiveTurn('enemy');
     setTimeout(() => {
       executeEnemyTurn();
     }, 750);
@@ -194,23 +337,23 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
     if (isHit) {
       sound.playError();
       const hitShip = SHIPS.find((s) => s.id === playerGrid[tarR][tarC]);
-      setStatusMessage(`ALERT: Enemy missile struck your ${hitShip?.name || 'Fleet'} at [${coordName}]! ⚠️`);
+      setStatusMessage(`WARNUNG: Feind traf deine ${hitShip?.name || 'Flotte'} bei [${coordName}]! ⚠️`);
     } else {
       sound.playPieceDrop();
-      setStatusMessage(`Enemy radar missile splashed harmlessly into ocean at [${coordName}].`);
+      setStatusMessage(`Feindliche Radarrakete verfehlte im Meer bei [${coordName}].`);
     }
 
     let totalPlayerDamage = 0;
     newDamage.forEach((row) => row.forEach((cell) => { if (cell === 'hit') totalPlayerDamage++; }));
 
     if (totalPlayerDamage >= 14) {
-      setWinner('Hostile AI Fleet');
+      setWinner(p2Name);
       sound.playError();
-      if (onGameEnd) onGameEnd('Opponent');
+      if (onGameEnd) onGameEnd(p2Name);
       return;
     }
 
-    setTurn('player');
+    setActiveTurn('player');
   };
 
   const resetGame = () => {
@@ -219,10 +362,14 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
     setEnemyGrid(generateRandomFleet());
     setEnemyRevealed(Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill('empty')));
     setPlayerDamage(Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill('empty')));
-    setTurn('player');
+    setActiveTurn(isOnlineMultiplayer ? (p1?.id || 'p1') : 'player');
     setWinner(null);
     setLastStrikeResult(null);
-    setStatusMessage('Fleets re-deployed to combat positions! Ready to fire.');
+    setStatusMessage('Flotten neu aufgestellt! Gefechtsbereit.');
+
+    if (roomCode) {
+      multiplayerService.sendGameAction(roomCode, 'battleship', 'RESET', {}, currentUserId || 'p1');
+    }
   };
 
   return (
@@ -246,30 +393,38 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
             <div>
               <div className="font-bold text-white text-xs flex items-center gap-1.5">
                 <span>{p1Name}</span>
-                {turn === 'player' && (
+                {activeTurn === (isOnlineMultiplayer ? (p1?.id || 'p1') : 'player') && (
                   <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-black border border-emerald-500/30 animate-pulse">
                     AM ZUG
                   </span>
                 )}
               </div>
-              <div className="text-[10px] text-slate-400">Blaue Flotte · Heimatbasis</div>
+              <div className="text-[10px] text-slate-400">Blaue Flotte · {isPlayer1 ? 'Deine Flotte' : 'Spieler 1'}</div>
             </div>
           </div>
 
-          <div className="text-slate-600 font-black text-xs">VS</div>
+          <div className="flex flex-col items-center gap-1">
+            <span className="text-slate-600 font-black text-xs">VS</span>
+            {isOnlineMultiplayer && (
+              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-500/40 text-[10px] font-black text-emerald-400">
+                <Wifi className="w-2.5 h-2.5 animate-pulse" />
+                <span>ONLINE</span>
+              </div>
+            )}
+          </div>
 
           {/* Commander 2 */}
           <div className="flex items-center gap-2.5 text-right">
             <div>
               <div className="font-bold text-white text-xs flex items-center gap-1.5 justify-end">
-                {turn === 'enemy' && (
+                {activeTurn === (isOnlineMultiplayer ? (p2?.id || 'p2') : 'enemy') && (
                   <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-black border border-amber-500/30 animate-pulse">
                     AM ZUG
                   </span>
                 )}
                 <span>{p2Name}</span>
               </div>
-              <div className="text-[10px] text-slate-400">Rote Flotte · {p2?.isBot ? 'KI-Admiral' : 'Gegner'}</div>
+              <div className="text-[10px] text-slate-400">Rote Flotte · {isPlayer2 ? 'Deine Flotte' : (p2?.isBot ? 'KI-Admiral' : 'Spieler 2')}</div>
             </div>
             {p2?.avatar ? (
               <div className="p-0.5 rounded-xl ring-2 ring-rose-500 shadow">
@@ -291,11 +446,11 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
           
           <div className="flex items-center gap-2">
             <span className={`px-2.5 py-1 rounded-full font-bold text-[11px] uppercase tracking-wider ${
-              turn === 'player'
+              isMyTurn
                 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                 : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
             }`}>
-              {turn === 'player' ? '🎯 Dein Zug: Ziel wählen' : '⚡ KI-Rakete im Anflug...'}
+              {isMyTurn ? '🎯 Dein Zug: Ziel wählen' : (isOnlineMultiplayer ? '⏳ Gegner ist am Zug...' : '⚡ KI-Rakete im Anflug...')}
             </span>
             <button
               onClick={resetGame}
@@ -449,7 +604,7 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
                   <button
                     key={`${r}-${c}`}
                     onClick={() => handlePlayerFire(r, c)}
-                    disabled={cell !== 'empty' || turn !== 'player' || !!winner}
+                    disabled={cell !== 'empty' || !isMyTurn || !!winner}
                     className={`aspect-square rounded-xl flex items-center justify-center font-bold text-xs transition-all relative overflow-hidden group ${
                       cell === 'hit'
                         ? 'bg-gradient-to-tr from-rose-700 via-orange-600 to-amber-400 text-white shadow-lg ring-2 ring-rose-400 animate-pulse'

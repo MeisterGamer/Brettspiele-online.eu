@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import confetti from 'canvas-confetti';
+import confetti from '../../services/confetti';
 import { sound } from '../../services/sound';
 import { 
   Server, 

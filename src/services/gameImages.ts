@@ -1,54 +1,226 @@
 import { GameInfo, GameCategory } from '../types';
 
-// Ambient backgrounds for games & tables
-export const TABLE_BACKGROUNDS = {
-  mahogany: 'https://images.unsplash.com/photo-1586165368502-1bad197a6461?auto=format&fit=crop&w=1400&q=85',
-  feltGreen: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&w=1400&q=85',
-  hearthCozy: 'https://images.unsplash.com/photo-1541278107931-e006523892df?auto=format&fit=crop&w=1400&q=85',
-  terraceGarden: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=1400&q=85',
-  oceanRadar: 'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?auto=format&fit=crop&w=1400&q=85',
-  slateZen: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=1400&q=85',
+// Helper: converts SVG string to clean data URI
+export const svgToDataUri = (svg: string): string => {
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg.trim())}`;
 };
 
-export const HERO_BANNER_IMAGE = 'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=1600&q=85';
-export const HERO_BANNER_FALLBACK = 'https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?auto=format&fit=crop&w=1600&q=85';
+// Ambient backgrounds for games & tables (self-contained SVG data URIs, immune to CSP & offline)
+export const TABLE_BACKGROUNDS = {
+  mahogany: svgToDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" width="1400" height="900">
+      <defs>
+        <radialGradient id="mCenter" cx="50%" cy="50%" r="65%">
+          <stop offset="0%" stop-color="#4e2613"/>
+          <stop offset="60%" stop-color="#34160a"/>
+          <stop offset="100%" stop-color="#190903"/>
+        </radialGradient>
+        <pattern id="grain" width="120" height="24" patternUnits="userSpaceOnUse">
+          <path d="M0 6 Q 60 18 120 6 M0 14 Q 60 2 120 14" stroke="#230b03" stroke-width="1.2" fill="none" opacity="0.35"/>
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#mCenter)"/>
+      <rect width="100%" height="100%" fill="url(#grain)"/>
+      <rect width="100%" height="100%" fill="none" stroke="#2a1005" stroke-width="14" opacity="0.6"/>
+    </svg>
+  `),
+  feltGreen: svgToDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" width="1400" height="900">
+      <defs>
+        <radialGradient id="fCenter" cx="50%" cy="45%" r="65%">
+          <stop offset="0%" stop-color="#116239"/>
+          <stop offset="65%" stop-color="#0a3e23"/>
+          <stop offset="100%" stop-color="#051f11"/>
+        </radialGradient>
+        <radialGradient id="vignette" cx="50%" cy="50%" r="60%">
+          <stop offset="80%" stop-color="transparent"/>
+          <stop offset="100%" stop-color="#020e07" stop-opacity="0.85"/>
+        </radialGradient>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#fCenter)"/>
+      <rect width="100%" height="100%" fill="url(#vignette)"/>
+      <rect width="100%" height="100%" fill="none" stroke="#1d7a49" stroke-width="8" opacity="0.3"/>
+    </svg>
+  `),
+  hearthCozy: svgToDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" width="1400" height="900">
+      <defs>
+        <radialGradient id="hCenter" cx="50%" cy="50%" r="65%">
+          <stop offset="0%" stop-color="#5a2f14"/>
+          <stop offset="50%" stop-color="#3c1e0b"/>
+          <stop offset="100%" stop-color="#1c0b03"/>
+        </radialGradient>
+        <radialGradient id="fireGlow" cx="50%" cy="100%" r="65%">
+          <stop offset="0%" stop-color="#ff7a18" stop-opacity="0.25"/>
+          <stop offset="70%" stop-color="transparent"/>
+        </radialGradient>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#hCenter)"/>
+      <rect width="100%" height="100%" fill="url(#fireGlow)"/>
+    </svg>
+  `),
+  terraceGarden: svgToDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" width="1400" height="900">
+      <defs>
+        <radialGradient id="tCenter" cx="50%" cy="50%" r="65%">
+          <stop offset="0%" stop-color="#2d3748"/>
+          <stop offset="60%" stop-color="#1a202c"/>
+          <stop offset="100%" stop-color="#0f141d"/>
+        </radialGradient>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#tCenter)"/>
+    </svg>
+  `),
+  oceanRadar: svgToDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" width="1400" height="900">
+      <defs>
+        <radialGradient id="oceanBg" cx="50%" cy="50%" r="70%">
+          <stop offset="0%" stop-color="#062744"/>
+          <stop offset="55%" stop-color="#031526"/>
+          <stop offset="100%" stop-color="#010a12"/>
+        </radialGradient>
+        <pattern id="radarGrid" width="60" height="60" patternUnits="userSpaceOnUse">
+          <path d="M 60 0 L 0 0 0 60" fill="none" stroke="#00ffff" stroke-width="0.75" opacity="0.12"/>
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#oceanBg)"/>
+      <rect width="100%" height="100%" fill="url(#radarGrid)"/>
+      <circle cx="700" cy="450" r="180" fill="none" stroke="#00e5ff" stroke-width="1" opacity="0.25" stroke-dasharray="8 6"/>
+      <circle cx="700" cy="450" r="320" fill="none" stroke="#00e5ff" stroke-width="1.2" opacity="0.2"/>
+      <circle cx="700" cy="450" r="460" fill="none" stroke="#00e5ff" stroke-width="1" opacity="0.15"/>
+    </svg>
+  `),
+  slateZen: svgToDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" width="1400" height="900">
+      <defs>
+        <radialGradient id="slateGrad" cx="50%" cy="50%" r="70%">
+          <stop offset="0%" stop-color="#242b35"/>
+          <stop offset="60%" stop-color="#171b22"/>
+          <stop offset="100%" stop-color="#0c0e12"/>
+        </radialGradient>
+        <pattern id="subtleGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#ffffff" stroke-width="0.5" opacity="0.04"/>
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#slateGrad)"/>
+      <rect width="100%" height="100%" fill="url(#subtleGrid)"/>
+    </svg>
+  `),
+};
+
+export const HERO_BANNER_IMAGE = svgToDataUri(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 700" width="1600" height="700">
+  <defs>
+    <radialGradient id="heroGlow" cx="30%" cy="35%" r="70%">
+      <stop offset="0%" stop-color="#2e1065"/>
+      <stop offset="50%" stop-color="#1e1b4b"/>
+      <stop offset="100%" stop-color="#090a16"/>
+    </radialGradient>
+    <radialGradient id="warmSpot" cx="75%" cy="55%" r="50%">
+      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.35"/>
+      <stop offset="60%" stop-color="#b45309" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="transparent"/>
+    </radialGradient>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#heroGlow)"/>
+  <rect width="100%" height="100%" fill="url(#warmSpot)"/>
+  <g transform="translate(1120, 220) rotate(-12)" opacity="0.85">
+    <rect width="120" height="120" rx="26" fill="#f8fafc" stroke="#cbd5e1" stroke-width="4"/>
+    <circle cx="35" cy="35" r="10" fill="#dc2626"/>
+    <circle cx="60" cy="60" r="10" fill="#dc2626"/>
+    <circle cx="85" cy="85" r="10" fill="#dc2626"/>
+  </g>
+  <g transform="translate(1280, 290) rotate(18)" opacity="0.85">
+    <rect width="110" height="110" rx="24" fill="#fbbf24" stroke="#d97706" stroke-width="4"/>
+    <circle cx="32" cy="32" r="9" fill="#1e293b"/>
+    <circle cx="78" cy="32" r="9" fill="#1e293b"/>
+    <circle cx="32" cy="78" r="9" fill="#1e293b"/>
+    <circle cx="78" cy="78" r="9" fill="#1e293b"/>
+    <circle cx="55" cy="55" r="9" fill="#1e293b"/>
+  </g>
+  <g transform="translate(1000, 360) rotate(-20)" opacity="0.85">
+    <rect width="100" height="150" rx="14" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+    <text x="50" y="90" font-family="sans-serif" font-weight="900" font-size="44" fill="#ef4444" text-anchor="middle">♥</text>
+  </g>
+  <g transform="translate(1060, 340) rotate(-5)" opacity="0.9">
+    <rect width="100" height="150" rx="14" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+    <text x="50" y="90" font-family="sans-serif" font-weight="900" font-size="44" fill="#0f172a" text-anchor="middle">♠</text>
+  </g>
+  <g transform="translate(1130, 350) rotate(14)" opacity="0.95">
+    <rect width="100" height="150" rx="14" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+    <text x="50" y="90" font-family="sans-serif" font-weight="900" font-size="40" fill="#f59e0b" text-anchor="middle">★</text>
+  </g>
+</svg>
+`);
+export const HERO_BANNER_FALLBACK = HERO_BANNER_IMAGE;
 
 export const NAVAL_FLEET_PHOTOS = {
   carrier: {
     name: 'Flugzeugträger (Carrier)',
     size: 4,
-    photo: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=600&q=80',
+    photo: svgToDataUri(`
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 120" width="300" height="120">
+        <rect width="100%" height="100%" fill="#0a192f"/>
+        <path d="M 20 80 L 50 40 L 260 40 L 285 80 Z" fill="#334155" stroke="#00ffff" stroke-width="2"/>
+        <line x1="60" y1="55" x2="250" y2="55" stroke="#f1f5f9" stroke-width="3" stroke-dasharray="12 8"/>
+        <rect x="180" y="24" width="35" height="16" fill="#1e293b" stroke="#00ffff" stroke-width="1"/>
+      </svg>
+    `),
     type: 'Supercarrier',
   },
   battleship: {
     name: 'Schlachtschiff (Battleship)',
     size: 3,
-    photo: 'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?auto=format&fit=crop&w=600&q=80',
+    photo: svgToDataUri(`
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 120" width="300" height="120">
+        <rect width="100%" height="100%" fill="#0a192f"/>
+        <path d="M 30 80 L 60 45 L 240 45 L 270 80 Z" fill="#334155" stroke="#38bdf8" stroke-width="2"/>
+        <circle cx="95" cy="45" r="12" fill="#475569" stroke="#38bdf8" stroke-width="1.5"/>
+        <line x1="95" y1="45" x2="65" y2="35" stroke="#e2e8f0" stroke-width="3"/>
+        <circle cx="205" cy="45" r="12" fill="#475569" stroke="#38bdf8" stroke-width="1.5"/>
+        <line x1="205" y1="45" x2="235" y2="35" stroke="#e2e8f0" stroke-width="3"/>
+      </svg>
+    `),
     type: 'Heavy Armor Dreadnought',
   },
   cruiser: {
     name: 'Kreuzer (Cruiser)',
     size: 3,
-    photo: 'https://images.unsplash.com/photo-1508873696983-2df5703bc20d?auto=format&fit=crop&w=600&q=80',
+    photo: svgToDataUri(`
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 120" width="300" height="120">
+        <rect width="100%" height="100%" fill="#0a192f"/>
+        <path d="M 40 75 L 70 48 L 230 48 L 260 75 Z" fill="#334155" stroke="#38bdf8" stroke-width="2"/>
+        <rect x="130" y="32" width="30" height="16" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
+        <circle cx="145" cy="24" r="6" fill="#0284c7"/>
+      </svg>
+    `),
     type: 'Aegis Radar Cruiser',
   },
   submarine: {
     name: 'U-Boot (Submarine)',
     size: 2,
-    photo: 'https://images.unsplash.com/photo-1516981879613-9f5da904015f?auto=format&fit=crop&w=600&q=80',
+    photo: svgToDataUri(`
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 120" width="300" height="120">
+        <rect width="100%" height="100%" fill="#0a192f"/>
+        <ellipse cx="150" cy="65" rx="100" ry="22" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+        <rect x="135" y="30" width="28" height="20" rx="3" fill="#334155" stroke="#38bdf8" stroke-width="1.5"/>
+        <line x1="148" y1="30" x2="148" y2="18" stroke="#38bdf8" stroke-width="2"/>
+      </svg>
+    `),
     type: 'Stealth Hunter-Killer',
   },
   destroyer: {
     name: 'Zerstörer (Destroyer)',
     size: 2,
-    photo: 'https://images.unsplash.com/photo-1494412574643-ff11b0a5c1c3?auto=format&fit=crop&w=600&q=80',
+    photo: svgToDataUri(`
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 120" width="300" height="120">
+        <rect width="100%" height="100%" fill="#0a192f"/>
+        <path d="M 50 72 L 75 52 L 225 52 L 250 72 Z" fill="#334155" stroke="#38bdf8" stroke-width="2"/>
+        <rect x="120" y="38" width="22" height="14" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
+      </svg>
+    `),
     type: 'Fast Response Vessel',
   },
-};
-
-// Helper: converts SVG string to clean data URI
-const svgToDataUri = (svg: string): string => {
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg.trim())}`;
 };
 
 // --------------------------------------------------------------------------

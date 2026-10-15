@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { sound } from '../../services/sound';
-import confetti from 'canvas-confetti';
+import confetti from '../../services/confetti';
 import { RefreshCw, Trophy, Play, CheckCircle2, Dices, Sparkles, Bot, Users } from 'lucide-react';
 import { TABLE_BACKGROUNDS } from '../../services/gameImages';
 import { RoomParticipant } from '../../types';

@@ -1,17 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { sound } from '../../services/sound';
-import confetti from 'canvas-confetti';
+import confetti from '../../services/confetti';
 import { RefreshCw, Trophy, Users, Bot, ArrowDown, Sparkles } from 'lucide-react';
 import { TABLE_BACKGROUNDS } from '../../services/gameImages';
 
 import { RoomParticipant } from '../../types';
 import { AvatarDisplay } from '../avatar/AvatarDisplay';
 
+import { multiplayerService } from '../../services/multiplayerService';
+import { Wifi } from 'lucide-react';
+
 interface ConnectFourProps {
   onGameEnd?: (winner: 'player' | 'opponent' | 'draw') => void;
   tableParticipants?: RoomParticipant[];
   currentUserId?: string;
   onActiveTurnChange?: (turnPlayerId: string) => void;
+  roomCode?: string;
+  isHost?: boolean;
 }
 
 const ROWS = 6;
@@ -23,7 +28,8 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({
   onGameEnd, 
   tableParticipants, 
   currentUserId,
-  onActiveTurnChange 
+  onActiveTurnChange,
+  roomCode,
 }) => {
   const p1 = tableParticipants?.[0];
   const p2 = tableParticipants?.[1];
@@ -32,22 +38,35 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({
   const p2Name = p2?.name || (p2?.isBot ? 'KI-Gegner' : 'Spieler 2 (Gelb)');
   const isP2Bot = p2 ? !!p2.isBot : true;
 
+  const isOnlineMultiplayer = Boolean(roomCode && p1 && p2 && !p2.isBot);
+  const myPlayer: 1 | 2 | null = isOnlineMultiplayer
+    ? currentUserId === p1?.id
+      ? 1
+      : currentUserId === p2?.id
+      ? 2
+      : null
+    : null;
+
   const [board, setBoard] = useState<CellValue[][]>(() =>
     Array(ROWS).fill(null).map(() => Array(COLS).fill(null))
   );
   const [currentPlayer, setCurrentPlayer] = useState<1 | 2>(1);
   const [winner, setWinner] = useState<1 | 2 | 'draw' | null>(null);
   const [winningCells, setWinningCells] = useState<[number, number][]>([]);
-  const [playMode, setPlayMode] = useState<'bot' | 'local2p'>(() => isP2Bot ? 'bot' : 'local2p');
+  const [playMode, setPlayMode] = useState<'bot' | 'local2p' | 'online'>(() => 
+    isOnlineMultiplayer ? 'online' : (isP2Bot ? 'bot' : 'local2p')
+  );
   const [scores, setScores] = useState({ p1: 0, p2: 0 });
   const [hoverCol, setHoverCol] = useState<number | null>(null);
   const [isBotThinking, setIsBotThinking] = useState<boolean>(false);
 
   useEffect(() => {
-    if (p2) {
+    if (isOnlineMultiplayer) {
+      setPlayMode('online');
+    } else if (p2) {
       setPlayMode(p2.isBot ? 'bot' : 'local2p');
     }
-  }, [p2?.id, p2?.isBot]);
+  }, [isOnlineMultiplayer, p2?.id, p2?.isBot]);
 
   useEffect(() => {
     if (onActiveTurnChange) {
@@ -101,8 +120,80 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({
     return grid[0].every((cell) => cell !== null);
   };
 
+  // WebSocket Multiplayer synchronization
+  useEffect(() => {
+    if (!roomCode) return;
+
+    const unsubscribe = multiplayerService.subscribeToGameActions((event) => {
+      if (event.gameType !== 'connectfour' || event.roomCode !== roomCode) return;
+      if (event.senderId === currentUserId) return;
+
+      if (event.action === 'DROP_DISC') {
+        const { col, player } = event.payload;
+        applyDropToBoard(col, player);
+      } else if (event.action === 'RESET') {
+        sound.playClick();
+        setBoard(Array(ROWS).fill(null).map(() => Array(COLS).fill(null)));
+        setCurrentPlayer(1);
+        setWinner(null);
+        setWinningCells([]);
+        setHoverCol(null);
+        setIsBotThinking(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [roomCode, currentUserId, onGameEnd]);
+
+  const applyDropToBoard = (col: number, playerNum: 1 | 2) => {
+    setBoard((prev) => {
+      let targetRow = -1;
+      for (let r = ROWS - 1; r >= 0; r--) {
+        if (!prev[r][col]) {
+          targetRow = r;
+          break;
+        }
+      }
+      if (targetRow === -1) return prev;
+
+      sound.playPieceDrop();
+      const newBoard = prev.map((row) => [...row]);
+      newBoard[targetRow][col] = playerNum;
+
+      const winResult = checkWin(newBoard);
+      if (winResult.winner) {
+        setWinner(winResult.winner);
+        setWinningCells(winResult.cells);
+        if (winResult.winner === myPlayer) {
+          sound.playVictory();
+          try { confetti({ particleCount: 90, spread: 70 }); } catch (e) {}
+        } else {
+          sound.playError();
+        }
+        setScores((s) => ({
+          ...s,
+          [winResult.winner === 1 ? 'p1' : 'p2']: s[winResult.winner === 1 ? 'p1' : 'p2'] + 1,
+        }));
+        if (onGameEnd) onGameEnd(winResult.winner === 1 ? 'player' : 'opponent');
+      } else if (isBoardFull(newBoard)) {
+        setWinner('draw');
+        sound.playReward();
+        if (onGameEnd) onGameEnd('draw');
+      } else {
+        setCurrentPlayer(playerNum === 1 ? 2 : 1);
+      }
+
+      return newBoard;
+    });
+  };
+
   const handleDropDisc = (col: number) => {
     if (winner || isBotThinking) return;
+
+    if (isOnlineMultiplayer && myPlayer && currentPlayer !== myPlayer) {
+      sound.playError();
+      return;
+    }
 
     // Find lowest empty row in selected column
     let targetRow = -1;
@@ -122,6 +213,13 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({
     const newBoard = board.map((row) => [...row]);
     newBoard[targetRow][col] = currentPlayer;
     setBoard(newBoard);
+
+    if (roomCode) {
+      multiplayerService.sendGameAction(roomCode, 'connectfour', 'DROP_DISC', {
+        col,
+        player: currentPlayer,
+      }, currentUserId || 'p1');
+    }
 
     const winResult = checkWin(newBoard);
     if (winResult.winner) {
@@ -249,6 +347,10 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({
     setWinningCells([]);
     setHoverCol(null);
     setIsBotThinking(false);
+
+    if (roomCode) {
+      multiplayerService.sendGameAction(roomCode, 'connectfour', 'RESET', {}, currentUserId || 'p1');
+    }
   };
 
   return (
@@ -278,32 +380,39 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({
         </div>
 
         {/* Mode Toggle */}
-        <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
-          <button
-            onClick={() => {
-              sound.playClick();
-              setPlayMode('bot');
-              resetBoard();
-            }}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition ${
-              playMode === 'bot' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Bot className="w-3.5 h-3.5" /> KI-Duell
-          </button>
-          <button
-            onClick={() => {
-              sound.playClick();
-              setPlayMode('local2p');
-              resetBoard();
-            }}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition ${
-              playMode === 'local2p' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" /> 2P Familientisch
-          </button>
-        </div>
+        {isOnlineMultiplayer ? (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-black">
+            <Wifi className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+            <span>LIVE-TISCH ({myPlayer ? `Du bist ${myPlayer === 1 ? 'Rot' : 'Gelb'}` : 'Zuschauer'})</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+            <button
+              onClick={() => {
+                sound.playClick();
+                setPlayMode('bot');
+                resetBoard();
+              }}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition ${
+                playMode === 'bot' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Bot className="w-3.5 h-3.5" /> KI-Duell
+            </button>
+            <button
+              onClick={() => {
+                sound.playClick();
+                setPlayMode('local2p');
+                resetBoard();
+              }}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition ${
+                playMode === 'local2p' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" /> 2P Familientisch
+            </button>
+          </div>
+        )}
 
         <div className={`flex items-center gap-2.5 p-1.5 rounded-xl transition ${currentPlayer === 2 && !winner ? 'bg-amber-950/40 border border-amber-500/40 ring-1 ring-amber-500/50' : ''}`}>
           <div className="text-right">

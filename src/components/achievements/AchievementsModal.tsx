@@ -1,7 +1,7 @@
 import React from 'react';
 import { Achievement } from '../../types';
 import { sound } from '../../services/sound';
-import confetti from 'canvas-confetti';
+import confetti from '../../services/confetti';
 import { Award, CheckCircle2, Coins, Sparkles, X } from 'lucide-react';
 
 interface AchievementsModalProps {
