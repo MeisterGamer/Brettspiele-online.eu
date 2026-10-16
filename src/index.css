@@ -1,13 +1,36 @@
 @import "tailwindcss";
 
 @layer base {
-  body {
+  html, body {
+    overflow-x: hidden;
+    width: 100%;
+    -webkit-tap-highlight-color: transparent;
     font-family: 'Outfit', sans-serif;
+  }
+  
+  button, a, input, select {
+    touch-action: manipulation;
   }
   
   h1, h2, h3, h4, .font-display {
     font-family: 'Fredoka', cursive, sans-serif;
   }
+}
+
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom, 1rem));
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* Custom smooth animations & scrollbars */

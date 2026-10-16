@@ -486,7 +486,7 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
           {/* Active Discard Top Card with Real Oval Card Center */}
           {topCard && (
             <div
-              className={`w-22 h-32 rounded-2xl border-2 shadow-2xl flex flex-col items-center justify-between p-2 font-display transition-transform ${getColorBg(
+              className={`w-20 h-28 sm:w-24 sm:h-32 rounded-2xl border-2 shadow-2xl flex flex-col items-center justify-between p-2 font-display transition-transform ${getColorBg(
                 topCard.color === 'wild' ? activeColor : topCard.color
               )}`}
               style={{
@@ -561,7 +561,7 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
               key={card.id}
               onClick={() => handlePlayCard(card)}
               disabled={!playable}
-              className={`w-18 h-26 shrink-0 rounded-2xl border-2 flex flex-col items-center justify-between p-1.5 font-display transition-all relative ${
+              className={`w-14 h-22 sm:w-16 sm:h-24 shrink-0 rounded-2xl border-2 flex flex-col items-center justify-between p-1.5 font-display transition-all relative ${
                 getColorBg(card.color)
               } ${
                 playable

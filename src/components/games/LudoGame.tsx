@@ -582,10 +582,9 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     return (
       <div
         onClick={() => isMovable && handleMovePiece(piece.id)}
-        className={`relative flex flex-col items-center justify-center cursor-pointer select-none transition-all duration-300 z-20 ${
-          isMovable ? 'animate-bounce scale-125 hover:brightness-125' : ''
+        className={`w-5 h-7 sm:w-7 sm:h-9 relative flex flex-col items-center justify-center cursor-pointer select-none transition-all duration-300 z-20 ${
+          isMovable ? 'animate-bounce scale-110 sm:scale-125 hover:brightness-125' : ''
         }`}
-        style={{ width: '28px', height: '36px' }}
         title={`${COLOR_NAMES[piece.color]} Figur #${piece.id}`}
       >
         {/* Glow Ring if Movable */}
@@ -716,7 +715,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       <div className="w-full flex flex-col lg:flex-row items-center justify-center gap-6">
         
         {/* THE REAL CLASSIC WOODEN GAME BOARD (11x11 Grid) */}
-        <div className="relative p-4 sm:p-6 rounded-3xl border-4 border-amber-950 shadow-2xl overflow-hidden bg-amber-950 max-w-[520px] w-full">
+        <div className="relative p-2 sm:p-5 rounded-2xl sm:rounded-3xl border-2 sm:border-4 border-amber-950 shadow-2xl overflow-hidden bg-amber-950 max-w-[500px] w-full">
           
           {/* Authentic Polished Walnut Tabletop Inlay */}
           <img
@@ -727,9 +726,9 @@ export const LudoGame: React.FC<LudoGameProps> = ({
           />
 
           {/* Golden Lacquered Border Groove */}
-          <div className="relative z-10 border-2 border-amber-600/40 rounded-2xl p-2 sm:p-3 bg-amber-900/40 backdrop-blur-[1px] shadow-inner">
+          <div className="relative z-10 border border-amber-600/40 rounded-xl sm:rounded-2xl p-1 sm:p-2.5 bg-amber-900/40 backdrop-blur-[1px] shadow-inner">
             
-            <div className="grid grid-cols-11 gap-1 sm:gap-1.5 aspect-square w-full">
+            <div className="grid grid-cols-11 gap-0.5 sm:gap-1.5 aspect-square w-full">
               {Array.from({ length: 11 }).map((_, r) =>
                 Array.from({ length: 11 }).map((_, c) => {
                   // Determine space type

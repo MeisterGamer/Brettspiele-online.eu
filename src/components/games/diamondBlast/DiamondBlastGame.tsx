@@ -1160,7 +1160,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
           </div>
 
           {/* 8x8 MATCH-3 BOARD & CANVAS CONTAINER */}
-          <div className="relative flex items-center justify-center w-full max-w-[440px] aspect-square p-2 bg-slate-900/90 rounded-3xl border-2 border-indigo-700/50 shadow-[0_0_40px_rgba(30,27,75,0.7)] backdrop-blur">
+          <div className="relative flex items-center justify-center w-full max-w-[min(94vw,440px)] aspect-square p-1.5 sm:p-2 bg-slate-900/90 rounded-2xl sm:rounded-3xl border-2 border-indigo-700/50 shadow-[0_0_40px_rgba(30,27,75,0.7)] backdrop-blur touch-none select-none">
             
             {/* HTML5 Particle FX Canvas Overlay */}
             <canvas
@@ -1170,9 +1170,9 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
 
             {/* Auto Shuffle Notice Overlay */}
             {shuffleNotice && (
-              <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-sm z-40 rounded-3xl flex flex-col items-center justify-center gap-2 animate-fade-in">
+              <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-sm z-40 rounded-2xl sm:rounded-3xl flex flex-col items-center justify-center gap-2 animate-fade-in">
                 <RotateCcw className="w-10 h-10 text-amber-400 animate-spin" />
-                <span className="text-lg font-black text-white">Keine Züge mehr!</span>
+                <span className="text-base sm:text-lg font-black text-white">Keine Züge mehr!</span>
                 <span className="text-xs text-slate-400">Spielfeld wird neu gemischt...</span>
               </div>
             )}
@@ -1180,7 +1180,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
             {/* 8x8 Gem Matrix */}
             <div 
               ref={boardContainerRef}
-              className="grid grid-cols-8 grid-rows-8 w-full h-full gap-1 p-1 bg-slate-950/80 rounded-2xl border border-indigo-950/80"
+              className="grid grid-cols-8 grid-rows-8 w-full h-full gap-0.5 sm:gap-1 p-0.5 sm:p-1 bg-slate-950/80 rounded-xl sm:rounded-2xl border border-indigo-950/80 touch-none select-none"
             >
               {board.map((row, r) =>
                 row.map((gem, c) => {
@@ -1201,7 +1201,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
                       }}
                       onMouseDown={(e) => handleTouchStart(r, c, e.clientX, e.clientY)}
                       onMouseUp={(e) => handleTouchEnd(e.clientX, e.clientY)}
-                      className={`relative flex items-center justify-center rounded-xl cursor-pointer transition-all ${
+                      className={`relative flex items-center justify-center rounded-lg sm:rounded-xl cursor-pointer transition-all touch-none select-none p-0.5 ${
                         (r + c) % 2 === 0 ? 'bg-slate-900/40' : 'bg-slate-900/20'
                       } hover:bg-indigo-900/20`}
                     >
@@ -1210,7 +1210,6 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
                           gem={gem} 
                           isSelected={isSelected} 
                           isHinted={isHinted} 
-                          size={46} 
                         />
                       )}
                     </div>

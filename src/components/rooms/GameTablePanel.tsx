@@ -46,7 +46,9 @@ export const GameTablePanel: React.FC<GameTablePanelProps> = ({
 }) => {
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
   const [activeEmote, setActiveEmote] = useState<{ emoji: string; senderName: string } | null>(null);
-  const [isExpanded, setIsExpanded] = useState<boolean>(true);
+  const [isExpanded, setIsExpanded] = useState<boolean>(() => 
+    typeof window !== 'undefined' ? window.innerWidth >= 768 : false
+  );
   const [isHowToPlayOpen, setIsHowToPlayOpen] = useState<boolean>(false);
 
   // Listen for multiplayer emotes

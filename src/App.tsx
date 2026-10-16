@@ -94,7 +94,12 @@ import {
   HelpCircle,
   LogIn,
   ShieldAlert,
-  User
+  User,
+  Menu,
+  X,
+  ChevronRight,
+  Smartphone,
+  ExternalLink
 } from 'lucide-react';
 
 export default function App() {
@@ -154,6 +159,8 @@ export default function App() {
   const [activeGame, setActiveGame] = useState<GameInfo | null>(null);
   const [currentTurnPlayerId, setCurrentTurnPlayerId] = useState<string | null>(null);
   const [currentRoom, setCurrentRoom] = useState<GameRoom | null>(null);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState<boolean>(false);
+  const [showMobileTablePanel, setShowMobileTablePanel] = useState<boolean>(false);
 
   // WebSocket & multiplayer synchronization
   useEffect(() => {
@@ -393,8 +400,57 @@ export default function App() {
             </div>
           </div>
 
-          {/* User Currency & Quick Actions */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          {/* Mobile Navigation & Quick Actions (< sm) */}
+          <div className="flex sm:hidden items-center gap-1.5">
+            {/* Daily Bonus & Coins Pill */}
+            <button
+              onClick={() => {
+                sound.playReward();
+                setIsDailyOpen(true);
+              }}
+              className="flex items-center gap-1 bg-slate-800/90 border border-slate-700/80 px-2.5 py-1.5 rounded-xl text-amber-400 font-bold text-xs shadow-sm"
+              title="Tagesbonus & Münzen"
+            >
+              <Coins className="w-3.5 h-3.5 fill-current" />
+              <span className="font-mono">{user.coins.toLocaleString()}</span>
+            </button>
+
+            {/* Notifications Dropdown */}
+            <NotificationCenter
+              notifications={notifications}
+              onMarkAllRead={() => {
+                setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+              }}
+              onClear={() => setNotifications([])}
+            />
+
+            {/* Quick Profile Avatar */}
+            <button
+              onClick={() => {
+                sound.playClick();
+                setIsUserPanelOpen(true);
+              }}
+              className="p-1 rounded-xl bg-slate-800/80 border border-slate-700/80"
+              title="Benutzerprofil öffnen"
+            >
+              <AvatarDisplay avatar={user.avatar} size="sm" />
+            </button>
+
+            {/* Mobile Hamburger Menu Toggle */}
+            <button
+              onClick={() => {
+                sound.playClick();
+                setIsMobileDrawerOpen(true);
+              }}
+              className="p-2 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 transition active:scale-95"
+              aria-label="Menü öffnen"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Desktop User Currency & Quick Actions (>= sm) */}
+          <div className="hidden sm:flex items-center gap-2 sm:gap-3">
             
             {/* Coins & Streak */}
             <button
@@ -542,9 +598,10 @@ export default function App() {
         </div>
       </header>
 
-      {/* 3. SUB-NAV / QUICK ACTION TOOLBAR */}
-      <div className="bg-slate-900 border-b border-slate-800/80 px-4 sm:px-6 py-2.5">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      {/* 3. SUB-NAV / QUICK ACTION TOOLBAR (Hidden in-game to preserve vertical space) */}
+      {!activeGame && (
+        <div className="bg-slate-900 border-b border-slate-800/80 px-3 sm:px-6 py-2">
+          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2.5">
           
           {/* Quick Hub Launchers */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
@@ -633,28 +690,31 @@ export default function App() {
           </div>
         </div>
       </div>
+      )}
 
       {/* 4. ACTIVE GAME ARENA OR BROWSE CATALOG */}
-      <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6">
+      <main className="flex-1 max-w-7xl mx-auto w-full p-2.5 sm:p-6 pb-24 md:pb-8">
         {activeGame ? (
           /* ACTIVE GAME VIEW */
-          <div className="space-y-4 animate-in fade-in duration-200">
+          <div className="space-y-3 sm:space-y-4 animate-in fade-in duration-200">
             
             {/* Arena Top Bar with Real Game Photo */}
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 flex flex-wrap items-center justify-between gap-3 relative overflow-hidden">
-              <div className="flex items-center gap-3 relative z-10">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl p-3 sm:p-4 flex flex-wrap items-center justify-between gap-2.5 relative overflow-hidden shadow-lg">
+              <div className="flex items-center gap-2.5 sm:gap-3 relative z-10">
                 <button
                   onClick={() => {
                     sound.playClick();
                     setActiveGame(null);
                   }}
-                  className="px-3.5 py-2 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition flex items-center gap-2 border border-slate-700 shadow"
+                  className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl sm:rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition flex items-center gap-1.5 border border-slate-700 shadow"
                 >
-                  <ArrowLeft className="w-4 h-4" /> {t('back_to_lobby')}
+                  <ArrowLeft className="w-4 h-4" />
+                  <span className="hidden sm:inline">{t('back_to_lobby')}</span>
+                  <span className="sm:hidden">Lobby</span>
                 </button>
 
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl overflow-hidden border-2 border-amber-400/60 shadow-lg relative shrink-0">
+                <div className="flex items-center gap-2.5 sm:gap-3">
+                  <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl overflow-hidden border-2 border-amber-400/60 shadow-lg relative shrink-0">
                     <img
                       src={getGameImage(activeGame)}
                       alt={activeGame.title}
@@ -664,61 +724,73 @@ export default function App() {
                     <div className="absolute inset-0 bg-slate-950/20" />
                   </div>
                   <div>
-                    <h2 className="text-base sm:text-lg font-bold font-display text-white flex items-center gap-2">
+                    <h2 className="text-sm sm:text-lg font-bold font-display text-white flex items-center gap-1.5">
                       <span>{activeGame.title}</span>
                       <span className="text-base">{activeGame.icon}</span>
                     </h2>
-                    <div className="text-xs text-slate-400 flex items-center gap-2">
+                    <div className="text-[11px] sm:text-xs text-slate-400 flex items-center gap-1.5">
                       <span className="text-amber-400 font-semibold">{activeGame.players}</span>
                       <span>•</span>
-                      <span>Age {activeGame.minAge}+</span>
-                      <span>•</span>
-                      <span className="text-emerald-400 font-bold">{t('one_hundred_playable')}</span>
+                      <span>Ab {activeGame.minAge} J.</span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 relative z-10">
+              {/* In-Game Header Action Controls */}
+              <div className="flex items-center gap-1.5 sm:gap-2 relative z-10">
+                {currentRoom && (
+                  <button
+                    onClick={() => setShowMobileTablePanel(!showMobileTablePanel)}
+                    className="md:hidden px-2.5 py-1.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 text-xs font-bold transition flex items-center gap-1.5"
+                    title="Tisch-Mitspieler & Voice einblenden"
+                  >
+                    <Users className="w-3.5 h-3.5 text-indigo-300" />
+                    <span>Tisch ({currentRoom.participants.length})</span>
+                  </button>
+                )}
+
                 <button
                   onClick={() => setIsShareOpen(true)}
-                  className="px-3 py-2 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition flex items-center gap-1.5 border border-slate-700"
+                  className="px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition flex items-center gap-1.5 border border-slate-700"
                 >
-                  <Share2 className="w-3.5 h-3.5 text-sky-400" /> Share Table
+                  <Share2 className="w-3.5 h-3.5 text-sky-400" />
+                  <span className="hidden sm:inline">Share Table</span>
                 </button>
               </div>
             </div>
 
-            {/* INTEGRATED VOICE CHAT BAR (Connected to table) */}
-            <VoiceChatPanel
-              currentUser={user}
-              participants={voiceParticipants}
-              voiceAllowedByParent={!parental.enabled || parental.voiceChatAllowed}
-              roomCode={currentRoom?.code || 'FAM-101'}
-              onInvite={() => setIsShareOpen(true)}
-            />
-
-            {/* VIRTUAL GAMING TABLE WITH SEATED PLAYERS & OPEN CHAIRS */}
-            {currentRoom && (
-              <GameTablePanel
-                room={currentRoom}
+            {/* INTEGRATED VOICE CHAT BAR & TABLE (On mobile: collapsable to prioritize board) */}
+            <div className={`${showMobileTablePanel ? 'block' : 'hidden md:block'} space-y-3`}>
+              <VoiceChatPanel
                 currentUser={user}
-                activeTurnPlayerId={currentTurnPlayerId}
-                activeGameEngine={activeGame?.engine}
-                onUpdateRoom={(updated) => {
-                  setCurrentRoom(updated);
-                  setPublicRooms(multiplayerService.getRooms());
-                }}
-                onInviteFriend={() => setIsShareOpen(true)}
-                onLeaveTable={() => {
-                  sound.playClick();
-                  setActiveGame(null);
-                }}
+                participants={voiceParticipants}
+                voiceAllowedByParent={!parental.enabled || parental.voiceChatAllowed}
+                roomCode={currentRoom?.code || 'FAM-101'}
+                onInvite={() => setIsShareOpen(true)}
               />
-            )}
 
-            {/* GAME ENGINE CONTAINER */}
-            <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-2xl min-h-[500px] flex items-center justify-center">
+              {currentRoom && (
+                <GameTablePanel
+                  room={currentRoom}
+                  currentUser={user}
+                  activeTurnPlayerId={currentTurnPlayerId}
+                  activeGameEngine={activeGame?.engine}
+                  onUpdateRoom={(updated) => {
+                    setCurrentRoom(updated);
+                    setPublicRooms(multiplayerService.getRooms());
+                  }}
+                  onInviteFriend={() => setIsShareOpen(true)}
+                  onLeaveTable={() => {
+                    sound.playClick();
+                    setActiveGame(null);
+                  }}
+                />
+              )}
+            </div>
+
+            {/* GAME ENGINE CONTAINER (Optimized for full viewport display on mobile) */}
+            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl sm:rounded-3xl p-2 sm:p-6 shadow-2xl min-h-[420px] sm:min-h-[500px] flex items-center justify-center overflow-x-hidden">
               {activeGame.engine === 'ludo' && (
                 <LudoGame 
                   onGameEnd={handleGameCompletion} 
@@ -1349,6 +1421,393 @@ export default function App() {
         isOpen={isAndroidAppModalOpen}
         onClose={() => setIsAndroidAppModalOpen(false)}
       />
+
+      {/* MOBILE SLIDE-OVER NAVIGATION DRAWER */}
+      {isMobileDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          {/* Backdrop */}
+          <div 
+            onClick={() => setIsMobileDrawerOpen(false)}
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200"
+          />
+
+          {/* Drawer Content */}
+          <div className="relative w-full max-w-xs sm:max-w-sm h-full bg-slate-900 border-l border-slate-800 shadow-2xl flex flex-col justify-between overflow-y-auto z-10 animate-in slide-in-from-right duration-200 p-4">
+            <div className="space-y-4">
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-rose-500 flex items-center justify-center text-white shadow-md">
+                    <Gamepad2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-white font-display text-base">FamPlay Arcade</h3>
+                    <p className="text-[10px] text-slate-400">100+ Spiele & Familientische</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsMobileDrawerOpen(false)}
+                  className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* User Account Card */}
+              <div className="p-3 rounded-2xl bg-slate-800/80 border border-slate-700/60 space-y-3">
+                <div className="flex items-center gap-3">
+                  <AvatarDisplay avatar={user.avatar} size="md" showBadge={user.familyRole.slice(0, 1)} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-sm text-white truncate">{user.name}</span>
+                      {user.role === 'admin' && (
+                        <span className="text-[9px] font-black uppercase bg-rose-500/20 text-rose-300 border border-rose-500/40 px-1 rounded">
+                          Admin
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-amber-400 font-medium">{user.familyRole}</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-700/60 text-xs">
+                  <div className="flex items-center gap-1 text-amber-400 font-bold">
+                    <Coins className="w-4 h-4 fill-current" />
+                    <span>{user.coins.toLocaleString()} Münzen</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-orange-400 font-bold">
+                    <Flame className="w-3.5 h-3.5 fill-current" />
+                    <span>{user.streakDays}d Streak</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    onClick={() => {
+                      setIsMobileDrawerOpen(false);
+                      setIsUserPanelOpen(true);
+                    }}
+                    className="py-1.5 px-2 rounded-xl bg-slate-700/80 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition text-center"
+                  >
+                    Profil & Avatar
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsMobileDrawerOpen(false);
+                      setIsLoginOpen(true);
+                    }}
+                    className="py-1.5 px-2 rounded-xl bg-indigo-600/40 hover:bg-indigo-600/60 text-indigo-200 border border-indigo-500/40 text-xs font-semibold transition text-center"
+                  >
+                    Konto wechseln
+                  </button>
+                </div>
+              </div>
+
+              {/* Navigation Hubs */}
+              <div className="space-y-1 text-xs">
+                <span className="text-[10px] uppercase font-black tracking-wider text-slate-500 px-2 block">
+                  Spiele & Community
+                </span>
+
+                <button
+                  onClick={() => {
+                    setIsMobileDrawerOpen(false);
+                    setActiveGame(null);
+                  }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-800 text-slate-200 font-semibold transition"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Gamepad2 className="w-4 h-4 text-amber-400" />
+                    <span>Alle 100+ Spiele</span>
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-slate-500" />
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsMobileDrawerOpen(false);
+                    setIsRoomManagerOpen(true);
+                  }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-800 text-slate-200 font-semibold transition"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Users className="w-4 h-4 text-indigo-400" />
+                    <span>Familientische & Räume</span>
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-slate-500" />
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsMobileDrawerOpen(false);
+                    setIsFriendsOpen(true);
+                  }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-800 text-slate-200 font-semibold transition"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Users className="w-4 h-4 text-emerald-400" />
+                    <span>Freunde & Familie</span>
+                  </span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsMobileDrawerOpen(false);
+                    setIsTourneyOpen(true);
+                  }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-800 text-slate-200 font-semibold transition"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Trophy className="w-4 h-4 text-amber-400" />
+                    <span>Turniere & Cups</span>
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-slate-500" />
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsMobileDrawerOpen(false);
+                    setIsLeaderboardOpen(true);
+                  }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-800 text-slate-200 font-semibold transition"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Award className="w-4 h-4 text-cyan-400" />
+                    <span>Bestenlisten</span>
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-slate-500" />
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsMobileDrawerOpen(false);
+                    setIsAchievementsOpen(true);
+                  }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-800 text-slate-200 font-semibold transition"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Sparkles className="w-4 h-4 text-fuchsia-400" />
+                    <span>Erfolge & Trophäen</span>
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-slate-500" />
+                </button>
+              </div>
+
+              {/* Boni & Einstellungen */}
+              <div className="space-y-1 text-xs pt-2 border-t border-slate-800">
+                <span className="text-[10px] uppercase font-black tracking-wider text-slate-500 px-2 block">
+                  Boni & Einstellungen
+                </span>
+
+                <button
+                  onClick={() => {
+                    setIsMobileDrawerOpen(false);
+                    setIsDailyOpen(true);
+                  }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-800 text-slate-200 font-semibold transition"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Gift className="w-4 h-4 text-amber-400" />
+                    <span>Tagesbonus Kalender</span>
+                  </span>
+                  <span className="text-[10px] bg-amber-400/20 text-amber-300 font-bold px-1.5 py-0.5 rounded">Täglich</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsMobileDrawerOpen(false);
+                    setIsVipOpen(true);
+                  }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-800 text-slate-200 font-semibold transition"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Crown className="w-4 h-4 text-amber-400" />
+                    <span>VIP Pass (2x Boni)</span>
+                  </span>
+                  <span className="text-[10px] bg-indigo-500/20 text-indigo-300 font-bold px-1.5 py-0.5 rounded">VIP</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsMobileDrawerOpen(false);
+                    setIsParentalOpen(true);
+                  }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-800 text-slate-200 font-semibold transition"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <span>Kindersicherung</span>
+                  </span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${parental.enabled ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-500'}`}>
+                    {parental.enabled ? 'Aktiv' : 'Aus'}
+                  </span>
+                </button>
+
+                {/* Sound Switch */}
+                <div className="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-800 text-slate-200 font-semibold">
+                  <span className="flex items-center gap-2.5">
+                    {soundEnabled ? <Volume2 className="w-4 h-4 text-cyan-400" /> : <VolumeX className="w-4 h-4 text-slate-500" />}
+                    <span>Soundeffekte</span>
+                  </span>
+                  <button
+                    onClick={toggleSound}
+                    className={`px-3 py-1 rounded-lg text-[10px] font-black transition ${
+                      soundEnabled ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                    }`}
+                  >
+                    {soundEnabled ? 'AN' : 'AUS'}
+                  </button>
+                </div>
+
+                {/* Language Select */}
+                <div className="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-800 text-slate-200 font-semibold">
+                  <span className="flex items-center gap-2.5">
+                    <Globe className="w-4 h-4 text-indigo-400" />
+                    <span>Sprache</span>
+                  </span>
+                  <select
+                    value={language}
+                    onChange={(e) => {
+                      sound.playClick();
+                      setLanguage(e.target.value as SupportedLanguage);
+                    }}
+                    className="bg-slate-800 border border-slate-700 text-xs text-slate-200 font-bold rounded-lg px-2 py-1 focus:outline-none"
+                  >
+                    <option value="en">🇬🇧 English</option>
+                    <option value="de">🇩🇪 Deutsch</option>
+                    <option value="es">🇪🇸 Español</option>
+                    <option value="fr">🇫🇷 Français</option>
+                    <option value="it">🇮🇹 Italiano</option>
+                    <option value="ja">🇯🇵 日本語</option>
+                  </select>
+                </div>
+
+                {/* Android App & PWA Hub Launcher */}
+                <button
+                  onClick={() => {
+                    setIsMobileDrawerOpen(false);
+                    setIsAndroidAppModalOpen(true);
+                  }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 font-bold transition hover:bg-emerald-900/40"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Smartphone className="w-4 h-4 text-emerald-400" />
+                    <span>Android App & PWA</span>
+                  </span>
+                  <span className="text-[10px] bg-emerald-400/20 text-emerald-300 px-1.5 py-0.5 rounded font-black">
+                    Installieren
+                  </span>
+                </button>
+
+                {/* Official Domain Link */}
+                <a
+                  href="https://brettspiele-online.eu/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-800/80 border border-cyan-500/30 text-cyan-400 hover:text-cyan-300 font-bold transition"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <ExternalLink className="w-4 h-4 text-cyan-400" />
+                    <span>brettspiele-online.eu</span>
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-slate-500" />
+                </a>
+
+                {/* Admin Mode if authorized */}
+                {user.role === 'admin' && (
+                  <button
+                    onClick={() => {
+                      setIsMobileDrawerOpen(false);
+                      setIsAdminOpen(true);
+                    }}
+                    className="w-full flex items-center justify-between p-2.5 rounded-xl bg-rose-950/50 border border-rose-500/40 text-rose-300 font-bold transition hover:bg-rose-900/50"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <ShieldAlert className="w-4 h-4 text-rose-400" />
+                      <span>Adminsystem</span>
+                    </span>
+                    <span className="text-[10px] bg-rose-500/20 px-1.5 py-0.5 rounded font-mono">ROOT</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Drawer Footer */}
+            <div className="pt-4 mt-4 border-t border-slate-800 text-center">
+              <p className="text-[11px] text-slate-500 font-medium">
+                FamPlay Multi-Gaming Arcade · Mobile v2.5
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MOBILE BOTTOM NAVIGATION BAR (Permanent 1-Thumb Native Navigation) */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-xl border-t border-slate-800/90 pb-safe md:hidden flex items-center justify-around px-2 py-1.5 shadow-2xl">
+        <button
+          onClick={() => {
+            sound.playClick();
+            setActiveGame(null);
+            setIsMobileDrawerOpen(false);
+          }}
+          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition ${
+            !activeGame
+              ? 'text-amber-400 font-bold'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Gamepad2 className="w-5 h-5" />
+          <span className="text-[10px]">Spiele</span>
+        </button>
+
+        <button
+          onClick={() => {
+            sound.playClick();
+            setIsRoomManagerOpen(true);
+            setIsMobileDrawerOpen(false);
+          }}
+          className="flex flex-col items-center gap-1 py-1 px-3 rounded-xl text-slate-400 hover:text-indigo-400 transition"
+        >
+          <Users className="w-5 h-5" />
+          <span className="text-[10px]">Tische</span>
+        </button>
+
+        <button
+          onClick={() => {
+            sound.playClick();
+            setIsTourneyOpen(true);
+            setIsMobileDrawerOpen(false);
+          }}
+          className="flex flex-col items-center gap-1 py-1 px-3 rounded-xl text-slate-400 hover:text-amber-400 transition"
+        >
+          <Trophy className="w-5 h-5" />
+          <span className="text-[10px]">Turniere</span>
+        </button>
+
+        <button
+          onClick={() => {
+            sound.playReward();
+            setIsDailyOpen(true);
+            setIsMobileDrawerOpen(false);
+          }}
+          className="flex flex-col items-center gap-1 py-1 px-3 rounded-xl text-slate-400 hover:text-orange-400 transition"
+        >
+          <Gift className="w-5 h-5 text-amber-400" />
+          <span className="text-[10px]">Bonus</span>
+        </button>
+
+        <button
+          onClick={() => {
+            sound.playClick();
+            setIsMobileDrawerOpen(true);
+          }}
+          className="flex flex-col items-center gap-1 py-1 px-3 rounded-xl text-slate-400 hover:text-white transition"
+        >
+          <Menu className="w-5 h-5" />
+          <span className="text-[10px]">Menü</span>
+        </button>
+      </nav>
 
       {/* Offline connectivity status banner */}
       <OfflineIndicator />

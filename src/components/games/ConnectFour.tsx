@@ -470,7 +470,7 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({
       </div>
 
       {/* Column hover drop indicators */}
-      <div className="grid grid-cols-7 gap-2.5 w-full max-w-md mb-1.5 px-4">
+      <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5 w-full max-w-md mb-1.5 px-2 sm:px-4">
         {Array.from({ length: COLS }).map((_, colIdx) => (
           <div
             key={colIdx}
@@ -493,7 +493,7 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({
       </div>
 
       {/* 7x6 REAL VERTICAL GAME RACK WITH REAL TABLETOP PHOTO MAT */}
-      <div className="relative rounded-3xl p-4 sm:p-6 shadow-2xl border-4 border-blue-950 max-w-md w-full overflow-hidden bg-slate-950">
+      <div className="relative rounded-2xl sm:rounded-3xl p-2.5 sm:p-6 shadow-2xl border-2 sm:border-4 border-blue-950 max-w-md w-full overflow-hidden bg-slate-950">
         
         {/* Real Tabletop Game Atmosphere Photo Texture */}
         <img
@@ -505,14 +505,14 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({
         <div className="absolute inset-0 bg-blue-950/30 backdrop-blur-xs pointer-events-none" />
 
         {/* 3D Vertical Game Rack Frame */}
-        <div className="relative z-10 bg-gradient-to-b from-blue-600 via-blue-700 to-blue-900 p-3 sm:p-4 rounded-2xl shadow-2xl border-2 border-blue-400/60">
+        <div className="relative z-10 bg-gradient-to-b from-blue-600 via-blue-700 to-blue-900 p-2 sm:p-4 rounded-xl sm:rounded-2xl shadow-2xl border-2 border-blue-400/60">
           
           {/* Metallic Top Bolts and Branding Badge */}
-          <div className="flex justify-between items-center mb-2.5 px-2">
+          <div className="flex justify-between items-center mb-2 px-1 sm:px-2">
             <div className="w-3 h-3 rounded-full bg-slate-200 border border-slate-500 shadow-inner flex items-center justify-center">
               <div className="w-1.5 h-0.5 bg-slate-600" />
             </div>
-            <div className="text-[11px] font-black uppercase tracking-widest text-blue-100 font-display flex items-center gap-1">
+            <div className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-blue-100 font-display flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-amber-300" /> FAMPLAY 4-IN-A-ROW
             </div>
             <div className="w-3 h-3 rounded-full bg-slate-200 border border-slate-500 shadow-inner flex items-center justify-center">
@@ -521,7 +521,7 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({
           </div>
 
           {/* Grid Cells */}
-          <div className="grid grid-cols-7 gap-2 sm:gap-2.5">
+          <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
             {board.map((row, r) =>
               row.map((cell, c) => {
                 const isWinningCell = winningCells.some(([wr, wc]) => wr === r && wc === c);

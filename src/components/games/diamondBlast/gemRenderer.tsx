@@ -65,13 +65,10 @@ export const GemRenderer: React.FC<GemRendererProps> = ({
 
   return (
     <div
-      className={`relative flex items-center justify-center select-none transition-transform duration-150 ${
+      className={`relative flex items-center justify-center select-none transition-transform duration-150 w-full h-full max-w-full max-h-full aspect-square ${
         isSelected ? 'scale-110 z-20' : isHinted ? 'scale-105 z-10 animate-pulse' : 'hover:scale-105'
       }`}
-      style={{
-        width: `${size}px`,
-        height: `${size}px`,
-      }}
+      style={size ? { maxWidth: `${size}px`, maxHeight: `${size}px` } : undefined}
     >
       {/* Outer Selection / Hint Halo */}
       {isSelected && (

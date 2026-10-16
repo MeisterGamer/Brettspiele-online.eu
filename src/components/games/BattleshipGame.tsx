@@ -495,7 +495,7 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
           <span className="text-[10px] text-slate-400 font-mono">5 Naval Units Active</span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+        <div className="flex sm:grid sm:grid-cols-5 gap-2.5 overflow-x-auto no-scrollbar pb-1">
           {SHIPS.map((ship) => {
             const enemyHits = getEnemyShipHits(ship.id);
             const isEnemySunk = enemyHits >= ship.size;
@@ -505,7 +505,7 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
             return (
               <div
                 key={ship.id}
-                className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex flex-col group relative"
+                className="w-36 sm:w-auto shrink-0 sm:shrink bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex flex-col group relative"
               >
                 {/* Warship Real Photograph */}
                 <div className="h-16 w-full relative overflow-hidden bg-slate-800">
