@@ -324,7 +324,10 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
       }
     }
 
-    if (unhitCoords.length === 0) return;
+    if (unhitCoords.length === 0) {
+      setActiveTurn('player');
+      return;
+    }
 
     const [tarR, tarC] = unhitCoords[Math.floor(Math.random() * unhitCoords.length)];
     const isHit = playerGrid[tarR][tarC] !== 'empty';

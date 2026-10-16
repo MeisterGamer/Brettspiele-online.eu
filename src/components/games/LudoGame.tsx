@@ -133,10 +133,11 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     yellow: tableParticipants?.[3],
   };
 
-  const isOnlineMultiplayer = Boolean(roomCode && tableParticipants && tableParticipants.length >= 2);
+  const humanCount = (tableParticipants || []).filter((p) => !p.isBot).length;
+  const isOnlineMultiplayer = Boolean(roomCode && humanCount >= 2);
   const myColor: PlayerColor | null = isOnlineMultiplayer
     ? ((['red', 'blue', 'green', 'yellow'] as PlayerColor[]).find((c) => colorMap[c]?.id === currentUserId) || null)
-    : null;
+    : 'red';
 
   const getPlayerLabel = (color: PlayerColor) => {
     const p = colorMap[color];
@@ -144,21 +145,21 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     if (p) {
       return `${p.name} (${colorLabel})`;
     }
-    return COLOR_NAMES[color];
+    return `${COLOR_NAMES[color]} (KI)`;
   };
 
   const isColorAi = (color: PlayerColor): boolean => {
     const p = colorMap[color];
-    if (p) return !!p.isBot;
-    if (gameMode === 'pass') return false;
-    return color !== 'red';
+    if (p) return Boolean(p.isBot);
+    if (gameMode === 'ai') return color !== 'red';
+    return false;
   };
 
   const [players, setPlayers] = useState<PlayerColor[]>(['red', 'blue', 'green', 'yellow']);
   const [activeTurn, setActiveTurn] = useState<PlayerColor>('red');
   const [diceValue, setDiceValue] = useState<number | null>(null);
   const [isRolling, setIsRolling] = useState<boolean>(false);
-  const [gameMode, setGameMode] = useState<'ai' | 'pass'>('pass');
+  const [gameMode, setGameMode] = useState<'ai' | 'pass'>('ai');
   const [winner, setWinner] = useState<PlayerColor | null>(null);
   const [lastActionLog, setLastActionLog] = useState<string>(() => 
     `Willkommen am Familientisch! ${getPlayerLabel('red')} beginnt. Bitte würfeln.`
@@ -224,9 +225,10 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     return () => unsubscribe();
   }, [roomCode, currentUserId, pieces, activeTurn, movablePieces, diceValue]);
 
-  // Roll the dice
+  // Roll the dice for human player
   const handleRollDice = () => {
     if (isRolling || winner || movablePieces.length > 0) return;
+    if (isColorAi(activeTurn)) return; // AI rolls automatically
     if (isOnlineMultiplayer && !isMyTurn) {
       sound.playError();
       return;
@@ -259,6 +261,85 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     }, 60);
   };
 
+  // Autonomous AI turn execution without stale state traps
+  const executeAiTurn = (color: PlayerColor) => {
+    if (winner) return;
+    setIsRolling(true);
+    sound.playDiceRoll();
+
+    let rolls = 0;
+    const interval = setInterval(() => {
+      setDiceValue(Math.floor(Math.random() * 6) + 1);
+      rolls++;
+      if (rolls >= 8) {
+        clearInterval(interval);
+        const finalVal = Math.floor(Math.random() * 6) + 1;
+        setDiceValue(finalVal);
+        setIsRolling(false);
+        sound.playChip();
+
+        if (roomCode) {
+          multiplayerService.sendGameAction(
+            roomCode,
+            'ludo',
+            'ROLL_DICE',
+            { color, roll: finalVal },
+            currentUserId || 'p1'
+          );
+        }
+
+        setPieces((curPieces) => {
+          const playerPieces = curPieces.filter((p) => p.color === color);
+          const validPieceIds: number[] = [];
+
+          playerPieces.forEach((p) => {
+            if (p.position === -1) {
+              if (finalVal === 6) {
+                const startTrack = COLOR_START_INDEX[color];
+                const occupiedBySelf = curPieces.some((other) => other.color === color && other.position === startTrack);
+                if (!occupiedBySelf) validPieceIds.push(p.id);
+              }
+            } else if (p.position >= 0 && p.position < 40) {
+              const startIndex = COLOR_START_INDEX[color];
+              const stepsWalked = (p.position - startIndex + 40) % 40;
+              const newStepsWalked = stepsWalked + finalVal;
+              if (newStepsWalked < 40) {
+                const targetTrack = (p.position + finalVal) % 40;
+                const occupiedBySelf = curPieces.some((other) => other.color === color && other.position === targetTrack);
+                if (!occupiedBySelf) validPieceIds.push(p.id);
+              } else if (newStepsWalked <= 43) {
+                const targetHome = 100 + (newStepsWalked - 40);
+                const occupiedBySelf = curPieces.some((other) => other.color === color && other.position === targetHome);
+                if (!occupiedBySelf) validPieceIds.push(p.id);
+              }
+            } else if (p.position >= 100 && p.position <= 103) {
+              const targetHome = p.position + finalVal;
+              if (targetHome <= 103) {
+                const occupiedBySelf = curPieces.some((other) => other.color === color && other.position === targetHome);
+                if (!occupiedBySelf) validPieceIds.push(p.id);
+              }
+            }
+          });
+
+          if (validPieceIds.length === 0) {
+            setLastActionLog(`${getPlayerLabel(color)} hat eine ${finalVal} gewürfelt, kann aber keine Figur ziehen.`);
+            setTimeout(() => {
+              passTurn(color, finalVal === 6);
+            }, 850);
+            return curPieces;
+          }
+
+          const chosenPieceId = pickBestAiPiece(validPieceIds, color, finalVal, curPieces);
+          setTimeout(() => {
+            applyMovePiece(chosenPieceId, finalVal);
+          }, 650);
+
+          return curPieces;
+        });
+      }
+    }, 60);
+  };
+
   // Evaluate which pieces the active player can move
   const evaluateMoves = (color: PlayerColor, roll: number) => {
     const playerPieces = pieces.filter((p) => p.color === color);
@@ -269,28 +350,23 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         // Needs a 6 to enter start space
         if (roll === 6) {
           const startTrack = COLOR_START_INDEX[color];
-          // Can't move if own piece already on start space
           const occupiedBySelf = pieces.some((other) => other.color === color && other.position === startTrack);
           if (!occupiedBySelf) {
             validPieceIds.push(p.id);
           }
         }
       } else if (p.position >= 0 && p.position < 40) {
-        // Track movement
-        // Calculate relative steps walked
         const startIndex = COLOR_START_INDEX[color];
         const stepsWalked = (p.position - startIndex + 40) % 40;
         const newStepsWalked = stepsWalked + roll;
 
         if (newStepsWalked < 40) {
-          // Regular track movement
           const targetTrack = (p.position + roll) % 40;
           const occupiedBySelf = pieces.some((other) => other.color === color && other.position === targetTrack);
           if (!occupiedBySelf) {
             validPieceIds.push(p.id);
           }
         } else if (newStepsWalked <= 43) {
-          // Reaches home column (100..103)
           const targetHome = 100 + (newStepsWalked - 40);
           const occupiedBySelf = pieces.some((other) => other.color === color && other.position === targetHome);
           if (!occupiedBySelf) {
@@ -298,7 +374,6 @@ export const LudoGame: React.FC<LudoGameProps> = ({
           }
         }
       } else if (p.position >= 100 && p.position <= 103) {
-        // Moving within home column
         const targetHome = p.position + roll;
         if (targetHome <= 103) {
           const occupiedBySelf = pieces.some((other) => other.color === color && other.position === targetHome);
@@ -311,7 +386,6 @@ export const LudoGame: React.FC<LudoGameProps> = ({
 
     if (validPieceIds.length === 0) {
       setLastActionLog(`${getPlayerLabel(color)} hat eine ${roll} gewürfelt, kann aber keine Figur ziehen.`);
-      // Next turn
       setTimeout(() => {
         passTurn(color, roll === 6);
       }, 1000);
@@ -319,31 +393,31 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       setMovablePieces(validPieceIds);
       setLastActionLog(`${getPlayerLabel(color)} hat eine ${roll} gewürfelt! Wähle eine Figur zum Ziehen.`);
 
-      // If active player is AI, make move automatically after a short delay
+      // If active player is AI, automatically make move
       if (isColorAi(color)) {
         setTimeout(() => {
-          // Pick best move: prioritize capturing opponents, then getting out with a 6, then furthest
-          const chosenPieceId = pickBestAiPiece(validPieceIds, color, roll);
-          handleMovePiece(chosenPieceId, roll);
-        }, 900);
+          const chosenPieceId = pickBestAiPiece(validPieceIds, color, roll, pieces);
+          applyMovePiece(chosenPieceId, roll);
+        }, 750);
       }
     }
   };
 
   // Smart AI piece selection
-  const pickBestAiPiece = (validIds: number[], color: PlayerColor, roll: number): number => {
+  const pickBestAiPiece = (validIds: number[], color: PlayerColor, roll: number, pieceList?: Piece[]): number => {
+    const currentPieces = pieceList || pieces;
     // 1. Check if any move captures an opponent
     for (const id of validIds) {
-      const piece = pieces.find((p) => p.id === id)!;
-      if (piece.position >= 0 && piece.position < 40) {
+      const piece = currentPieces.find((p) => p.id === id);
+      if (piece && piece.position >= 0 && piece.position < 40) {
         const targetTrack = (piece.position + roll) % 40;
-        const opponent = pieces.find((p) => p.color !== color && p.position === targetTrack);
+        const opponent = currentPieces.find((p) => p.color !== color && p.position === targetTrack);
         if (opponent) return id;
       }
     }
     // 2. If rolled 6, prioritize bringing piece out of yard
     if (roll === 6) {
-      const yardPiece = validIds.find((id) => pieces.find((p) => p.id === id)?.position === -1);
+      const yardPiece = validIds.find((id) => currentPieces.find((p) => p.id === id)?.position === -1);
       if (yardPiece) return yardPiece;
     }
     // 3. Otherwise pick furthest piece
@@ -449,7 +523,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     if (rolledSix) {
       setLastActionLog(`${getPlayerLabel(currentColor)} hat eine 6 gewürfelt und darf noch einmal!`);
       if (isColorAi(currentColor)) {
-        setTimeout(handleRollDice, 800);
+        setTimeout(() => executeAiTurn(currentColor), 750);
       }
       return;
     }
@@ -462,7 +536,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     setLastActionLog(`${getPlayerLabel(nextColor)} ist am Zug. Bitte würfeln.`);
 
     if (isColorAi(nextColor)) {
-      setTimeout(handleRollDice, 1000);
+      setTimeout(() => executeAiTurn(nextColor), 850);
     }
   };
 

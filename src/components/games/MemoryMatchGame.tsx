@@ -244,6 +244,38 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     applyCardFlip(index);
   };
 
+  // Bot Turn Automation in Duel mode against Bot
+  useEffect(() => {
+    if (mode !== 'duel' || currentTurn !== 2 || isOnlineMultiplayer || !isP2Bot || gameOver || isLocked) return;
+
+    const timer = setTimeout(() => {
+      const availableIndices = cards
+        .map((c, i) => (!c.isFlipped && !c.isMatched ? i : null))
+        .filter((i): i is number => i !== null);
+
+      if (availableIndices.length < 2) return;
+
+      const firstPick = availableIndices[Math.floor(Math.random() * availableIndices.length)];
+      applyCardFlip(firstPick);
+
+      setTimeout(() => {
+        setCards((curCards) => {
+          const remaining = curCards
+            .map((c, i) => (!c.isFlipped && !c.isMatched && i !== firstPick ? i : null))
+            .filter((i): i is number => i !== null);
+
+          if (remaining.length > 0) {
+            const secondPick = remaining[Math.floor(Math.random() * remaining.length)];
+            applyCardFlip(secondPick);
+          }
+          return curCards;
+        });
+      }, 750);
+    }, 850);
+
+    return () => clearTimeout(timer);
+  }, [mode, currentTurn, isP2Bot, isOnlineMultiplayer, gameOver, isLocked, cards]);
+
   const resetGame = () => {
     sound.playClick();
     initGame();

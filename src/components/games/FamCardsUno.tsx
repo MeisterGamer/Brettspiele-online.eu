@@ -334,7 +334,7 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
 
   // Bot Turn Automation (Only runs if opponent is actually a Bot)
   useEffect(() => {
-    if (currentTurn === 'bot' && (!isOnlineMultiplayer || isP2Bot) && !winner) {
+    if (currentTurn === 'bot' && isP2Bot && !winner) {
       const timer = setTimeout(() => {
         const playable = botHand.filter(canPlayCard);
         if (playable.length > 0) {

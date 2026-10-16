@@ -4,8 +4,10 @@ import confetti from '../../services/confetti';
 import { RefreshCw, Trophy, Bot, Users, Crown, Sparkles } from 'lucide-react';
 import { TABLE_BACKGROUNDS } from '../../services/gameImages';
 
+type PlayerColor = 'red' | 'black';
+
 type PieceType = {
-  player: 'red' | 'black';
+  player: PlayerColor;
   isKing: boolean;
 };
 
@@ -233,7 +235,7 @@ export const CheckersGame: React.FC<CheckersGameProps> = ({
       ? jumpMoves[Math.floor(Math.random() * jumpMoves.length)]
       : allMoves[Math.floor(Math.random() * allMoves.length)];
 
-    executeMove(chosen.from[0], chosen.from[1], chosen.to[0], chosen.to[1]);
+    executeMove(chosen.from[0], chosen.from[1], chosen.to[0], chosen.to[1], currentBoard, 'black');
   };
 
   const handleCellClick = (r: number, c: number) => {
@@ -261,14 +263,25 @@ export const CheckersGame: React.FC<CheckersGameProps> = ({
 
     // Execute move
     if (selectedPos && validMoves.some(([mr, mc]) => mr === r && mc === c)) {
-      executeMove(selectedPos[0], selectedPos[1], r, c);
+      executeMove(selectedPos[0], selectedPos[1], r, c, board, turn);
     }
   };
 
-  const executeMove = (fromR: number, fromC: number, toR: number, toC: number) => {
+  const executeMove = (
+    fromR: number, 
+    fromC: number, 
+    toR: number, 
+    toC: number, 
+    sourceBoard?: BoardState, 
+    actingPlayer?: PlayerColor
+  ) => {
     sound.playPieceDrop();
-    const newBoard = board.map((row) => [...row]);
-    const movingPiece = { ...newBoard[fromR][fromC]! };
+    const currentBoard = sourceBoard || board;
+    const currentTurn = actingPlayer || turn;
+    const newBoard = currentBoard.map((row) => [...row]);
+    const sourcePiece = newBoard[fromR][fromC];
+    if (!sourcePiece) return;
+    const movingPiece = { ...sourcePiece };
 
     newBoard[fromR][fromC] = null;
 
@@ -322,14 +335,14 @@ export const CheckersGame: React.FC<CheckersGameProps> = ({
       return;
     }
 
-    const nextTurn = turn === 'red' ? 'black' : 'red';
+    const nextTurn: PlayerColor = currentTurn === 'red' ? 'black' : 'red';
     setTurn(nextTurn);
 
-    // AI move
+    // AI move only triggered when human finishes move and it is bot's turn
     if (mode === 'bot' && nextTurn === 'black') {
       setTimeout(() => {
         executeBotMove(newBoard);
-      }, 650);
+      }, 600);
     }
   };
   const resetGame = () => {

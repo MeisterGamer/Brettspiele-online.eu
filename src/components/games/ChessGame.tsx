@@ -269,7 +269,7 @@ export const ChessGame: React.FC<ChessGameProps> = ({
       // Check if clicked square is a valid move
       const isMove = validMoves.some(([mr, mc]) => mr === r && mc === c);
       if (isMove) {
-        executeMove(sr, sc, r, c);
+        executeMove(sr, sc, r, c, board, turn);
         return;
       }
     }
@@ -290,11 +290,21 @@ export const ChessGame: React.FC<ChessGameProps> = ({
     }
   };
 
-  const executeMove = (fromR: number, fromC: number, toR: number, toC: number) => {
-    const movingPiece = board[fromR][fromC]!;
-    const captured = board[toR][toC];
+  const executeMove = (
+    fromR: number, 
+    fromC: number, 
+    toR: number, 
+    toC: number, 
+    sourceBoard?: BoardState, 
+    actingColor?: PieceColor
+  ) => {
+    const currentBoard = sourceBoard || board;
+    const currentColor = actingColor || turn;
+    const movingPiece = currentBoard[fromR][fromC];
+    if (!movingPiece) return;
+    const captured = currentBoard[toR][toC];
 
-    const newBoard = board.map((row) => [...row]);
+    const newBoard = currentBoard.map((row) => [...row]);
     newBoard[toR][toC] = movingPiece;
     newBoard[fromR][fromC] = null;
 
@@ -307,11 +317,12 @@ export const ChessGame: React.FC<ChessGameProps> = ({
       sound.playSuccess();
       if (captured.type === 'k') {
         // King captured
-        const winTitle = turn === 'w' ? (p1Name) : (p2Name);
+        const winTitle = currentColor === 'w' ? p1Name : p2Name;
         setWinner(winTitle);
         sound.playVictory();
-        confetti({ particleCount: 100, spread: 70 });
+        try { confetti({ particleCount: 100, spread: 70 }); } catch (e) {}
         if (onGameEnd) onGameEnd(winTitle);
+        return;
       }
     } else {
       sound.playChip();
@@ -328,14 +339,14 @@ export const ChessGame: React.FC<ChessGameProps> = ({
     setSelectedPos(null);
     setValidMoves([]);
 
-    const nextTurn = turn === 'w' ? 'b' : 'w';
+    const nextTurn: PieceColor = currentColor === 'w' ? 'b' : 'w';
     setTurn(nextTurn);
 
-    // AI Move
+    // AI Move - only triggered when next turn is black in bot mode
     if (mode === 'bot' && nextTurn === 'b' && !winner) {
       setTimeout(() => {
         executeAiMove(newBoard);
-      }, 700);
+      }, 650);
     }
   };
 
@@ -354,9 +365,9 @@ export const ChessGame: React.FC<ChessGameProps> = ({
     });
 
     if (blackPieces.length === 0) {
-      setWinner('Weiß (Du)');
+      setWinner(p1Name);
       sound.playVictory();
-      if (onGameEnd) onGameEnd('Weiß (Du)');
+      if (onGameEnd) onGameEnd(p1Name);
       return;
     }
 
@@ -384,7 +395,7 @@ export const ChessGame: React.FC<ChessGameProps> = ({
       chosenTarget = randP.moves[Math.floor(Math.random() * randP.moves.length)];
     }
 
-    executeMove(chosenFrom.r, chosenFrom.c, chosenTarget[0], chosenTarget[1]);
+    executeMove(chosenFrom.r, chosenFrom.c, chosenTarget[0], chosenTarget[1], currentBoard, 'b');
   };
 
   const resetGame = () => {

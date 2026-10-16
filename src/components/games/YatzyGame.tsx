@@ -11,6 +11,8 @@ interface YatzyGameProps {
   tableParticipants?: RoomParticipant[];
   currentUserId?: string;
   onActiveTurnChange?: (turnPlayerId: string) => void;
+  roomCode?: string;
+  isHost?: boolean;
 }
 
 type CategoryKey =
