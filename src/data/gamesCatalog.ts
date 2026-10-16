@@ -2,6 +2,24 @@ import { GameInfo } from '../types';
 
 export const gamesCatalog: GameInfo[] = [
   {
+    id: 'diamond-blast',
+    title: 'Diamond Blast',
+    category: 'strategy',
+    categories: ['strategy', 'kids', 'party'],
+    players: '1 Spieler (Arcade)',
+    duration: '5-15 Min',
+    minAge: 5,
+    description: 'Das ultimative Match-3-Abenteuer! Tausche glänzende Kristalle, entfessle gewaltige Dynamit-Explosionen, Laserblitz-Reihen und Regenbogen-Wipeouts über 100 herausfordernde Levels!',
+    rulesSummary: 'Tausche 2 Diamanten, um 3 oder mehr gleiche Farben in eine Reihe zu bringen. Bilde 4er für Laser-Blitze, T- oder L-Formen für Dynamit-Bomben und 5er für Regenbogen-Diamanten!',
+    tags: ['Match-3', '100 Levels', 'Dynamit', 'Kettenreaktion', 'Kristalle', 'Neu'],
+    engine: 'diamond-blast',
+    featured: true,
+    icon: '💎',
+    difficulty: 'Medium',
+    rating: 5.0,
+    playsCount: 142,
+  },
+  {
     id: 'ludo',
     title: 'Mensch ärgere Dich nicht',
     category: 'board',

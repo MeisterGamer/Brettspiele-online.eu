@@ -64,6 +64,7 @@ import { DotsAndBoxesGame } from './components/games/DotsAndBoxesGame';
 import { TicTacToeGame } from './components/games/TicTacToeGame';
 import { LudoGame } from './components/games/LudoGame';
 import { ChessGame } from './components/games/ChessGame';
+import { DiamondBlastGame } from './components/games/diamondBlast/DiamondBlastGame';
 
 // Icons
 import { 
@@ -798,6 +799,16 @@ export default function App() {
               )}
               {activeGame.engine === 'tictactoe' && (
                 <TicTacToeGame 
+                  onGameEnd={handleGameCompletion} 
+                  tableParticipants={currentRoom?.participants}
+                  currentUserId={user.id}
+                  onActiveTurnChange={setCurrentTurnPlayerId}
+                  roomCode={currentRoom?.code}
+                  isHost={currentRoom?.participants[0]?.id === user.id}
+                />
+              )}
+              {activeGame.engine === 'diamond-blast' && (
+                <DiamondBlastGame 
                   onGameEnd={handleGameCompletion} 
                   tableParticipants={currentRoom?.participants}
                   currentUserId={user.id}

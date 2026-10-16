@@ -40,7 +40,7 @@ interface GameEngineGuide {
   boardControls: { label: string; action: string; keyHint?: string }[];
   specialRules: { title: string; desc: string }[];
   proTips: string[];
-  visualPreviewType: 'chess' | 'connect-four' | 'ludo' | 'fam-cards' | 'checkers' | 'battleship' | 'yatzy' | 'memory-match' | 'dots-boxes' | 'tictactoe';
+  visualPreviewType: 'chess' | 'connect-four' | 'ludo' | 'fam-cards' | 'checkers' | 'battleship' | 'yatzy' | 'memory-match' | 'dots-boxes' | 'tictactoe' | 'diamond-blast';
 }
 
 const ENGINE_GUIDES: Record<string, GameEngineGuide> = {
@@ -372,6 +372,40 @@ const ENGINE_GUIDES: Record<string, GameEngineGuide> = {
       'Gegen die KI: Jeder Fehler wird bestraft – spiele konzentriert und blockiere frühzeitig.',
     ],
     visualPreviewType: 'tictactoe',
+  },
+  'diamond-blast': {
+    engine: 'diamond-blast',
+    title: 'Diamond Blast',
+    tagline: 'Match-3 Juwelen-Action mit Dynamit, Lasern & Regenbogen-Wipeouts über 100 Levels',
+    category: 'Match-3 · Arcade',
+    players: '1 Spieler (Arcade)',
+    duration: '5–15 Min',
+    minAge: 'Ab 5 Jahren',
+    difficulty: 'Mittel',
+    objective: 'Bringe 3 oder mehr gleiche Diamanten in eine Reihe, sprenge Eis und Felsen und meistere alle 100 Levels!',
+    quickSteps: [
+      { step: 1, title: 'Tauschen', desc: 'Klicke zwei direkt benachbarte Diamanten an oder wische sie, um sie zu vertauschen.', icon: '💎' },
+      { step: 2, title: '3er-Reihe', desc: 'Bilde eine Reihe aus 3 gleichen Kristallen – sie lösen sich auf und neue Edelsteine fallen nach!', icon: '✨' },
+      { step: 3, title: 'Spezialsteine', desc: '4er erzeugen Laserblitz-Reihen, T/L-Formen Dynamitbomben, 5er Regenbogen-Hypercubes!', icon: '💥' },
+      { step: 4, title: 'Levelziele', desc: 'Erreiche die Zielpunkte, schmelze Eisblöcke und sprenge Felsen innerhalb der verfügbaren Züge.', icon: '🏆' },
+    ],
+    boardControls: [
+      { label: 'Diamant anklicken / Wischen', action: 'Wähle den ersten Diamanten und danach einen Nachbarn zum Tauschen.' },
+      { label: 'Tipp-Button (Glühbirne)', action: 'Zeigt bei Bedarf sofort einen gültigen Zug mit goldenem Glühen an.' },
+      { label: 'Spezial-Tausch', action: 'Tausche Spezialdiamanten untereinander für gigantische Mega-Explosionen!' },
+    ],
+    specialRules: [
+      { title: 'Dynamit-Bombe (T/L-Form)', desc: 'Explodiert im 3×3-Radius mit Feuerpartikeln und Bildschirmerschütterung.' },
+      { title: 'Regenbogen-Diamant (5er)', desc: 'Zerstört beim Tauschen alle Diamanten der gewählten Farbe auf dem ganzen Spielfeld.' },
+      { title: 'Mega-Kombos', desc: 'Zwei Bomben = 5×5 Mega-Explosion! Zwei Regenbögen räumen das komplette Feld ab!' },
+      { title: 'Automatisches Mischen', desc: 'Gibt es keine gültigen Züge mehr, mischt sich das Brett automatisch neu.' },
+    ],
+    proTips: [
+      'Plane Kettenreaktionen im unteren Bereich des Bretts, damit möglichst viele Steine nachrutschen.',
+      'Kombiniere Spezialsteine direkt miteinander – Bombe + Laser erzeugt ein gewaltiges Kreuzfeuer!',
+      'Nutze den Zeitmodus für rasante Action: Spezialkombinationen schenken wertvolle Bonussekunden.',
+    ],
+    visualPreviewType: 'diamond-blast',
   },
 };
 
@@ -766,6 +800,44 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
             <p className="text-[11px] text-indigo-300 mt-2 font-semibold">
               3 gleiche Symbole in einer Reihe (horizontal, vertikal, diagonal) gewinnen!
             </p>
+          </div>
+        );
+
+      case 'diamond-blast':
+        return (
+          <div className="relative p-4 rounded-2xl bg-indigo-950/40 border border-indigo-600/30 flex flex-col items-center">
+            <div className="text-[11px] font-bold text-amber-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <Eye className="w-3.5 h-3.5" /> Interaktiver Board-Guide: Match-3, Dynamit & Regenbogen
+            </div>
+            {/* 4x4 Mini Diamond Grid Preview */}
+            <div className="grid grid-cols-4 gap-2 p-3 bg-slate-950 border border-indigo-500/50 rounded-2xl shadow-2xl relative">
+              {/* Row with a 3-match highlight */}
+              <div className="w-10 h-10 rounded-xl bg-rose-500/20 border-2 border-rose-400 flex items-center justify-center text-xl animate-pulse">💎</div>
+              <div className="w-10 h-10 rounded-xl bg-rose-500/20 border-2 border-rose-400 flex items-center justify-center text-xl animate-pulse">💎</div>
+              <div className="w-10 h-10 rounded-xl bg-rose-500/20 border-2 border-rose-400 flex items-center justify-center text-xl animate-pulse">💎</div>
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/50 flex items-center justify-center text-xl">💣</div>
+
+              <div className="w-10 h-10 rounded-xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-xl">🔷</div>
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-xl">🟩</div>
+              <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-xl">💜</div>
+              <div className="w-10 h-10 rounded-xl bg-fuchsia-500/30 border-2 border-fuchsia-400 flex items-center justify-center text-xl shadow-[0_0_12px_rgba(236,72,153,0.8)]">🌈</div>
+            </div>
+
+            {/* Feature callouts */}
+            <div className="grid grid-cols-3 gap-2 mt-3 text-[11px] text-slate-300 w-full max-w-sm text-center">
+              <div className="p-1.5 rounded-xl bg-rose-950/40 border border-rose-600/30">
+                <span className="text-rose-400 font-bold block">3er-Reihe</span>
+                <span className="text-[10px] text-slate-400">+100 Pkt.</span>
+              </div>
+              <div className="p-1.5 rounded-xl bg-amber-950/40 border border-amber-600/30">
+                <span className="text-amber-400 font-bold block">Dynamit (T/L)</span>
+                <span className="text-[10px] text-slate-400">3×3 Explosion</span>
+              </div>
+              <div className="p-1.5 rounded-xl bg-fuchsia-950/40 border border-fuchsia-600/30">
+                <span className="text-fuchsia-400 font-bold block">Regenbogen (5er)</span>
+                <span className="text-[10px] text-slate-400">Farb-Wipeout</span>
+              </div>
+            </div>
           </div>
         );
 

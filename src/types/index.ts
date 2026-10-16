@@ -18,6 +18,7 @@ export type GameEngineType =
   | 'memory-match'
   | 'dots-boxes'
   | 'tictactoe'
+  | 'diamond-blast' // Match-3 Diamond Blast arcade engine
   | 'catalog-simulation';
 
 export interface GameInfo {

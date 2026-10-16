@@ -1618,12 +1618,124 @@ const SVG_TOWER_BALANCE = svgToDataUri(`
 </svg>
 `);
 
+export const SVG_DIAMOND_BLAST = svgToDataUri(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" width="400" height="240">
+  <defs>
+    <radialGradient id="dbBg" cx="50%" cy="50%" r="75%">
+      <stop offset="0%" stop-color="#1e1b4b"/>
+      <stop offset="60%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </radialGradient>
+    <linearGradient id="dbRuby" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fda4af"/>
+      <stop offset="40%" stop-color="#e11d48"/>
+      <stop offset="100%" stop-color="#881337"/>
+    </linearGradient>
+    <linearGradient id="dbSapph" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7dd3fc"/>
+      <stop offset="40%" stop-color="#0284c7"/>
+      <stop offset="100%" stop-color="#0c4a6e"/>
+    </linearGradient>
+    <linearGradient id="dbEmer" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#86efac"/>
+      <stop offset="40%" stop-color="#16a34a"/>
+      <stop offset="100%" stop-color="#052e16"/>
+    </linearGradient>
+    <linearGradient id="dbTopaz" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="40%" stop-color="#eab308"/>
+      <stop offset="100%" stop-color="#713f12"/>
+    </linearGradient>
+    <linearGradient id="dbRainbow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f43f5e"/>
+      <stop offset="25%" stop-color="#eab308"/>
+      <stop offset="50%" stop-color="#10b981"/>
+      <stop offset="70%" stop-color="#06b6d4"/>
+      <stop offset="100%" stop-color="#a855f7"/>
+    </linearGradient>
+    <radialGradient id="dbExplosion" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="50%" stop-color="#ea580c" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#7f1d1d" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="dbGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#dbBg)"/>
+
+  <!-- Shimmering Starfield / Magical sparkles -->
+  <g fill="#ffffff" opacity="0.6">
+    <circle cx="45" cy="35" r="1.5"/><circle cx="120" cy="25" r="1.2"/>
+    <circle cx="340" cy="40" r="1.8"/><circle cx="380" cy="85" r="1.2"/>
+    <circle cx="60" cy="180" r="1.5"/><circle cx="320" cy="190" r="1.5"/>
+  </g>
+
+  <!-- Laser blast line glow -->
+  <line x1="0" y1="120" x2="400" y2="120" stroke="#38bdf8" stroke-width="4" opacity="0.4" filter="url(#dbGlow)"/>
+  <line x1="0" y1="120" x2="400" y2="120" stroke="#ffffff" stroke-width="1.5" opacity="0.8"/>
+
+  <!-- Explosion aura on right -->
+  <circle cx="310" cy="120" r="60" fill="url(#dbExplosion)" opacity="0.75"/>
+
+  <!-- Left: Sapphire Diamond -->
+  <g transform="translate(80, 110)">
+    <polygon points="0,-35 30,0 0,35 -30,0" fill="url(#dbSapph)" stroke="#bae6fd" stroke-width="2"/>
+    <polygon points="0,-35 0,0 -30,0" fill="#ffffff" opacity="0.35"/>
+    <polygon points="0,-15 15,0 0,15 -15,0" fill="#38bdf8" opacity="0.5"/>
+  </g>
+
+  <!-- Center: Rainbow Hypercube Gem -->
+  <g transform="translate(200, 105)" filter="url(#dbGlow)">
+    <circle cx="0" cy="0" r="42" fill="url(#dbRainbow)" stroke="#ffffff" stroke-width="3"/>
+    <polygon points="0,-32 10,-10 32,0 10,10 0,32 -10,10 -32,0 -10,-10" fill="#ffffff" opacity="0.85"/>
+    <circle cx="0" cy="0" r="12" fill="#ffffff"/>
+  </g>
+
+  <!-- Top Right: Ruby Hexagon -->
+  <g transform="translate(140, 60)">
+    <polygon points="-16,-24 16,-24 28,0 16,24 -16,24 -28,0" fill="url(#dbRuby)" stroke="#fecdd3" stroke-width="1.8"/>
+    <polygon points="-10,-15 10,-15 18,0 10,15 -10,15 -18,0" fill="#fb7185" opacity="0.5"/>
+  </g>
+
+  <!-- Bottom Left: Emerald Octagon -->
+  <g transform="translate(135, 165)">
+    <polygon points="-10,-24 10,-24 24,-10 24,10 10,24 -10,24 -24,10 -24,-10" fill="url(#dbEmer)" stroke="#bbf7d0" stroke-width="1.8"/>
+    <polygon points="-6,-15 6,-15 15,-6 15,6 6,15 -6,15 -15,6 -15,-6" fill="#4ade80" opacity="0.5"/>
+  </g>
+
+  <!-- Right: Dynamite Bomb with sparkling fuse -->
+  <g transform="translate(310, 115)">
+    <!-- Bomb Body -->
+    <circle cx="0" cy="0" r="28" fill="#1e293b" stroke="#f59e0b" stroke-width="3"/>
+    <!-- Gold bands -->
+    <ellipse cx="0" cy="0" rx="28" ry="12" fill="none" stroke="#fbbf24" stroke-width="2"/>
+    <text x="0" y="6" font-family="sans-serif" font-weight="900" font-size="14" fill="#fbbf24" text-anchor="middle">TNT</text>
+    <!-- Fuse and flame spark -->
+    <path d="M 0 -28 Q 12 -40 22 -38" fill="none" stroke="#d97706" stroke-width="3"/>
+    <circle cx="22" cy="-38" r="6" fill="#f59e0b" filter="url(#dbGlow)"/>
+    <circle cx="22" cy="-38" r="3" fill="#ffffff"/>
+  </g>
+
+  <!-- Sparkling crystal particles -->
+  <polygon points="50,60 54,65 59,62 55,68 58,74 52,71 47,75 49,69 44,65 50,65" fill="#fef08a" opacity="0.8"/>
+  <polygon points="350,170 353,174 358,172 355,177 357,182 352,179 348,183 349,178 345,175 350,175" fill="#38bdf8" opacity="0.8"/>
+
+  <!-- Brand Banner Plaque -->
+  <rect x="80" y="210" width="240" height="22" rx="6" fill="#020617" opacity="0.95" stroke="#38bdf8" stroke-width="1"/>
+  <text x="200" y="225" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="900" fill="#38bdf8" text-anchor="middle" letter-spacing="2">DIAMOND BLAST • MATCH-3</text>
+</svg>
+`);
+
 // --------------------------------------------------------------------------
 // MAPPING: EVERY GAME ID TO ITS 100% ACCURATE AUTHENTIC IMAGE
 // --------------------------------------------------------------------------
 
 export const SPECIFIC_GAME_IMAGES: Record<string, string> = {
   // Flagship Core Playable Games
+  'diamond-blast': SVG_DIAMOND_BLAST,
   'ludo': SVG_LUDO,
   'chess': SVG_CHESS,
   'connect-four': SVG_CONNECT_FOUR,
