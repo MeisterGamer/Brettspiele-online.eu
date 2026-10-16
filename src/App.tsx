@@ -691,6 +691,7 @@ export default function App() {
                 room={currentRoom}
                 currentUser={user}
                 activeTurnPlayerId={currentTurnPlayerId}
+                activeGameEngine={activeGame?.engine}
                 onUpdateRoom={(updated) => {
                   setCurrentRoom(updated);
                   setPublicRooms(multiplayerService.getRooms());

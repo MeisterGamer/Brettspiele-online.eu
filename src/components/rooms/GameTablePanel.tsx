@@ -19,8 +19,11 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronUp,
-  Volume2
+  Volume2,
+  BookOpen
 } from 'lucide-react';
+import { HowToPlayModal } from './HowToPlayModal';
+import { GameEngineType } from '../../types';
 
 interface GameTablePanelProps {
   room: GameRoom;
@@ -29,6 +32,7 @@ interface GameTablePanelProps {
   onUpdateRoom: (updatedRoom: GameRoom) => void;
   onLeaveTable?: () => void;
   onInviteFriend?: () => void;
+  activeGameEngine?: GameEngineType;
 }
 
 export const GameTablePanel: React.FC<GameTablePanelProps> = ({
@@ -38,10 +42,12 @@ export const GameTablePanel: React.FC<GameTablePanelProps> = ({
   onUpdateRoom,
   onLeaveTable,
   onInviteFriend,
+  activeGameEngine,
 }) => {
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
   const [activeEmote, setActiveEmote] = useState<{ emoji: string; senderName: string } | null>(null);
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
+  const [isHowToPlayOpen, setIsHowToPlayOpen] = useState<boolean>(false);
 
   // Listen for multiplayer emotes
   useEffect(() => {
@@ -167,6 +173,19 @@ export const GameTablePanel: React.FC<GameTablePanelProps> = ({
               <span className="hidden sm:inline">+ Mitspieler setzen</span>
             </button>
           )}
+
+          {/* How to Play Guide Button */}
+          <button
+            onClick={() => {
+              sound.playClick();
+              setIsHowToPlayOpen(true);
+            }}
+            className="px-3 py-1.5 rounded-2xl bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-500/10 hover:from-amber-500/30 hover:to-orange-500/30 border border-amber-500/50 text-amber-300 hover:text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm group"
+            title="Spielanleitung & interaktiven Board-Guide öffnen"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
+            <span>Spielanleitung</span>
+          </button>
 
           {/* Invite friend button */}
           {onInviteFriend && (
@@ -352,6 +371,14 @@ export const GameTablePanel: React.FC<GameTablePanelProps> = ({
           </div>
         </div>
       )}
+
+      {/* HOW TO PLAY & BOARD INTERACTION OVERLAY MODAL */}
+      <HowToPlayModal
+        isOpen={isHowToPlayOpen}
+        onClose={() => setIsHowToPlayOpen(false)}
+        engine={activeGameEngine || (room.gameId as GameEngineType)}
+        gameTitle={room.gameTitle}
+      />
     </div>
   );
 };
