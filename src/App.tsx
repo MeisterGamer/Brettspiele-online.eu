@@ -469,6 +469,18 @@ export default function App() {
               onClear={() => setNotifications([])}
             />
 
+            {/* Official Domain Link */}
+            <a
+              href="https://brettspiele-online.eu/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-slate-800/80 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300 text-xs font-bold border border-cyan-500/30 transition shadow-sm"
+              title="Offizielle Website aufrufen"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>brettspiele-online.eu</span>
+            </a>
+
             {/* Family & Friends Center launcher */}
             <button
               onClick={() => {

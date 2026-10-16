@@ -310,21 +310,22 @@ export const AndroidAppModal: React.FC<AndroidAppModalProps> = ({ isOpen, onClos
                   </p>
                   <p className="text-slate-200"># 1. Installiere den offiziellen Google TWA CLI-Baukasten:</p>
                   <p className="text-amber-300">npm install -g @bubblewrap/cli</p>
-                  <p className="text-slate-200"># 2. Generiere das native Android Studio Projekt direkt aus dem Manifest:</p>
-                  <p className="text-emerald-400">bubblewrap init --manifest https://deine-famplay-url/manifest.webmanifest</p>
+                  <p className="text-slate-200"># 2. Generiere das native Android Studio Projekt direkt aus deiner Live-Domain:</p>
+                  <p className="text-emerald-400">bubblewrap init --manifest https://brettspiele-online.eu/manifest.webmanifest</p>
                   <p className="text-slate-200"># 3. Baue die signierte APK / AAB für den Google Play Store:</p>
                   <p className="text-emerald-400">bubblewrap build</p>
                 </div>
 
                 <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400 border-t border-slate-800">
-                  <span>Alternativ online verpacken ohne Installation:</span>
+                  <span>1-Klick Online APK/AAB Baukasten:</span>
                   <a
-                    href="https://www.pwabuilder.com/"
+                    href="https://www.pwabuilder.com/reportcard?site=https://brettspiele-online.eu/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 font-bold"
+                    className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 font-bold bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/30 transition"
                   >
-                    PWABuilder.com öffnen <ExternalLink className="w-3.5 h-3.5" />
+                    <span>PWABuilder für brettspiele-online.eu öffnen</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                 </div>
               </div>

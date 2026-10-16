@@ -15,9 +15,28 @@
     <meta name="apple-mobile-web-app-title" content="FamPlay" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="canonical" href="https://brettspiele-online.eu/" />
+    <meta property="og:url" content="https://brettspiele-online.eu/" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+      (function() {
+        try {
+          if (
+            window.self === window.top &&
+            window.location.hostname !== 'brettspiele-online.eu' &&
+            window.location.hostname !== 'localhost' &&
+            window.location.hostname !== '127.0.0.1' &&
+            !window.location.search.includes('no_redirect=1')
+          ) {
+            window.location.replace('https://brettspiele-online.eu/' + window.location.search + window.location.hash);
+          }
+        } catch (e) {
+          // ignore
+        }
+      })();
+    </script>
   </head>
   <body class="bg-slate-900 text-slate-100 antialiased selection:bg-amber-500 selection:text-slate-900 font-sans">
     <div id="root"></div>
