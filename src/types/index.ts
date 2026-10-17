@@ -22,6 +22,7 @@ export type GameEngineType =
   | 'monopoly' // Monopoly 2026 authentic board with real figures and 100% multiplayer
   | 'skip-bo' // Skip-Bo classic card game with authentic rules and multiplayer
   | 'romme' // Deutsches Rommé classic card game with authentic rules, 40-point initial meld and multiplayer
+  | 'catan' // Die Siedler von Catan with 3D wooden pieces, full hex board, authentic trading and robber rules
   | 'catalog-simulation';
 
 export interface GameInfo {

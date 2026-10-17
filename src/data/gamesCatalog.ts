@@ -2,6 +2,24 @@ import { GameInfo } from '../types';
 
 export const gamesCatalog: GameInfo[] = [
   {
+    id: 'catan',
+    title: 'Die Siedler von Catan',
+    category: 'board',
+    categories: ['board', 'strategy', 'party'],
+    players: '2-4 Spieler',
+    duration: '30-60 Min',
+    minAge: 10,
+    description: 'Das preisgekrönte Brettspiel von Klaus Teuber in der vollwertigen 2026 Edition nach 100% offiziellen Originalregeln! Besiedle die Insel Catan: Baue Siedlungen, Städte und Straßen, erwirb Entwicklungskarten, handle mit Holz, Lehm, Wolle, Getreide & Erz über Häfen und Mitspieler, versetze den Räuber bei einer 7 und erreiche als Erster 10 Siegpunkte!',
+    rulesSummary: '1. Würfle mit 2 Würfeln (Erträge für alle Spieler mit Siedlungen an den Feldern; bei 7 schlägt der Räuber zu). 2. Handle mit der Bank (4:1), an Häfen (3:1 / 2:1) oder mit Mitspielern. 3. Baue Straßen (Holz+Lehm), Siedlungen (Holz+Lehm+Wolle+Getreide), Städte (2 Getreide+3 Erz) oder ziehe Entwicklungskarten. Wer zuerst 10 Siegpunkte hat, gewinnt!',
+    tags: ['Echtes Catan', '100% Originalregeln', '3D Holzfiguren', 'Handel & Häfen', 'Räuber & Ritter', 'Längste Handelsstraße', 'Größte Rittermacht', 'Multiplayer'],
+    engine: 'catan',
+    featured: true,
+    icon: '🏝️',
+    difficulty: 'Medium',
+    rating: 5.0,
+    playsCount: 418,
+  },
+  {
     id: 'romme',
     title: 'Rommé',
     category: 'cards',

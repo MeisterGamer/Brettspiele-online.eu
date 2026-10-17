@@ -69,6 +69,7 @@ import { DiamondBlastGame } from './components/games/diamondBlast/DiamondBlastGa
 import { MonopolyGame } from './components/games/MonopolyGame';
 import { SkipBoGame } from './components/games/SkipBoGame';
 import { RommeGame } from './components/games/RommeGame';
+import { CatanGame } from './components/games/CatanGame';
 
 // Icons
 import { 
@@ -956,6 +957,16 @@ export default function App() {
               )}
               {activeGame.engine === 'romme' && (
                 <RommeGame 
+                  onGameEnd={handleGameCompletion} 
+                  tableParticipants={currentRoom?.participants}
+                  currentUserId={user.id}
+                  onActiveTurnChange={setCurrentTurnPlayerId}
+                  roomCode={currentRoom?.code}
+                  isHost={currentRoom?.participants[0]?.id === user.id}
+                />
+              )}
+              {activeGame.engine === 'catan' && (
+                <CatanGame 
                   onGameEnd={handleGameCompletion} 
                   tableParticipants={currentRoom?.participants}
                   currentUserId={user.id}

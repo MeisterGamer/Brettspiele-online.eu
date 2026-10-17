@@ -105,7 +105,7 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
     hero_subtitle: 'Klassische Gesellschaftsspiele am virtuellen Familientisch: Spiele mit echten Spielfiguren, würfle live im 3D-Becher und lade deine Familie per Tisch-Code ein!',
     open_family_table: 'Familientisch eröffnen',
     play_random_game: 'Zufälliges Spiel starten',
-    search_input_placeholder: 'Spiel suchen... z.B. Monopoly, Skip-Bo, Rommé, Schach, Dame, Uno',
+    search_input_placeholder: 'Spiel suchen... z.B. Catan, Monopoly, Skip-Bo, Rommé, Schach, Dame, Uno',
     games_available: 'Spiele verfügbar',
     cat_all: 'Alle Spiele',
     cat_board: 'Klassische Brettspiele',
@@ -226,7 +226,7 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
     hero_subtitle: 'Classic tabletop games at your virtual family table: Play with handcrafted 3D pieces, live 3D dice rolls, and invite your family via table code!',
     open_family_table: 'Host Family Table',
     play_random_game: 'Start Random Game',
-    search_input_placeholder: 'Search games... e.g. Monopoly, Skip-Bo, Rummy, Chess, Uno, Checkers',
+    search_input_placeholder: 'Search games... e.g. Catan, Monopoly, Skip-Bo, Rummy, Chess, Uno, Checkers',
     games_available: 'games available',
     cat_all: 'All Games',
     cat_board: 'Classic Board Games',
@@ -768,6 +768,44 @@ export const getTranslation = (lang: SupportedLanguage, key: string, params?: Re
 
 // Localized Game Titles & Descriptions
 const GAME_LOCALIZATIONS: Record<string, Record<SupportedLanguage, { title?: string; description?: string; rulesSummary?: string; players?: string }>> = {
+  catan: {
+    de: {
+      title: 'Die Siedler von Catan',
+      description: 'Das preisgekrönte Brettspiel von Klaus Teuber in der vollwertigen Edition nach 100% echten Originalregeln! Besiedle die Insel Catan: Baue Siedlungen, Städte und Straßen, erwirb Entwicklungskarten, handle mit Rohstoffen an Häfen und mit Mitspielern, versetze den Räuber bei einer 7 und sichere dir 10 Siegpunkte!',
+      rulesSummary: '1. Würfle mit 2 Würfeln für Rohstofferträge (Wald=Holz, Hügel=Lehm, Weide=Wolle, Acker=Getreide, Gebirge=Erz). Bei 7 schlägt der Räuber zu. 2. Handle mit der Bank (4:1), an Häfen (3:1 / 2:1) oder Mitspielern. 3. Baue Straßen, Siedlungen, Städte oder Entwicklungskarten. Wer zuerst 10 Siegpunkte hat, gewinnt!',
+      players: '2-4 Spieler',
+    },
+    en: {
+      title: 'Settlers of Catan',
+      description: 'The award-winning tabletop classic in a full authentic edition with 100% official rules! Settle the island of Catan: build settlements, cities, and roads, acquire development cards, trade resources at harbors and with players, move the robber on a 7, and reach 10 victory points first!',
+      rulesSummary: '1. Roll 2 dice to collect resources from hexes adjacent to your settlements and cities. On a 7, move the robber! 2. Trade with the bank (4:1), harbors (3:1 / 2:1), or players. 3. Build roads, settlements, cities, or development cards. First to 10 victory points wins!',
+      players: '2-4 Players',
+    },
+    es: {
+      title: 'Los Colonos de Catán',
+      description: '¡El aclamado juego de mesa clásico con reglas 100% oficiales! Coloniza la isla de Catán: construye poblados, ciudades y caminos, comercia materias primas en puertos y con otros jugadores, mueve al ladrón con el 7 y alcanza 10 puntos de victoria.',
+      rulesSummary: '1. Lanza 2 dados para obtener materias primas. Con 7 se mueve el ladrón. 2. Comercia con la banca, puertos o jugadores. 3. Construye caminos, poblados, ciudades o cartas de desarrollo. ¡Gana el primero en alcanzar 10 puntos!',
+      players: '2-4 Jugadores',
+    },
+    fr: {
+      title: 'Les Colons de Catane',
+      description: 'Le célèbre jeu de plateau de Klaus Teuber avec les règles 100% officielles ! Colonisez l’île de Catane : construisez des routes, colonies et villes, échangez vos ressources maritimes et terrestres, déplacez le voleur sur un 7 et atteignez 10 points de victoire !',
+      rulesSummary: '1. Lancez 2 dés pour récolter les ressources. Sur un 7, déplacez le voleur. 2. Négociez avec les autres joueurs ou les ports. 3. Bâtissez routes, colonies et villes. Le premier à 10 points l’emporte !',
+      players: '2-4 Joueurs',
+    },
+    it: {
+      title: 'I Coloni di Catan',
+      description: 'Il celebre capolavoro dei giochi da tavolo secondo le regole ufficiali al 100%! Colonizza l’isola di Catan: costruisci insediamenti, città e strade, commercia risorse tramite porti o scambi con i giocatori, sposta il brigante con il 7 e raggiungi per primo 10 punti vittoria!',
+      rulesSummary: '1. Lancia 2 dadi per produrre risorse. Con il 7 muovi il brigante. 2. Commercia con la banca, porti o avversari. 3. Costruisci strade, insediamenti, città e carte sviluppo. Vince il primo a 10 punti!',
+      players: '2-4 Giocatori',
+    },
+    ja: {
+      title: 'カタンの開拓者たち (Catan)',
+      description: '世界的大ヒットボードゲーム「カタン」が正規ルール完全準拠で登場！島を開拓して街道・開拓地・都市を建設し、木材・レンガ・羊毛・小麦・鉱石を交易しよう。盗賊を動かし、発展カードを駆使して誰よりも早く10勝利点を獲得しよう！',
+      rulesSummary: '1. 2つのサイコロを振って資源を産出（7が出たら盗賊を移動）。 2. 銀行や港、他のプレイヤーと資源を交渉トレード。 3. 街道、開拓地、都市、発展カードを建設。10勝利点を達成したプレイヤーが勝利！',
+      players: '2〜4人',
+    },
+  },
   romme: {
     de: {
       title: 'Rommé',
