@@ -2,6 +2,24 @@ import { GameInfo } from '../types';
 
 export const gamesCatalog: GameInfo[] = [
   {
+    id: 'monopoly',
+    title: 'Monopoly 2026',
+    category: 'board',
+    categories: ['board', 'strategy', 'party'],
+    players: '2-4 Spieler',
+    duration: '25-45 Min',
+    minAge: 8,
+    description: 'Das weltberühmte Brettspiel der Immobilien-Magnaten in der Next-Gen 2026 Edition! Mit echten dreidimensionalen Figuren, vollständigem 40-Felder-Originalbrett, Straßenkauf, Häuser- & Hotelbau, Ereigniskarten, Auktionen, freiem Handelssystem und 100% Online-Multiplayer!',
+    rulesSummary: 'Würfle mit 2 Würfeln, ziehe mit deiner echten Figur über das Brett, kaufe Straßen wie Schlossallee & Parkstraße, baue Häuser & Hotels, kassiere Miete und verhandle clevere Täusche zum Monopol-Sieg!',
+    tags: ['Echte Figuren', 'Original-Brett', '100% Multiplayer', 'Handel & Auktion', 'Häuser & Hotels', 'Neu 2026'],
+    engine: 'monopoly',
+    featured: true,
+    icon: '🎩',
+    difficulty: 'Medium',
+    rating: 5.0,
+    playsCount: 310,
+  },
+  {
     id: 'diamond-blast',
     title: 'Diamond Blast',
     category: 'strategy',

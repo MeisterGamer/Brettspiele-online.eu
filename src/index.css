@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+:root {
+  --theme-primary: #f59e0b;
+  --theme-primary-hover: #d97706;
+  --theme-accent-text: #fbbf24;
+  --theme-glow: rgba(245, 158, 11, 0.4);
+  --theme-badge-bg: rgba(245, 158, 11, 0.15);
+  --theme-badge-border: rgba(245, 158, 11, 0.4);
+}
+
 @layer base {
   html, body {
     overflow-x: hidden;

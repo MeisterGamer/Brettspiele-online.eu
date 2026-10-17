@@ -1729,12 +1729,144 @@ export const SVG_DIAMOND_BLAST = svgToDataUri(`
 </svg>
 `);
 
+// 12. MONOPOLY 2026 - Authentic board, real metallic figures, luxury red hotels, green houses & dice
+const SVG_MONOPOLY_2026 = svgToDataUri(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" width="400" height="240">
+  <defs>
+    <radialGradient id="monoBg" cx="50%" cy="50%" r="75%">
+      <stop offset="0%" stop-color="#0f291e"/>
+      <stop offset="60%" stop-color="#071711"/>
+      <stop offset="100%" stop-color="#020805"/>
+    </radialGradient>
+    <linearGradient id="goldPlate" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="50%" stop-color="#eab308"/>
+      <stop offset="100%" stop-color="#854d0e"/>
+    </linearGradient>
+    <linearGradient id="boardFelt" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e8f5e9"/>
+      <stop offset="50%" stop-color="#c8e6c9"/>
+      <stop offset="100%" stop-color="#a5d6a7"/>
+    </linearGradient>
+    <linearGradient id="redHotel" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ef4444"/>
+      <stop offset="60%" stop-color="#dc2626"/>
+      <stop offset="100%" stop-color="#991b1b"/>
+    </linearGradient>
+    <linearGradient id="greenHouse" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22c55e"/>
+      <stop offset="60%" stop-color="#16a34a"/>
+      <stop offset="100%" stop-color="#14532d"/>
+    </linearGradient>
+    <linearGradient id="metalSilver" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="50%" stop-color="#cbd5e1"/>
+      <stop offset="100%" stop-color="#64748b"/>
+    </linearGradient>
+    <filter id="mDrop" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="100%" height="100%" fill="url(#monoBg)"/>
+
+  <!-- Perspective Board Frame -->
+  <g transform="translate(200, 125) scale(1, 0.58) rotate(32)" filter="url(#mDrop)">
+    <!-- Outer board square -->
+    <rect x="-110" y="-110" width="220" height="220" rx="10" fill="#064e3b" stroke="#f59e0b" stroke-width="4"/>
+    <!-- Inner board tiles area -->
+    <rect x="-102" y="-102" width="204" height="204" rx="6" fill="url(#boardFelt)"/>
+    <!-- Center area -->
+    <rect x="-68" y="-68" width="136" height="136" fill="#0f291e" rx="4"/>
+    <!-- Schlossallee Blue Bar -->
+    <rect x="-102" y="74" width="28" height="28" fill="#1e40af"/>
+    <!-- Parkstraße Blue Bar -->
+    <rect x="-70" y="74" width="28" height="28" fill="#1e40af"/>
+    <!-- Red Hotel on board -->
+    <rect x="-96" y="80" width="16" height="16" fill="url(#redHotel)" rx="2"/>
+    <!-- Green Houses on board -->
+    <rect x="-64" y="82" width="10" height="12" fill="url(#greenHouse)" rx="1"/>
+    <!-- Center text -->
+    <text x="0" y="-8" font-family="'Fredoka', sans-serif" font-weight="900" font-size="16" fill="#facc15" text-anchor="middle" letter-spacing="1">MONOPOLY</text>
+    <text x="0" y="10" font-family="sans-serif" font-weight="900" font-size="10" fill="#ffffff" text-anchor="middle" letter-spacing="3">2026</text>
+  </g>
+
+  <!-- Real Tokens & 3D Figures in Foreground -->
+  <!-- 1. Authentic Top Hat Token (Zylinder) -->
+  <g transform="translate(100, 110)" filter="url(#mDrop)">
+    <!-- Brim -->
+    <ellipse cx="0" cy="18" rx="36" ry="10" fill="url(#metalSilver)" stroke="#475569" stroke-width="1.5"/>
+    <!-- Crown -->
+    <path d="M -22 18 L -18 -18 L 18 -18 L 22 18 Z" fill="url(#metalSilver)" stroke="#475569" stroke-width="1.5"/>
+    <!-- Top ellipse -->
+    <ellipse cx="0" cy="-18" rx="18" ry="6" fill="#f1f5f9" stroke="#475569" stroke-width="1.5"/>
+    <!-- Ribbon band around hat -->
+    <path d="M -21 11 L 21 11 L 21.5 15 L -21.5 15 Z" fill="#dc2626"/>
+  </g>
+
+  <!-- 2. Authentic Race Car Token (Oldtimer-Rennwagen) -->
+  <g transform="translate(290, 155)" filter="url(#mDrop)">
+    <!-- Wheels -->
+    <circle cx="-28" cy="12" r="10" fill="#0f172a" stroke="#94a3b8" stroke-width="2"/>
+    <circle cx="24" cy="12" r="10" fill="#0f172a" stroke="#94a3b8" stroke-width="2"/>
+    <!-- Car Body -->
+    <path d="M -38 10 Q -38 -2 -20 -4 L -8 -16 L 12 -16 L 22 -4 Q 38 -2 38 10 Z" fill="url(#metalSilver)" stroke="#475569" stroke-width="1.5"/>
+    <!-- Grill and seat -->
+    <rect x="-37" y="0" width="4" height="8" fill="#f59e0b"/>
+    <circle cx="2" cy="-6" r="4" fill="#334155"/>
+  </g>
+
+  <!-- 3. Red Hotel & Green Houses 3D Models in Center-Left -->
+  <g transform="translate(75, 175)" filter="url(#mDrop)">
+    <!-- Green house -->
+    <polygon points="0,-16 12,-6 12,12 -12,12 -12,-6" fill="url(#greenHouse)" stroke="#14532d" stroke-width="1"/>
+    <!-- Roof shadow -->
+    <polygon points="0,-16 12,-6 -12,-6" fill="#4ade80" opacity="0.4"/>
+  </g>
+  <g transform="translate(115, 180)" filter="url(#mDrop)">
+    <!-- Red Hotel -->
+    <polygon points="0,-24 18,-10 18,16 -18,16 -18,-10" fill="url(#redHotel)" stroke="#7f1d1d" stroke-width="1.2"/>
+    <polygon points="0,-24 18,-10 -18,-10" fill="#fca5a5" opacity="0.3"/>
+    <rect x="-12" y="-2" width="6" height="6" fill="#fef08a"/>
+    <rect x="6" y="-2" width="6" height="6" fill="#fef08a"/>
+    <rect x="-12" y="7" width="6" height="6" fill="#fef08a"/>
+    <rect x="6" y="7" width="6" height="6" fill="#fef08a"/>
+  </g>
+
+  <!-- 4. Pair of 3D Golden Dice -->
+  <g transform="translate(200, 65)" filter="url(#mDrop)">
+    <!-- Die 1 (left tilted) -->
+    <g transform="translate(-20, 0) rotate(-14)">
+      <rect x="-16" y="-16" width="32" height="32" rx="6" fill="#fef08a" stroke="#ca8a04" stroke-width="2"/>
+      <circle cx="-7" cy="-7" r="2.8" fill="#713f12"/>
+      <circle cx="7" cy="-7" r="2.8" fill="#713f12"/>
+      <circle cx="0" cy="0" r="2.8" fill="#713f12"/>
+      <circle cx="-7" cy="7" r="2.8" fill="#713f12"/>
+      <circle cx="7" cy="7" r="2.8" fill="#713f12"/>
+    </g>
+    <!-- Die 2 (right tilted) -->
+    <g transform="translate(24, 6) rotate(16)">
+      <rect x="-16" y="-16" width="32" height="32" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+      <circle cx="-7" cy="-7" r="3" fill="#dc2626"/>
+      <circle cx="7" cy="7" r="3" fill="#dc2626"/>
+      <circle cx="0" cy="0" r="3" fill="#dc2626"/>
+    </g>
+  </g>
+
+  <!-- Title Badge Plaque -->
+  <rect x="60" y="206" width="280" height="26" rx="8" fill="#020617" opacity="0.95" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="200" y="224" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="900" fill="#fbbf24" text-anchor="middle" letter-spacing="2">MONOPOLY 2026 • ECHTE FIGUREN</text>
+</svg>
+`);
+
 // --------------------------------------------------------------------------
 // MAPPING: EVERY GAME ID TO ITS 100% ACCURATE AUTHENTIC IMAGE
 // --------------------------------------------------------------------------
 
 export const SPECIFIC_GAME_IMAGES: Record<string, string> = {
   // Flagship Core Playable Games
+  'monopoly': SVG_MONOPOLY_2026,
   'diamond-blast': SVG_DIAMOND_BLAST,
   'ludo': SVG_LUDO,
   'chess': SVG_CHESS,

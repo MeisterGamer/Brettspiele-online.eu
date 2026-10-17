@@ -27,6 +27,7 @@ import { getTranslation } from './services/i18n';
 import { HERO_BANNER_IMAGE, HERO_BANNER_FALLBACK, getGameImage } from './services/gameImages';
 import { authService } from './services/authService';
 import { apiAuth } from './services/apiAuth';
+import { themeService } from './services/themeService';
 import { AuthGate } from './components/auth/AuthGate';
 import { WebSetupWizard } from './components/setup/WebSetupWizard';
 
@@ -65,6 +66,7 @@ import { TicTacToeGame } from './components/games/TicTacToeGame';
 import { LudoGame } from './components/games/LudoGame';
 import { ChessGame } from './components/games/ChessGame';
 import { DiamondBlastGame } from './components/games/diamondBlast/DiamondBlastGame';
+import { MonopolyGame } from './components/games/MonopolyGame';
 
 // Icons
 import { 
@@ -99,7 +101,8 @@ import {
   X,
   ChevronRight,
   Smartphone,
-  ExternalLink
+  ExternalLink,
+  Palette
 } from 'lucide-react';
 
 export default function App() {
@@ -111,6 +114,13 @@ export default function App() {
   // Mandatory Login: Never auto-login as admin or guest
   const [user, setUser] = useState<UserProfile | null>(() => apiAuth.getCachedUser());
   const [authChecking, setAuthChecking] = useState<boolean>(true);
+
+  // Active platform accent theme
+  useEffect(() => {
+    themeService.applyTheme(user?.themeId || themeService.getStoredTheme());
+  }, [user?.themeId]);
+
+  const currentTheme = themeService.getTheme(user?.themeId || themeService.getStoredTheme());
 
   // Authenticate session & check installation on boot from server
   useEffect(() => {
@@ -382,13 +392,16 @@ export default function App() {
             }}
             className="flex items-center gap-3 cursor-pointer group"
           >
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-500 via-orange-500 to-rose-500 flex items-center justify-center text-white shadow-lg shadow-amber-500/20 group-hover:scale-105 transition-transform">
+            <div 
+              className={`w-11 h-11 rounded-2xl bg-gradient-to-tr ${currentTheme.gradient} flex items-center justify-center text-white shadow-lg group-hover:scale-105 transition-all`}
+              style={{ boxShadow: `0 8px 20px ${currentTheme.glowColor}` }}
+            >
               <Gamepad2 className="w-6 h-6" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl sm:text-2xl font-black font-display tracking-tight text-white leading-none">
-                  Fam<span className="text-amber-400">Play</span>
+                  Fam<span style={{ color: currentTheme.primaryColor }}>Play</span>
                 </h1>
                 <span className="text-[10px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 px-2 py-0.5 rounded-full">
                   Arcade
@@ -901,6 +914,16 @@ export default function App() {
                   isHost={currentRoom?.participants[0]?.id === user.id}
                 />
               )}
+              {activeGame.engine === 'monopoly' && (
+                <MonopolyGame 
+                  onGameEnd={handleGameCompletion} 
+                  tableParticipants={currentRoom?.participants}
+                  currentUserId={user.id}
+                  onActiveTurnChange={setCurrentTurnPlayerId}
+                  roomCode={currentRoom?.code}
+                  isHost={currentRoom?.participants[0]?.id === user.id}
+                />
+              )}
             </div>
           </div>
         ) : (
@@ -923,7 +946,13 @@ export default function App() {
               <div className="absolute -right-10 -bottom-10 w-72 h-72 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
               <div className="relative z-10 max-w-2xl p-6 sm:p-8 space-y-3">
-                <span className="text-[11px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 px-2.5 py-1 rounded-full shadow">
+                <span 
+                  className="text-[11px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow"
+                  style={{
+                    backgroundColor: currentTheme.primaryColor,
+                    color: currentTheme.id === 'purple' || currentTheme.id === 'ruby' ? '#ffffff' : '#020617'
+                  }}
+                >
                   100% Spielbar • Global Multiplayer
                 </span>
                 <h2 className="text-2xl sm:text-4xl font-black font-display text-white leading-tight">
@@ -940,7 +969,7 @@ export default function App() {
                       sound.playClick();
                       setIsRoomManagerOpen(true);
                     }}
-                    className="px-4 py-2.5 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-lg shadow-amber-400/20 transition flex items-center gap-2 active:scale-95 cursor-pointer"
+                    className={`px-4 py-2.5 rounded-2xl font-black text-xs shadow-lg transition flex items-center gap-2 active:scale-95 cursor-pointer ${currentTheme.btnClasses}`}
                   >
                     <Users className="w-4 h-4" />
                     <span>Familientisch eröffnen</span>
@@ -1014,7 +1043,7 @@ export default function App() {
                       }}
                       className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 ${
                         isSelected
-                          ? 'bg-amber-400 text-slate-950 shadow-md font-black'
+                          ? `${currentTheme.btnClasses} shadow-md font-black`
                           : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
                       }`}
                     >
@@ -1683,6 +1712,24 @@ export default function App() {
                   </select>
                 </div>
 
+                {/* Theme Selector Quick Launcher */}
+                <button
+                  onClick={() => {
+                    setIsMobileDrawerOpen(false);
+                    setIsUserPanelOpen(true);
+                  }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-800 text-slate-200 font-semibold transition"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Palette className="w-4 h-4" style={{ color: currentTheme.primaryColor }} />
+                    <span>Farbdesign (Theme)</span>
+                  </span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 ${currentTheme.badgeClasses}`}>
+                    <span className="w-2 h-2 rounded-full shadow-sm" style={{ background: currentTheme.swatchGradient }} />
+                    <span>{currentTheme.nameEn}</span>
+                  </span>
+                </button>
+
                 {/* Android App & PWA Hub Launcher */}
                 <button
                   onClick={() => {
@@ -1751,14 +1798,11 @@ export default function App() {
             setActiveGame(null);
             setIsMobileDrawerOpen(false);
           }}
-          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition ${
-            !activeGame
-              ? 'text-amber-400 font-bold'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
+          className="flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition"
+          style={{ color: !activeGame ? currentTheme.primaryColor : undefined }}
         >
           <Gamepad2 className="w-5 h-5" />
-          <span className="text-[10px]">Spiele</span>
+          <span className={`text-[10px] ${!activeGame ? 'font-black' : 'text-slate-400'}`}>Spiele</span>
         </button>
 
         <button

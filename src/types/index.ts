@@ -19,6 +19,7 @@ export type GameEngineType =
   | 'dots-boxes'
   | 'tictactoe'
   | 'diamond-blast' // Match-3 Diamond Blast arcade engine
+  | 'monopoly' // Monopoly 2026 authentic board with real figures and 100% multiplayer
   | 'catalog-simulation';
 
 export interface GameInfo {
@@ -97,6 +98,8 @@ export interface FamilyFriend {
   notes?: string;
 }
 
+export type ThemeId = 'amber' | 'purple' | 'emerald' | 'sky' | 'ruby' | 'orange';
+
 export interface UserProfile {
   id: string;
   name: string;
@@ -109,6 +112,7 @@ export interface UserProfile {
   coins: number;
   gems: number;
   isVip: boolean;
+  themeId?: ThemeId;
   isBanned?: boolean;
   banReason?: string;
   joinedDate?: string;

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { UserProfile, MatchHistoryItem, FamilyFriend } from '../../types';
+import { UserProfile, MatchHistoryItem, FamilyFriend, ThemeId } from '../../types';
 import { sound } from '../../services/sound';
 import { AvatarDisplay } from '../avatar/AvatarDisplay';
 import { friendsService, STARTER_FAMILY_MEMBERS } from '../../services/friendsService';
 import { FriendsListModal } from '../friends/FriendsListModal';
+import { themeService, THEME_LIST, APP_THEMES } from '../../services/themeService';
 import { 
   User, 
   Crown, 
@@ -34,7 +35,8 @@ import {
   Copy,
   Check,
   Star,
-  Share2
+  Share2,
+  Palette
 } from 'lucide-react';
 
 interface UserPanelModalProps {
@@ -77,11 +79,16 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
   const [nameInput, setNameInput] = useState<string>(user.name);
   const [clanInput, setClanInput] = useState<string>(user.clanName);
   const [roleInput, setRoleInput] = useState<any>(user.familyRole);
+  const [selectedThemeId, setSelectedThemeId] = useState<ThemeId>(() => user.themeId || themeService.getStoredTheme());
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen && user) {
       setFriends(friendsService.getFriends(user.id));
+      setSelectedThemeId(user.themeId || themeService.getStoredTheme());
+      setNameInput(user.name);
+      setClanInput(user.clanName);
+      setRoleInput(user.familyRole);
     }
   }, [isOpen, user]);
 
@@ -94,14 +101,26 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
   const xpForNextLevel = user.level * 500;
   const currentLevelProgress = Math.min(100, Math.round(((user.xp % 500) / 500) * 100));
 
+  const handleSelectTheme = (themeId: ThemeId) => {
+    sound.playReward();
+    setSelectedThemeId(themeId);
+    themeService.applyTheme(themeId);
+    onUpdateUser({
+      ...user,
+      themeId,
+    });
+  };
+
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
     sound.playReward();
+    themeService.applyTheme(selectedThemeId);
     onUpdateUser({
       ...user,
       name: nameInput.trim() || user.name,
       clanName: clanInput.trim() || user.clanName,
       familyRole: roleInput,
+      themeId: selectedThemeId,
     });
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
@@ -853,6 +872,85 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
                   <option value="Child">🧒 Kind (Junior)</option>
                   <option value="Grandparent">👵 Großeltern</option>
                 </select>
+              </div>
+
+              {/* USER-FACING THEME & ACCENT COLOR SELECTOR */}
+              <div className="p-4 bg-slate-800/50 border border-slate-700/80 rounded-2xl space-y-3.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                      <Palette className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <span>App-Farbdesign & Akzentfarben</span>
+                        <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.2 rounded font-semibold">
+                          Theme
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        Wähle deine bevorzugte Akzentfarbe für die gesamte Plattform
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Active theme badge preview */}
+                  <div className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 ${APP_THEMES[selectedThemeId]?.badgeClasses || ''}`}>
+                    <span 
+                      className="w-2.5 h-2.5 rounded-full shadow"
+                      style={{ background: APP_THEMES[selectedThemeId]?.swatchGradient }}
+                    />
+                    <span>{APP_THEMES[selectedThemeId]?.nameEn || 'Classic Amber'}</span>
+                  </div>
+                </div>
+
+                {/* 6 Theme Cards Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {THEME_LIST.map((theme) => {
+                    const isSelected = selectedThemeId === theme.id;
+                    return (
+                      <button
+                        key={theme.id}
+                        type="button"
+                        onClick={() => handleSelectTheme(theme.id)}
+                        className={`p-3 rounded-2xl border text-left transition-all relative flex flex-col justify-between gap-2.5 cursor-pointer ${
+                          isSelected
+                            ? 'bg-slate-800/90 ring-2 shadow-lg scale-[1.02]'
+                            : 'bg-slate-900/80 border-slate-700/60 hover:border-slate-500 hover:bg-slate-800/60'
+                        }`}
+                        style={{
+                          boxShadow: isSelected ? `0 0 16px ${theme.glowColor}` : undefined,
+                          borderColor: isSelected ? theme.primaryColor : undefined,
+                        }}
+                      >
+                        <div className="flex items-center justify-between gap-1.5">
+                          {/* Swatch sphere / badge */}
+                          <div
+                            className="w-7 h-7 rounded-xl shadow-md border border-white/20 flex items-center justify-center shrink-0 transition-transform group-hover:scale-110"
+                            style={{ background: theme.swatchGradient }}
+                          >
+                            {isSelected && <Check className="w-4 h-4 text-white drop-shadow" />}
+                          </div>
+
+                          <span className={`text-[10px] font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                            isSelected ? 'bg-white/20 text-white' : 'text-slate-400'
+                          }`}>
+                            {theme.nameEn}
+                          </span>
+                        </div>
+
+                        <div>
+                          <div className="text-xs font-bold text-white leading-tight">
+                            {theme.name}
+                          </div>
+                          <div className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">
+                            {theme.tagline}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="p-4 bg-slate-800/40 border border-slate-700/60 rounded-2xl space-y-2">
