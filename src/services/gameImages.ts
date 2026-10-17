@@ -1860,12 +1860,97 @@ const SVG_MONOPOLY_2026 = svgToDataUri(`
 </svg>
 `);
 
+// 13. SKIP-BO - Authentic numbers, building piles, personal stockpiles & Skip-Bo Wildcards
+const SVG_SKIP_BO = svgToDataUri(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" width="400" height="240">
+  <defs>
+    <radialGradient id="sbFelt" cx="50%" cy="45%" r="70%">
+      <stop offset="0%" stop-color="#1e3a5f"/>
+      <stop offset="60%" stop-color="#0f1d30"/>
+      <stop offset="100%" stop-color="#060c14"/>
+    </radialGradient>
+    <linearGradient id="sbCardFront" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="85%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#e2e8f0"/>
+    </linearGradient>
+    <linearGradient id="sbCardBack" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ea580c"/>
+      <stop offset="50%" stop-color="#c2410c"/>
+      <stop offset="100%" stop-color="#7c2d12"/>
+    </linearGradient>
+    <linearGradient id="sbWildGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="40%" stop-color="#eab308"/>
+      <stop offset="100%" stop-color="#ca8a04"/>
+    </linearGradient>
+    <filter id="sbDrop" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <!-- Table Felt Background -->
+  <rect width="100%" height="100%" fill="url(#sbFelt)"/>
+
+  <!-- Left: Stockpile Stack with 3D Depth -->
+  <g transform="translate(60, 115)" filter="url(#sbDrop)">
+    <!-- Shadowed stacked card edges -->
+    <rect x="-35" y="-50" width="70" height="102" rx="6" fill="#7c2d12" stroke="#ea580c" stroke-width="1"/>
+    <rect x="-33" y="-52" width="70" height="102" rx="6" fill="#9a3412" stroke="#ea580c" stroke-width="1"/>
+    <rect x="-31" y="-54" width="70" height="102" rx="6" fill="#c2410c" stroke="#ea580c" stroke-width="1"/>
+    <!-- Top Face-Up Card: 10 -->
+    <rect x="-29" y="-56" width="70" height="102" rx="6" fill="url(#sbCardFront)" stroke="#0284c7" stroke-width="2.5"/>
+    <ellipse cx="6" cy="-5" rx="26" ry="34" fill="#0284c7"/>
+    <text x="6" y="8" font-family="'Fredoka', sans-serif" font-weight="900" font-size="34" fill="#ffffff" text-anchor="middle">10</text>
+    <text x="-21" y="-40" font-family="sans-serif" font-weight="900" font-size="11" fill="#0284c7">10</text>
+    <text x="33" y="38" font-family="sans-serif" font-weight="900" font-size="11" fill="#0284c7" text-anchor="end">10</text>
+    <!-- Label -->
+    <rect x="-25" y="52" width="62" height="16" rx="4" fill="#0f172a" opacity="0.9"/>
+    <text x="6" y="64" font-family="sans-serif" font-weight="800" font-size="8" fill="#38bdf8" text-anchor="middle">SPIELERSTAPEL</text>
+  </g>
+
+  <!-- Center: SKIP-BO Wildcard (Hero Card, Tilted) -->
+  <g transform="translate(200, 105) rotate(6)" filter="url(#sbDrop)">
+    <rect x="-42" y="-62" width="84" height="124" rx="8" fill="url(#sbWildGold)" stroke="#ffffff" stroke-width="3"/>
+    <rect x="-36" y="-56" width="72" height="112" rx="6" fill="#0369a1"/>
+    <!-- Central Skip-Bo Badge -->
+    <ellipse cx="0" cy="0" rx="30" ry="24" fill="#ea580c" stroke="#fef08a" stroke-width="2"/>
+    <text x="0" y="-3" font-family="'Fredoka', sans-serif" font-weight="900" font-size="14" fill="#ffffff" text-anchor="middle" letter-spacing="1">SKIP</text>
+    <text x="0" y="13" font-family="'Fredoka', sans-serif" font-weight="900" font-size="16" fill="#facc15" text-anchor="middle" letter-spacing="1">BO</text>
+    <!-- Corner text -->
+    <text x="-31" y="-42" font-family="sans-serif" font-weight="900" font-size="9" fill="#facc15">JOKER</text>
+    <text x="31" y="48" font-family="sans-serif" font-weight="900" font-size="9" fill="#facc15" text-anchor="end">JOKER</text>
+    <!-- Sparkling stars -->
+    <polygon points="-24,-18 -21,-14 -17,-16 -19,-11 -16,-8 -21,-8 -23,-4 -24,-9 -29,-9 -25,-12" fill="#ffffff"/>
+    <polygon points="24,18 21,14 17,16 19,11 16,8 21,8 23,4 24,9 29,9 25,12" fill="#ffffff"/>
+  </g>
+
+  <!-- Right: Building Piles showing sequential progression 1 -> 12 -->
+  <g transform="translate(325, 115)" filter="url(#sbDrop)">
+    <!-- Bottom layer of build pile -->
+    <rect x="-30" y="-48" width="60" height="90" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+    <rect x="-28" y="-50" width="60" height="90" rx="5" fill="url(#sbCardFront)" stroke="#16a34a" stroke-width="2"/>
+    <ellipse cx="2" cy="-5" rx="22" ry="28" fill="#16a34a"/>
+    <text x="2" y="6" font-family="'Fredoka', sans-serif" font-weight="900" font-size="28" fill="#ffffff" text-anchor="middle">12</text>
+    <text x="-20" y="-36" font-family="sans-serif" font-weight="900" font-size="10" fill="#16a34a">12</text>
+    <!-- Label -->
+    <rect x="-24" y="46" width="52" height="16" rx="4" fill="#0f172a" opacity="0.9"/>
+    <text x="2" y="58" font-family="sans-serif" font-weight="800" font-size="8" fill="#4ade80" text-anchor="middle">BAUSTAPEL (1-12)</text>
+  </g>
+
+  <!-- Title Badge Plaque -->
+  <rect x="50" y="206" width="300" height="26" rx="8" fill="#020617" opacity="0.95" stroke="#ea580c" stroke-width="1.5"/>
+  <text x="200" y="224" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="900" fill="#fb923c" text-anchor="middle" letter-spacing="2">SKIP-BO • ECHTE KARTEN & REGELN</text>
+</svg>
+`);
+
 // --------------------------------------------------------------------------
 // MAPPING: EVERY GAME ID TO ITS 100% ACCURATE AUTHENTIC IMAGE
 // --------------------------------------------------------------------------
 
 export const SPECIFIC_GAME_IMAGES: Record<string, string> = {
   // Flagship Core Playable Games
+  'skip-bo': SVG_SKIP_BO,
   'monopoly': SVG_MONOPOLY_2026,
   'diamond-blast': SVG_DIAMOND_BLAST,
   'ludo': SVG_LUDO,

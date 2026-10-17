@@ -2,6 +2,24 @@ import { GameInfo } from '../types';
 
 export const gamesCatalog: GameInfo[] = [
   {
+    id: 'skip-bo',
+    title: 'Skip-Bo',
+    category: 'cards',
+    categories: ['cards', 'party', 'kids', 'strategy'],
+    players: '2-4 Spieler',
+    duration: '15-25 Min',
+    minAge: 7,
+    description: 'Das beliebte Reihen- und Zahlenkartenspiel nach 100% echten Originalregeln! Lege Zahlenkarten von 1 bis 12 auf die 4 Baustapel, setze Skip-Bo Joker strategisch ein, manage deine 4 Hilfsstapel und baue als Erster deinen gesamten Spielerstapel ab!',
+    rulesSummary: 'Ziehe auf 5 Handkarten auf. Bilde auf den 4 gemeinsamen Baustapeln Zahlenfolgen von 1 bis 12. Nutze Karten vom Spielerstapel, der Hand oder deinen 4 Ablagestapeln. Beende deinen Zug mit einer Ablage.',
+    tags: ['Echte Karten', '100% Originalregeln', 'Joker', 'Baustapel', 'Multiplayer', 'Neu'],
+    engine: 'skip-bo',
+    featured: true,
+    icon: '🃏',
+    difficulty: 'Easy',
+    rating: 5.0,
+    playsCount: 245,
+  },
+  {
     id: 'monopoly',
     title: 'Monopoly 2026',
     category: 'board',
