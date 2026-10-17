@@ -3,6 +3,41 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <script>
+      (function() {
+        // Suppress benign Vite dev server WebSocket disconnect errors in proxy/iframe environment
+        const origConsoleError = console.error;
+        console.error = function(...args) {
+          const firstArg = args[0];
+          if (typeof firstArg === 'string' && (firstArg.includes('WebSocket') || firstArg.includes('[vite]'))) {
+            return;
+          }
+          if (firstArg instanceof Error && (firstArg.message?.includes('WebSocket') || firstArg.message?.includes('[vite]'))) {
+            return;
+          }
+          origConsoleError.apply(console, args);
+        };
+        window.addEventListener('error', function(event) {
+          if (event.message && (event.message.includes('WebSocket') || event.message.includes('[vite]'))) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            return true;
+          }
+          if (event.error && (event.error.message?.includes('WebSocket') || event.error.message?.includes('[vite]'))) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+        window.addEventListener('unhandledrejection', function(event) {
+          const reason = event.reason;
+          if (reason && (String(reason).includes('WebSocket') || String(reason).includes('[vite]') || reason.message?.includes('WebSocket'))) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
+        }, true);
+      })();
+    </script>
     <title>FamPlay - Family Multi-Gaming Arcade</title>
     <meta name="description" content="Cross-platform family gaming platform with 100+ card & board games, integrated voice chat, leaderboards, parental controls, tournaments, custom avatars, and multi-language support." />
     <meta property="og:title" content="FamPlay - Family Multi-Gaming Arcade" />

@@ -191,9 +191,11 @@ class MultiplayerService {
         this.scheduleReconnect();
       };
 
-      socket.onerror = () => {
+      socket.onerror = (err) => {
         try {
-          socket.close();
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.close();
+          }
         } catch (e) {}
       };
     } catch (e) {
