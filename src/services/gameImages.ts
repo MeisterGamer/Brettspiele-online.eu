@@ -1944,12 +1944,133 @@ const SVG_SKIP_BO = svgToDataUri(`
 </svg>
 `);
 
+// 14. DEUTSCHES ROMMÉ - 110 French playing cards, 6 Jokers, Sätze, Sequenzen & 40 Punkte Erstmeldung
+const SVG_ROMME = svgToDataUri(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" width="400" height="240">
+  <defs>
+    <radialGradient id="rommeFelt" cx="50%" cy="45%" r="70%">
+      <stop offset="0%" stop-color="#14532d"/>
+      <stop offset="55%" stop-color="#052e16"/>
+      <stop offset="100%" stop-color="#02140a"/>
+    </radialGradient>
+    <linearGradient id="cardFace" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="85%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#e2e8f0"/>
+    </linearGradient>
+    <linearGradient id="cardBackBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e3a8a"/>
+      <stop offset="50%" stop-color="#172554"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <filter id="rDrop" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <!-- Green Casino Table Felt -->
+  <rect width="100%" height="100%" fill="url(#rommeFelt)"/>
+  <rect width="384" height="224" x="8" y="8" rx="14" fill="none" stroke="#f59e0b" stroke-width="1.5" opacity="0.3" stroke-dasharray="6 4"/>
+
+  <!-- Left: Melded Sequence (Herz 7 - 8 - 9) -->
+  <g transform="translate(60, 95)" filter="url(#rDrop)">
+    <!-- 7 of Hearts -->
+    <g transform="translate(-25, 0) rotate(-6)">
+      <rect x="-24" y="-36" width="48" height="72" rx="4" fill="url(#cardFace)" stroke="#cbd5e1" stroke-width="1"/>
+      <text x="-18" y="-22" font-family="sans-serif" font-weight="900" font-size="11" fill="#dc2626">7</text>
+      <text x="-18" y="-12" font-family="sans-serif" font-size="9" fill="#dc2626">♥</text>
+      <text x="0" y="8" font-family="sans-serif" font-size="20" fill="#dc2626" text-anchor="middle">♥</text>
+    </g>
+    <!-- 8 of Hearts -->
+    <g transform="translate(0, 0)">
+      <rect x="-24" y="-36" width="48" height="72" rx="4" fill="url(#cardFace)" stroke="#cbd5e1" stroke-width="1"/>
+      <text x="-18" y="-22" font-family="sans-serif" font-weight="900" font-size="11" fill="#dc2626">8</text>
+      <text x="-18" y="-12" font-family="sans-serif" font-size="9" fill="#dc2626">♥</text>
+      <text x="0" y="8" font-family="sans-serif" font-size="20" fill="#dc2626" text-anchor="middle">♥</text>
+    </g>
+    <!-- 9 of Hearts -->
+    <g transform="translate(25, 0) rotate(6)">
+      <rect x="-24" y="-36" width="48" height="72" rx="4" fill="url(#cardFace)" stroke="#cbd5e1" stroke-width="1"/>
+      <text x="-18" y="-22" font-family="sans-serif" font-weight="900" font-size="11" fill="#dc2626">9</text>
+      <text x="-18" y="-12" font-family="sans-serif" font-size="9" fill="#dc2626">♥</text>
+      <text x="0" y="8" font-family="sans-serif" font-size="20" fill="#dc2626" text-anchor="middle">♥</text>
+    </g>
+    <rect x="-35" y="44" width="70" height="15" rx="4" fill="#020617" opacity="0.85"/>
+    <text x="0" y="55" font-family="sans-serif" font-weight="800" font-size="8" fill="#facc15" text-anchor="middle">SEQUENZ (24 Pkt)</text>
+  </g>
+
+  <!-- Center: The Royal Court & Joker Cards Fanned Out -->
+  <!-- Ace of Spades (Hero Card) -->
+  <g transform="translate(180, 110) rotate(-10)" filter="url(#rDrop)">
+    <rect x="-32" y="-48" width="64" height="96" rx="6" fill="url(#cardFace)" stroke="#94a3b8" stroke-width="1.5"/>
+    <text x="-24" y="-30" font-family="sans-serif" font-weight="900" font-size="14" fill="#0f172a">A</text>
+    <text x="-24" y="-18" font-family="sans-serif" font-size="12" fill="#0f172a">♠</text>
+    <text x="0" y="14" font-family="sans-serif" font-size="34" fill="#0f172a" text-anchor="middle">♠</text>
+    <text x="24" y="34" font-family="sans-serif" font-weight="900" font-size="14" fill="#0f172a" text-anchor="end" transform="rotate(180 24 34)">A</text>
+  </g>
+
+  <!-- Colorful Joker Card (Center Stage) -->
+  <g transform="translate(225, 105) rotate(12)" filter="url(#rDrop)">
+    <rect x="-32" y="-48" width="64" height="96" rx="6" fill="#fffbeb" stroke="#f59e0b" stroke-width="2"/>
+    <text x="-25" y="-34" font-family="'Fredoka', sans-serif" font-weight="900" font-size="9" fill="#b45309">JOKER</text>
+    <!-- Jester Hat Icon -->
+    <g transform="translate(0, -6)">
+      <polygon points="0,-18 16,-4 12,12 -12,12 -16,-4" fill="#ef4444"/>
+      <polygon points="0,-18 8,-4 0,12" fill="#f59e0b"/>
+      <circle cx="-16" cy="-4" r="3.5" fill="#facc15"/>
+      <circle cx="16" cy="-4" r="3.5" fill="#facc15"/>
+      <circle cx="0" cy="-18" r="3.5" fill="#facc15"/>
+      <!-- Face -->
+      <circle cx="0" cy="18" r="10" fill="#fde68a"/>
+      <circle cx="-3" cy="16" r="1.5" fill="#0f172a"/>
+      <circle cx="3" cy="16" r="1.5" fill="#0f172a"/>
+      <path d="M -4 21 Q 0 25 4 21" stroke="#dc2626" stroke-width="1.5" fill="none"/>
+    </g>
+    <!-- Joker banner -->
+    <rect x="-24" y="30" width="48" height="12" rx="3" fill="#ea580c"/>
+    <text x="0" y="39" font-family="sans-serif" font-weight="900" font-size="8" fill="#ffffff" text-anchor="middle">★ JOKER ★</text>
+  </g>
+
+  <!-- Right: 4-Card Set (Satz: Vier Könige oder Damen) -->
+  <g transform="translate(330, 95)" filter="url(#rDrop)">
+    <!-- King of Diamonds -->
+    <g transform="translate(-18, 0) rotate(-4)">
+      <rect x="-22" y="-34" width="44" height="68" rx="4" fill="url(#cardFace)" stroke="#cbd5e1" stroke-width="1"/>
+      <text x="-16" y="-20" font-family="sans-serif" font-weight="900" font-size="11" fill="#dc2626">K</text>
+      <text x="-16" y="-10" font-family="sans-serif" font-size="9" fill="#dc2626">♦</text>
+      <text x="0" y="8" font-family="sans-serif" font-size="18" fill="#dc2626" text-anchor="middle">♦</text>
+    </g>
+    <!-- King of Clubs -->
+    <g transform="translate(0, 0)">
+      <rect x="-22" y="-34" width="44" height="68" rx="4" fill="url(#cardFace)" stroke="#cbd5e1" stroke-width="1"/>
+      <text x="-16" y="-20" font-family="sans-serif" font-weight="900" font-size="11" fill="#0f172a">K</text>
+      <text x="-16" y="-10" font-family="sans-serif" font-size="9" fill="#0f172a">♣</text>
+      <text x="0" y="8" font-family="sans-serif" font-size="18" fill="#0f172a" text-anchor="middle">♣</text>
+    </g>
+    <!-- King of Spades -->
+    <g transform="translate(18, 0) rotate(4)">
+      <rect x="-22" y="-34" width="44" height="68" rx="4" fill="url(#cardFace)" stroke="#cbd5e1" stroke-width="1"/>
+      <text x="-16" y="-20" font-family="sans-serif" font-weight="900" font-size="11" fill="#0f172a">K</text>
+      <text x="-16" y="-10" font-family="sans-serif" font-size="9" fill="#0f172a">♠</text>
+      <text x="0" y="8" font-family="sans-serif" font-size="18" fill="#0f172a" text-anchor="middle">♠</text>
+    </g>
+    <rect x="-35" y="44" width="70" height="15" rx="4" fill="#020617" opacity="0.85"/>
+    <text x="0" y="55" font-family="sans-serif" font-weight="800" font-size="8" fill="#facc15" text-anchor="middle">SATZ (30 Pkt)</text>
+  </g>
+
+  <!-- Title Badge Plaque -->
+  <rect x="50" y="206" width="300" height="26" rx="8" fill="#020617" opacity="0.95" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="200" y="224" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="900" fill="#4ade80" text-anchor="middle" letter-spacing="2">ROMMÉ • 110 KARTEN & JOKER</text>
+</svg>
+`);
+
 // --------------------------------------------------------------------------
 // MAPPING: EVERY GAME ID TO ITS 100% ACCURATE AUTHENTIC IMAGE
 // --------------------------------------------------------------------------
 
 export const SPECIFIC_GAME_IMAGES: Record<string, string> = {
   // Flagship Core Playable Games
+  'romme': SVG_ROMME,
   'skip-bo': SVG_SKIP_BO,
   'monopoly': SVG_MONOPOLY_2026,
   'diamond-blast': SVG_DIAMOND_BLAST,

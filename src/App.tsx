@@ -68,6 +68,7 @@ import { ChessGame } from './components/games/ChessGame';
 import { DiamondBlastGame } from './components/games/diamondBlast/DiamondBlastGame';
 import { MonopolyGame } from './components/games/MonopolyGame';
 import { SkipBoGame } from './components/games/SkipBoGame';
+import { RommeGame } from './components/games/RommeGame';
 
 // Icons
 import { 
@@ -927,6 +928,16 @@ export default function App() {
               )}
               {activeGame.engine === 'skip-bo' && (
                 <SkipBoGame 
+                  onGameEnd={handleGameCompletion} 
+                  tableParticipants={currentRoom?.participants}
+                  currentUserId={user.id}
+                  onActiveTurnChange={setCurrentTurnPlayerId}
+                  roomCode={currentRoom?.code}
+                  isHost={currentRoom?.participants[0]?.id === user.id}
+                />
+              )}
+              {activeGame.engine === 'romme' && (
+                <RommeGame 
                   onGameEnd={handleGameCompletion} 
                   tableParticipants={currentRoom?.participants}
                   currentUserId={user.id}

@@ -21,6 +21,7 @@ export type GameEngineType =
   | 'diamond-blast' // Match-3 Diamond Blast arcade engine
   | 'monopoly' // Monopoly 2026 authentic board with real figures and 100% multiplayer
   | 'skip-bo' // Skip-Bo classic card game with authentic rules and multiplayer
+  | 'romme' // Deutsches Rommé classic card game with authentic rules, 40-point initial meld and multiplayer
   | 'catalog-simulation';
 
 export interface GameInfo {

@@ -2,6 +2,24 @@ import { GameInfo } from '../types';
 
 export const gamesCatalog: GameInfo[] = [
   {
+    id: 'romme',
+    title: 'Rommé',
+    category: 'cards',
+    categories: ['cards', 'strategy', 'party'],
+    players: '2-4 Spieler',
+    duration: '20-35 Min',
+    minAge: 8,
+    description: 'Das klassische deutsche Rommé nach 100% echten Originalregeln mit 110 französischen Spielkarten und 6 Jokern! Sammle und bilde Sätze und Sequenzen, meistere die 40-Punkte-Erstmeldung, tausche Joker aus, lege an fremde Kombinationen an und mache mit Rommé aus!',
+    rulesSummary: 'Ziehe 1 Karte vom Talon oder Ablagestapel. Lege Kombinationen (Sätze & Folgen) mit mindestens 40 Punkten zur Erstmeldung aus. Lege an bestehende Figuren an oder tausche Joker. Beende den Zug mit 1 Ablage.',
+    tags: ['Echte Karten', '110 Karten & Joker', '40 Punkte Erstmeldung', 'Sätze & Folgen', 'Joker-Tausch', 'Multiplayer'],
+    engine: 'romme',
+    featured: true,
+    icon: '🂡',
+    difficulty: 'Medium',
+    rating: 5.0,
+    playsCount: 320,
+  },
+  {
     id: 'skip-bo',
     title: 'Skip-Bo',
     category: 'cards',
