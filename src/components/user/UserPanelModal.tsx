@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { UserProfile, MatchHistoryItem, FamilyFriend, ThemeId } from '../../types';
+import { UserProfile, MatchHistoryItem, FamilyFriend, ThemeId, SupportedLanguage } from '../../types';
 import { sound } from '../../services/sound';
 import { AvatarDisplay } from '../avatar/AvatarDisplay';
 import { friendsService, STARTER_FAMILY_MEMBERS } from '../../services/friendsService';
 import { FriendsListModal } from '../friends/FriendsListModal';
 import { themeService, THEME_LIST, APP_THEMES } from '../../services/themeService';
+import { getStoredLanguage, setStoredLanguage } from '../../services/i18n';
 import { 
   User, 
   Crown, 
@@ -36,7 +37,8 @@ import {
   Check,
   Star,
   Share2,
-  Palette
+  Palette,
+  Globe
 } from 'lucide-react';
 
 interface UserPanelModalProps {
@@ -80,12 +82,14 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
   const [clanInput, setClanInput] = useState<string>(user.clanName);
   const [roleInput, setRoleInput] = useState<any>(user.familyRole);
   const [selectedThemeId, setSelectedThemeId] = useState<ThemeId>(() => user.themeId || themeService.getStoredTheme());
+  const [selectedLang, setSelectedLang] = useState<SupportedLanguage>(() => getStoredLanguage());
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen && user) {
       setFriends(friendsService.getFriends(user.id));
       setSelectedThemeId(user.themeId || themeService.getStoredTheme());
+      setSelectedLang(getStoredLanguage());
       setNameInput(user.name);
       setClanInput(user.clanName);
       setRoleInput(user.familyRole);
@@ -115,6 +119,7 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
     e.preventDefault();
     sound.playReward();
     themeService.applyTheme(selectedThemeId);
+    setStoredLanguage(selectedLang);
     onUpdateUser({
       ...user,
       name: nameInput.trim() || user.name,
@@ -947,6 +952,59 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
                             {theme.tagline}
                           </div>
                         </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* USER-FACING LANGUAGE SELECTOR */}
+              <div className="p-4 bg-slate-800/50 border border-slate-700/80 rounded-2xl space-y-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                    <Globe className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <span>Sprachauswahl (Language)</span>
+                      <span className="text-[10px] bg-cyan-500/20 text-cyan-300 px-1.5 py-0.2 rounded font-semibold uppercase">
+                        {selectedLang}
+                      </span>
+                    </h4>
+                    <p className="text-[11px] text-slate-400">
+                      Wähle deine bevorzugte Sprache für FamPlay (Deutsch, English, Español, Français, Italiano, 日本語)
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {[
+                    { id: 'de', flag: '🇩🇪', label: 'Deutsch' },
+                    { id: 'en', flag: '🇬🇧', label: 'English' },
+                    { id: 'es', flag: '🇪🇸', label: 'Español' },
+                    { id: 'fr', flag: '🇫🇷', label: 'Français' },
+                    { id: 'it', flag: '🇮🇹', label: 'Italiano' },
+                    { id: 'ja', flag: '🇯🇵', label: '日本語' },
+                  ].map((l) => {
+                    const isSelected = selectedLang === l.id;
+                    return (
+                      <button
+                        key={l.id}
+                        type="button"
+                        onClick={() => {
+                          sound.playClick();
+                          setSelectedLang(l.id as any);
+                          setStoredLanguage(l.id as any);
+                        }}
+                        className={`p-2.5 rounded-xl border text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                          isSelected
+                            ? 'bg-indigo-600 border-indigo-400 text-white shadow-md'
+                            : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'
+                        }`}
+                      >
+                        <span className="text-base">{l.flag}</span>
+                        <span>{l.label}</span>
+                        {isSelected && <Check className="w-3.5 h-3.5 ml-auto text-amber-300" />}
                       </button>
                     );
                   })}

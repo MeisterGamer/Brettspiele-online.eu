@@ -23,7 +23,7 @@ import {
   initialNotifications 
 } from './data/mockData';
 import { sound } from './services/sound';
-import { getTranslation } from './services/i18n';
+import { getTranslation, getStoredLanguage, setStoredLanguage, getLocalizedGame } from './services/i18n';
 import { HERO_BANNER_IMAGE, HERO_BANNER_FALLBACK, getGameImage } from './services/gameImages';
 import { authService } from './services/authService';
 import { apiAuth } from './services/apiAuth';
@@ -109,7 +109,7 @@ import {
 
 export default function App() {
   // App state
-  const [language, setLanguage] = useState<SupportedLanguage>('en');
+  const [language, setLanguage] = useState<SupportedLanguage>(() => getStoredLanguage());
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   // Platform Installation & First-Run Setup State
   const [isInstalled, setIsInstalled] = useState<boolean | null>(null);
@@ -121,6 +121,19 @@ export default function App() {
   useEffect(() => {
     themeService.applyTheme(user?.themeId || themeService.getStoredTheme());
   }, [user?.themeId]);
+
+  // Synchronize language when changed anywhere in app
+  useEffect(() => {
+    const handleLangSync = () => {
+      setLanguage(getStoredLanguage());
+    };
+    window.addEventListener('famplay_language_changed', handleLangSync);
+    window.addEventListener('storage', handleLangSync);
+    return () => {
+      window.removeEventListener('famplay_language_changed', handleLangSync);
+      window.removeEventListener('storage', handleLangSync);
+    };
+  }, []);
 
   const currentTheme = themeService.getTheme(user?.themeId || themeService.getStoredTheme());
 
@@ -236,7 +249,12 @@ export default function App() {
   // Voice Chat participants in current table (starts empty, real family joins dynamically)
   const [voiceParticipants, setVoiceParticipants] = useState<VoiceParticipant[]>([]);
 
-  const t = (key: string) => getTranslation(language, key);
+  const handleLanguageChange = (newLang: SupportedLanguage) => {
+    setLanguage(newLang);
+    setStoredLanguage(newLang);
+  };
+
+  const t = (key: string, params?: Record<string, string | number>) => getTranslation(language, key, params);
 
   const toggleSound = () => {
     const next = !soundEnabled;
@@ -263,7 +281,7 @@ export default function App() {
         return prev;
       }
       const newRoom = multiplayerService.createRoom(user, {
-        name: `${user.name}’s Familientisch`,
+        name: t('family_table_of', { name: user.name }),
         gameId: game.id,
         gameTitle: game.title,
         maxPlayers: maxSlots,
@@ -424,7 +442,7 @@ export default function App() {
                 setIsDailyOpen(true);
               }}
               className="flex items-center gap-1 bg-slate-800/90 border border-slate-700/80 px-2.5 py-1.5 rounded-xl text-amber-400 font-bold text-xs shadow-sm"
-              title="Tagesbonus & Münzen"
+              title={t('daily_bonus_coins')}
             >
               <Coins className="w-3.5 h-3.5 fill-current" />
               <span className="font-mono">{user.coins.toLocaleString()}</span>
@@ -446,7 +464,7 @@ export default function App() {
                 setIsUserPanelOpen(true);
               }}
               className="p-1 rounded-xl bg-slate-800/80 border border-slate-700/80"
-              title="Benutzerprofil öffnen"
+              title={t('open_profile')}
             >
               <AvatarDisplay avatar={user.avatar} size="sm" />
             </button>
@@ -458,7 +476,7 @@ export default function App() {
                 setIsMobileDrawerOpen(true);
               }}
               className="p-2 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 transition active:scale-95"
-              aria-label="Menü öffnen"
+              aria-label={t('open_menu')}
             >
               <Menu className="w-5 h-5" />
             </button>
@@ -518,12 +536,12 @@ export default function App() {
                 value={language}
                 onChange={(e) => {
                   sound.playClick();
-                  setLanguage(e.target.value as SupportedLanguage);
+                  handleLanguageChange(e.target.value as SupportedLanguage);
                 }}
                 className="bg-slate-800/80 border border-slate-700/60 text-xs text-slate-200 font-bold rounded-2xl px-2.5 py-2 cursor-pointer focus:outline-none focus:border-amber-400"
               >
-                <option value="en">🇬🇧 EN</option>
                 <option value="de">🇩🇪 DE</option>
+                <option value="en">🇬🇧 EN</option>
                 <option value="es">🇪🇸 ES</option>
                 <option value="fr">🇫🇷 FR</option>
                 <option value="it">🇮🇹 IT</option>
@@ -546,7 +564,7 @@ export default function App() {
               target="_blank"
               rel="noopener noreferrer"
               className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-slate-800/80 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300 text-xs font-bold border border-cyan-500/30 transition shadow-sm"
-              title="Offizielle Website aufrufen"
+              title="brettspiele-online.eu"
             >
               <Globe className="w-3.5 h-3.5" />
               <span>brettspiele-online.eu</span>
@@ -559,10 +577,10 @@ export default function App() {
                 setIsFriendsOpen(true);
               }}
               className="p-2 sm:px-2.5 sm:py-1.5 rounded-2xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-amber-300 transition border border-slate-700/60 flex items-center gap-1.5 relative shadow-sm"
-              title="Familie & Freundesliste (Online-Status)"
+              title={t('friends_title')}
             >
               <Users className="w-4 h-4 text-amber-400" />
-              <span className="hidden lg:inline text-xs font-bold">Freunde</span>
+              <span className="hidden lg:inline text-xs font-bold">{t('friends')}</span>
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse ring-2 ring-slate-900" />
             </button>
 
@@ -573,7 +591,7 @@ export default function App() {
                 setIsUserPanelOpen(true);
               }}
               className="flex items-center gap-2 pl-2 pr-3 py-1 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 rounded-2xl transition group"
-              title="Mein Benutzerkonto & Profil öffnen"
+              title={t('open_profile')}
             >
               <AvatarDisplay avatar={user.avatar} size="sm" showBadge={user.familyRole.slice(0, 1)} />
               <div className="text-left hidden md:block">
@@ -604,10 +622,10 @@ export default function App() {
                 setIsLoginOpen(true);
               }}
               className="p-2 sm:px-3 sm:py-1.5 rounded-2xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
-              title="Anmelden oder Benutzer wechseln"
+              title={t('login_or_switch')}
             >
               <LogIn className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Anmelden</span>
+              <span className="hidden sm:inline">{t('login')}</span>
             </button>
           </div>
         </div>
@@ -668,7 +686,7 @@ export default function App() {
               }`}
             >
               <ShieldAlert className="w-3.5 h-3.5 text-amber-300" />
-              <span>Adminsystem</span>
+              <span>{t('admin_system')}</span>
               {user.role === 'admin' && (
                 <span className="text-[9px] bg-black/40 px-1 rounded uppercase tracking-wider">Root</span>
               )}
@@ -700,7 +718,7 @@ export default function App() {
               className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition flex items-center gap-1.5 border border-slate-700"
             >
               <Share2 className="w-3.5 h-3.5 text-sky-400" />
-              <span className="hidden sm:inline">Invite</span>
+              <span className="hidden sm:inline">{t('invite')}</span>
             </button>
           </div>
         </div>
@@ -740,13 +758,13 @@ export default function App() {
                   </div>
                   <div>
                     <h2 className="text-sm sm:text-lg font-bold font-display text-white flex items-center gap-1.5">
-                      <span>{activeGame.title}</span>
+                      <span>{getLocalizedGame(activeGame, language).title}</span>
                       <span className="text-base">{activeGame.icon}</span>
                     </h2>
                     <div className="text-[11px] sm:text-xs text-slate-400 flex items-center gap-1.5">
-                      <span className="text-amber-400 font-semibold">{activeGame.players}</span>
+                      <span className="text-amber-400 font-semibold">{getLocalizedGame(activeGame, language).players}</span>
                       <span>•</span>
-                      <span>Ab {activeGame.minAge} J.</span>
+                      <span>{t('age_label', { minAge: activeGame.minAge })}</span>
                     </div>
                   </div>
                 </div>
@@ -758,10 +776,10 @@ export default function App() {
                   <button
                     onClick={() => setShowMobileTablePanel(!showMobileTablePanel)}
                     className="md:hidden px-2.5 py-1.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 text-xs font-bold transition flex items-center gap-1.5"
-                    title="Tisch-Mitspieler & Voice einblenden"
+                    title={t('table_players')}
                   >
                     <Users className="w-3.5 h-3.5 text-indigo-300" />
-                    <span>Tisch ({currentRoom.participants.length})</span>
+                    <span>{t('table_players')} ({currentRoom.participants.length})</span>
                   </button>
                 )}
 
@@ -770,7 +788,7 @@ export default function App() {
                   className="px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition flex items-center gap-1.5 border border-slate-700"
                 >
                   <Share2 className="w-3.5 h-3.5 text-sky-400" />
-                  <span className="hidden sm:inline">Share Table</span>
+                  <span className="hidden sm:inline">{t('share_table')}</span>
                 </button>
               </div>
             </div>
@@ -975,13 +993,13 @@ export default function App() {
                     color: currentTheme.id === 'purple' || currentTheme.id === 'ruby' ? '#ffffff' : '#020617'
                   }}
                 >
-                  100% Spielbar • Global Multiplayer
+                  {t('hero_badge')}
                 </span>
                 <h2 className="text-2xl sm:text-4xl font-black font-display text-white leading-tight">
                   {t('tagline')}
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xl">
-                  Klassische Gesellschaftsspiele am virtuellen Familientisch: Spiele mit echten handgefertigten Spielfiguren, würfle live im 3D-Lederbecher und lade Familie per Raum-Code ein!
+                  {t('hero_subtitle')}
                 </p>
 
                 {/* Hero Primary Actions (No duplicate game buttons) */}
@@ -994,7 +1012,7 @@ export default function App() {
                     className={`px-4 py-2.5 rounded-2xl font-black text-xs shadow-lg transition flex items-center gap-2 active:scale-95 cursor-pointer ${currentTheme.btnClasses}`}
                   >
                     <Users className="w-4 h-4" />
-                    <span>Familientisch eröffnen</span>
+                    <span>{t('open_family_table')}</span>
                   </button>
 
                   <button
@@ -1006,7 +1024,7 @@ export default function App() {
                     className="px-4 py-2.5 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-white font-bold text-xs border border-slate-700 shadow transition flex items-center gap-2 active:scale-95 cursor-pointer"
                   >
                     <Sparkles className="w-4 h-4 text-amber-400" />
-                    <span>Zufälliges Spiel starten</span>
+                    <span>{t('play_random_game')}</span>
                   </button>
                 </div>
               </div>
@@ -1021,7 +1039,7 @@ export default function App() {
                   <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
-                    placeholder="Spiel suchen... z.B. Mensch ärgere Dich nicht, Schach, Dame, Uno, Kniffel"
+                    placeholder={t('search_input_placeholder')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-10 pr-4 py-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 transition"
@@ -1038,7 +1056,7 @@ export default function App() {
 
                 <div className="flex items-center gap-2 shrink-0">
                   <div className="bg-slate-900 border border-slate-800 px-3.5 py-3 rounded-2xl text-xs font-bold text-slate-300">
-                    <strong className="text-amber-400 font-mono">{filteredGames.length}</strong> Spiele verfügbar
+                    <strong className="text-amber-400 font-mono">{filteredGames.length}</strong> {t('games_available')}
                   </div>
                 </div>
               </div>
@@ -1046,13 +1064,13 @@ export default function App() {
               {/* Category Segmented Control */}
               <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
                 {[
-                  { id: 'all', label: 'Alle Spiele', icon: Gamepad2 },
-                  { id: 'board', label: 'Klassische Brettspiele', icon: Trophy },
-                  { id: 'cards', label: 'Kartenspiele', icon: Award },
-                  { id: 'dice', label: 'Würfelspiele', icon: Sparkles },
-                  { id: 'strategy', label: 'Strategie & Taktik', icon: ShieldCheck },
-                  { id: 'party', label: 'Partyspiele', icon: Users },
-                  { id: 'kids', label: 'Familie & Kinder', icon: Baby },
+                  { id: 'all', labelKey: 'cat_all', icon: Gamepad2 },
+                  { id: 'board', labelKey: 'cat_board', icon: Trophy },
+                  { id: 'cards', labelKey: 'cat_cards', icon: Award },
+                  { id: 'dice', labelKey: 'cat_dice', icon: Sparkles },
+                  { id: 'strategy', labelKey: 'cat_strategy', icon: ShieldCheck },
+                  { id: 'party', labelKey: 'cat_party', icon: Users },
+                  { id: 'kids', labelKey: 'cat_kids', icon: Baby },
                 ].map((cat) => {
                   const Icon = cat.icon;
                   const isSelected = selectedCategory === cat.id;
@@ -1070,7 +1088,7 @@ export default function App() {
                       }`}
                     >
                       <Icon className="w-3.5 h-3.5" />
-                      <span>{cat.label}</span>
+                      <span>{t(cat.labelKey)}</span>
                     </button>
                   );
                 })}
@@ -1079,81 +1097,84 @@ export default function App() {
 
             {/* 100+ Games Catalog Grid with Real Pictures & Clean Editorial Layout */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filteredGames.map((game) => (
-                <div
-                  key={game.id}
-                  className="bg-slate-900/90 border border-slate-800 hover:border-amber-500/40 rounded-3xl p-3.5 flex flex-col justify-between transition-all hover:-translate-y-1 hover:shadow-2xl group overflow-hidden"
-                >
-                  <div>
-                    {/* Real Game Photograph Header */}
-                    <div className="h-44 w-full rounded-2xl overflow-hidden relative mb-3 bg-slate-950 border border-slate-800">
-                      <img
-                        src={getGameImage(game)}
-                        alt={game.title}
-                        referrerPolicy="no-referrer"
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src = HERO_BANNER_FALLBACK;
-                        }}
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/30 to-transparent pointer-events-none" />
+              {filteredGames.map((gameRaw) => {
+                const game = getLocalizedGame(gameRaw, language);
+                return (
+                  <div
+                    key={game.id}
+                    className="bg-slate-900/90 border border-slate-800 hover:border-amber-500/40 rounded-3xl p-3.5 flex flex-col justify-between transition-all hover:-translate-y-1 hover:shadow-2xl group overflow-hidden"
+                  >
+                    <div>
+                      {/* Real Game Photograph Header */}
+                      <div className="h-44 w-full rounded-2xl overflow-hidden relative mb-3 bg-slate-950 border border-slate-800">
+                        <img
+                          src={getGameImage(game)}
+                          alt={game.title}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = HERO_BANNER_FALLBACK;
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/30 to-transparent pointer-events-none" />
 
-                      {/* Top Overlay Indicator */}
-                      <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between pointer-events-none">
-                        <span className="text-lg p-1.5 rounded-xl bg-slate-950/80 backdrop-blur-md shadow-md border border-slate-700/60 leading-none">
-                          {game.icon}
-                        </span>
-                        {game.featured && (
-                          <span className="text-[10px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 px-2 py-0.5 rounded shadow flex items-center gap-1">
-                            <Star className="w-2.5 h-2.5 fill-current" /> HIGHLIGHT
+                        {/* Top Overlay Indicator */}
+                        <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between pointer-events-none">
+                          <span className="text-lg p-1.5 rounded-xl bg-slate-950/80 backdrop-blur-md shadow-md border border-slate-700/60 leading-none">
+                            {game.icon}
                           </span>
-                        )}
+                          {game.featured && (
+                            <span className="text-[10px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 px-2 py-0.5 rounded shadow flex items-center gap-1">
+                              <Star className="w-2.5 h-2.5 fill-current" /> {t('highlight')}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Bottom Overlay Title Bar */}
+                        <div className="absolute bottom-2 left-2.5 right-2.5 pointer-events-none">
+                          <span className="text-[11px] text-amber-300/90 font-medium tracking-wide">
+                            ★ {game.rating.toFixed(1)} · {game.playsCount > 0 ? `${game.playsCount.toLocaleString()} ${t('rounds_played')}` : t('open_table')}
+                          </span>
+                        </div>
                       </div>
 
-                      {/* Bottom Overlay Title Bar */}
-                      <div className="absolute bottom-2 left-2.5 right-2.5 pointer-events-none">
-                        <span className="text-[11px] text-amber-300/90 font-medium tracking-wide">
-                          ★ {game.rating.toFixed(1)} · {game.playsCount > 0 ? `${game.playsCount.toLocaleString()} Runden` : 'Offener Spieltisch'}
-                        </span>
+                      {/* Title & Description */}
+                      <h3 className="font-bold font-display text-base text-white group-hover:text-amber-400 transition-colors line-clamp-1 px-1">
+                        {game.title}
+                      </h3>
+
+                      <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed px-1">
+                        {game.description}
+                      </p>
+
+                      {/* Metadata Specs as Clean Typographic Line (Zero-Pill Discipline) */}
+                      <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center gap-2 text-xs text-slate-400 px-1 font-medium">
+                        <span className="text-slate-300">{game.players}</span>
+                        <span aria-hidden="true" className="text-slate-600">·</span>
+                        <span>{game.duration}</span>
+                        <span aria-hidden="true" className="text-slate-600">·</span>
+                        <span className="text-amber-400/90">{t('age_label', { minAge: game.minAge })}</span>
                       </div>
                     </div>
 
-                    {/* Title & Description */}
-                    <h3 className="font-bold font-display text-base text-white group-hover:text-amber-400 transition-colors line-clamp-1 px-1">
-                      {game.title}
-                    </h3>
-
-                    <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed px-1">
-                      {game.description}
-                    </p>
-
-                    {/* Metadata Specs as Clean Typographic Line (Zero-Pill Discipline) */}
-                    <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center gap-2 text-xs text-slate-400 px-1 font-medium">
-                      <span className="text-slate-300">{game.players}</span>
-                      <span aria-hidden="true" className="text-slate-600">·</span>
-                      <span>{game.duration}</span>
-                      <span aria-hidden="true" className="text-slate-600">·</span>
-                      <span className="text-amber-400/90">Ab {game.minAge} Jahren</span>
+                    {/* Play Action Button */}
+                    <div className="mt-4 pt-1">
+                      <button
+                        onClick={() => handleLaunchGame(gameRaw)}
+                        className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-white font-bold text-xs shadow transition-all duration-200 flex items-center justify-center gap-1.5 active:scale-95 group-hover:bg-amber-500 group-hover:text-slate-950"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        <span>{t('play_at_table')}</span>
+                      </button>
                     </div>
                   </div>
-
-                  {/* Play Action Button */}
-                  <div className="mt-4 pt-1">
-                    <button
-                      onClick={() => handleLaunchGame(game)}
-                      className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-white font-bold text-xs shadow transition-all duration-200 flex items-center justify-center gap-1.5 active:scale-95 group-hover:bg-amber-500 group-hover:text-slate-950"
-                    >
-                      <Play className="w-3.5 h-3.5 fill-current" />
-                      <span>Am Spieltisch starten</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
 
               {filteredGames.length === 0 && (
                 <div className="col-span-full py-16 text-center text-slate-400 space-y-2">
                   <Gamepad2 className="w-10 h-10 text-slate-600 mx-auto" />
-                  <p className="text-sm font-semibold">Keine Spiele gefunden, die deiner Suche entsprechen.</p>
+                  <p className="text-sm font-semibold">{t('no_games_found')}</p>
                   <button
                     onClick={() => {
                       setSearchQuery('');
@@ -1162,7 +1183,7 @@ export default function App() {
                     }}
                     className="text-xs text-amber-400 font-bold underline"
                   >
-                    Filter zurücksetzen
+                    {t('reset_filter')}
                   </button>
                 </div>
               )}
@@ -1524,11 +1545,11 @@ export default function App() {
                 <div className="flex items-center justify-between pt-2 border-t border-slate-700/60 text-xs">
                   <div className="flex items-center gap-1 text-amber-400 font-bold">
                     <Coins className="w-4 h-4 fill-current" />
-                    <span>{user.coins.toLocaleString()} Münzen</span>
+                    <span>{user.coins.toLocaleString()} {t('coins_label')}</span>
                   </div>
                   <div className="flex items-center gap-1 text-orange-400 font-bold">
                     <Flame className="w-3.5 h-3.5 fill-current" />
-                    <span>{user.streakDays}d Streak</span>
+                    <span>{user.streakDays}d {t('streak_label')}</span>
                   </div>
                 </div>
 
@@ -1540,7 +1561,7 @@ export default function App() {
                     }}
                     className="py-1.5 px-2 rounded-xl bg-slate-700/80 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition text-center"
                   >
-                    Profil & Avatar
+                    {t('profile_and_avatar')}
                   </button>
                   <button
                     onClick={() => {
@@ -1549,7 +1570,7 @@ export default function App() {
                     }}
                     className="py-1.5 px-2 rounded-xl bg-indigo-600/40 hover:bg-indigo-600/60 text-indigo-200 border border-indigo-500/40 text-xs font-semibold transition text-center"
                   >
-                    Konto wechseln
+                    {t('switch_account')}
                   </button>
                 </div>
               </div>
@@ -1557,7 +1578,7 @@ export default function App() {
               {/* Navigation Hubs */}
               <div className="space-y-1 text-xs">
                 <span className="text-[10px] uppercase font-black tracking-wider text-slate-500 px-2 block">
-                  Spiele & Community
+                  {t('games_and_community')}
                 </span>
 
                 <button
@@ -1569,7 +1590,7 @@ export default function App() {
                 >
                   <span className="flex items-center gap-2.5">
                     <Gamepad2 className="w-4 h-4 text-amber-400" />
-                    <span>Alle 100+ Spiele</span>
+                    <span>{t('all_hundred_games')}</span>
                   </span>
                   <ChevronRight className="w-4 h-4 text-slate-500" />
                 </button>
@@ -1583,7 +1604,7 @@ export default function App() {
                 >
                   <span className="flex items-center gap-2.5">
                     <Users className="w-4 h-4 text-indigo-400" />
-                    <span>Familientische & Räume</span>
+                    <span>{t('family_tables_and_rooms')}</span>
                   </span>
                   <ChevronRight className="w-4 h-4 text-slate-500" />
                 </button>
@@ -1597,7 +1618,7 @@ export default function App() {
                 >
                   <span className="flex items-center gap-2.5">
                     <Users className="w-4 h-4 text-emerald-400" />
-                    <span>Freunde & Familie</span>
+                    <span>{t('friends_and_family')}</span>
                   </span>
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 </button>
@@ -1611,7 +1632,7 @@ export default function App() {
                 >
                   <span className="flex items-center gap-2.5">
                     <Trophy className="w-4 h-4 text-amber-400" />
-                    <span>Turniere & Cups</span>
+                    <span>{t('tournaments_and_cups')}</span>
                   </span>
                   <ChevronRight className="w-4 h-4 text-slate-500" />
                 </button>
@@ -1625,7 +1646,7 @@ export default function App() {
                 >
                   <span className="flex items-center gap-2.5">
                     <Award className="w-4 h-4 text-cyan-400" />
-                    <span>Bestenlisten</span>
+                    <span>{t('leaderboards')}</span>
                   </span>
                   <ChevronRight className="w-4 h-4 text-slate-500" />
                 </button>
@@ -1639,7 +1660,7 @@ export default function App() {
                 >
                   <span className="flex items-center gap-2.5">
                     <Sparkles className="w-4 h-4 text-fuchsia-400" />
-                    <span>Erfolge & Trophäen</span>
+                    <span>{t('achievements_and_trophies')}</span>
                   </span>
                   <ChevronRight className="w-4 h-4 text-slate-500" />
                 </button>
@@ -1648,7 +1669,7 @@ export default function App() {
               {/* Boni & Einstellungen */}
               <div className="space-y-1 text-xs pt-2 border-t border-slate-800">
                 <span className="text-[10px] uppercase font-black tracking-wider text-slate-500 px-2 block">
-                  Boni & Einstellungen
+                  {t('bonus_and_settings')}
                 </span>
 
                 <button
@@ -1660,9 +1681,9 @@ export default function App() {
                 >
                   <span className="flex items-center gap-2.5">
                     <Gift className="w-4 h-4 text-amber-400" />
-                    <span>Tagesbonus Kalender</span>
+                    <span>{t('daily_calendar')}</span>
                   </span>
-                  <span className="text-[10px] bg-amber-400/20 text-amber-300 font-bold px-1.5 py-0.5 rounded">Täglich</span>
+                  <span className="text-[10px] bg-amber-400/20 text-amber-300 font-bold px-1.5 py-0.5 rounded">{t('daily_tag')}</span>
                 </button>
 
                 <button
@@ -1674,7 +1695,7 @@ export default function App() {
                 >
                   <span className="flex items-center gap-2.5">
                     <Crown className="w-4 h-4 text-amber-400" />
-                    <span>VIP Pass (2x Boni)</span>
+                    <span>{t('vip_pass_tag')}</span>
                   </span>
                   <span className="text-[10px] bg-indigo-500/20 text-indigo-300 font-bold px-1.5 py-0.5 rounded">VIP</span>
                 </button>
@@ -1688,10 +1709,10 @@ export default function App() {
                 >
                   <span className="flex items-center gap-2.5">
                     <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                    <span>Kindersicherung</span>
+                    <span>{t('parental_controls')}</span>
                   </span>
                   <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${parental.enabled ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-500'}`}>
-                    {parental.enabled ? 'Aktiv' : 'Aus'}
+                    {parental.enabled ? t('active_status') : t('inactive_status')}
                   </span>
                 </button>
 
@@ -1699,7 +1720,7 @@ export default function App() {
                 <div className="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-800 text-slate-200 font-semibold">
                   <span className="flex items-center gap-2.5">
                     {soundEnabled ? <Volume2 className="w-4 h-4 text-cyan-400" /> : <VolumeX className="w-4 h-4 text-slate-500" />}
-                    <span>Soundeffekte</span>
+                    <span>{t('sound_effects')}</span>
                   </span>
                   <button
                     onClick={toggleSound}
@@ -1707,7 +1728,7 @@ export default function App() {
                       soundEnabled ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
                     }`}
                   >
-                    {soundEnabled ? 'AN' : 'AUS'}
+                    {soundEnabled ? t('sound_on') : t('sound_off')}
                   </button>
                 </div>
 
@@ -1715,18 +1736,18 @@ export default function App() {
                 <div className="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-800 text-slate-200 font-semibold">
                   <span className="flex items-center gap-2.5">
                     <Globe className="w-4 h-4 text-indigo-400" />
-                    <span>Sprache</span>
+                    <span>{t('language_label')}</span>
                   </span>
                   <select
                     value={language}
                     onChange={(e) => {
                       sound.playClick();
-                      setLanguage(e.target.value as SupportedLanguage);
+                      handleLanguageChange(e.target.value as SupportedLanguage);
                     }}
                     className="bg-slate-800 border border-slate-700 text-xs text-slate-200 font-bold rounded-lg px-2 py-1 focus:outline-none"
                   >
-                    <option value="en">🇬🇧 English</option>
                     <option value="de">🇩🇪 Deutsch</option>
+                    <option value="en">🇬🇧 English</option>
                     <option value="es">🇪🇸 Español</option>
                     <option value="fr">🇫🇷 Français</option>
                     <option value="it">🇮🇹 Italiano</option>
@@ -1744,7 +1765,7 @@ export default function App() {
                 >
                   <span className="flex items-center gap-2.5">
                     <Palette className="w-4 h-4" style={{ color: currentTheme.primaryColor }} />
-                    <span>Farbdesign (Theme)</span>
+                    <span>{t('theme_label')}</span>
                   </span>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 ${currentTheme.badgeClasses}`}>
                     <span className="w-2 h-2 rounded-full shadow-sm" style={{ background: currentTheme.swatchGradient }} />
@@ -1765,7 +1786,7 @@ export default function App() {
                     <span>Android App & PWA</span>
                   </span>
                   <span className="text-[10px] bg-emerald-400/20 text-emerald-300 px-1.5 py-0.5 rounded font-black">
-                    Installieren
+                    {t('install_app')}
                   </span>
                 </button>
 
@@ -1794,7 +1815,7 @@ export default function App() {
                   >
                     <span className="flex items-center gap-2.5">
                       <ShieldAlert className="w-4 h-4 text-rose-400" />
-                      <span>Adminsystem</span>
+                      <span>{t('admin_system')}</span>
                     </span>
                     <span className="text-[10px] bg-rose-500/20 px-1.5 py-0.5 rounded font-mono">ROOT</span>
                   </button>
@@ -1824,7 +1845,7 @@ export default function App() {
           style={{ color: !activeGame ? currentTheme.primaryColor : undefined }}
         >
           <Gamepad2 className="w-5 h-5" />
-          <span className={`text-[10px] ${!activeGame ? 'font-black' : 'text-slate-400'}`}>Spiele</span>
+          <span className={`text-[10px] ${!activeGame ? 'font-black' : 'text-slate-400'}`}>{t('nav_games')}</span>
         </button>
 
         <button
@@ -1836,7 +1857,7 @@ export default function App() {
           className="flex flex-col items-center gap-1 py-1 px-3 rounded-xl text-slate-400 hover:text-indigo-400 transition"
         >
           <Users className="w-5 h-5" />
-          <span className="text-[10px]">Tische</span>
+          <span className="text-[10px]">{t('nav_tables')}</span>
         </button>
 
         <button
@@ -1848,7 +1869,7 @@ export default function App() {
           className="flex flex-col items-center gap-1 py-1 px-3 rounded-xl text-slate-400 hover:text-amber-400 transition"
         >
           <Trophy className="w-5 h-5" />
-          <span className="text-[10px]">Turniere</span>
+          <span className="text-[10px]">{t('nav_tournaments')}</span>
         </button>
 
         <button
@@ -1860,7 +1881,7 @@ export default function App() {
           className="flex flex-col items-center gap-1 py-1 px-3 rounded-xl text-slate-400 hover:text-orange-400 transition"
         >
           <Gift className="w-5 h-5 text-amber-400" />
-          <span className="text-[10px]">Bonus</span>
+          <span className="text-[10px]">{t('nav_bonus')}</span>
         </button>
 
         <button
@@ -1871,7 +1892,7 @@ export default function App() {
           className="flex flex-col items-center gap-1 py-1 px-3 rounded-xl text-slate-400 hover:text-white transition"
         >
           <Menu className="w-5 h-5" />
-          <span className="text-[10px]">Menü</span>
+          <span className="text-[10px]">{t('nav_menu')}</span>
         </button>
       </nav>
 
