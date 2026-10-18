@@ -55,6 +55,7 @@ export default defineConfig(() => {
         },
         workbox: {
           maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+          globIgnores: ['**/assets/atelier/cards/**', '**/assets/atelier/family/**', '**/assets/atelier/sequence/**', '**/assets/atelier/images/card-back.png'],
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           navigateFallbackDenylist: [/^\/api(?:\/|$)/, /^\/ws(?:\/|$)/],
           runtimeCaching: [

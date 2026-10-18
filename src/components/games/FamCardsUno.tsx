@@ -1,4 +1,4 @@
-import {familyCardAsset,cardBack} from '../../services/gameAssets';
+import {familyCardAsset,cardBack,familyCardLabel,cardColorName} from '../../services/gameAssets';
 import { shuffle } from '../../services/gameAI';
 import { useGameTimers } from './useGameTimers';
 import React, { useState, useEffect } from 'react';
@@ -436,7 +436,7 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
         </div>
 
         <div className="text-[11px] font-semibold text-slate-400">
-          Farbe: <strong className="uppercase font-bold" style={{ color: activeColor === 'yellow' ? '#F59E0B' : activeColor }}>{activeColor}</strong>
+          Farbe: <strong className="uppercase font-bold" style={{ color: activeColor === 'yellow' ? '#F59E0B' : activeColor }}>{cardColorName(activeColor)}</strong>
         </div>
       </div>
 
@@ -496,7 +496,7 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
                 boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.7), inset 0 2px 4px rgba(255, 255, 255, 0.4)'
               }}
             >
-              <img src={familyCardAsset(topCard.color,topCard.value)} alt={`Ablage: ${topCard.color} ${topCard.value}`} draggable={false} className="w-full h-full object-fill rounded-xl"/>
+              <img src={familyCardAsset(topCard.color,topCard.value)} alt={`Ablage: ${familyCardLabel(topCard.color,topCard.value)}`} draggable={false} className="w-full h-full object-fill rounded-xl"/>
 
             </div>
           )}
@@ -569,7 +569,7 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
                   : '0 4px 6px rgba(0,0,0,0.5)'
               }}
             >
-              <img src={familyCardAsset(card.color,card.value)} alt={`${card.color} ${card.value}`} draggable={false} className="w-full h-full rounded-xl pointer-events-none"/>
+              <img src={familyCardAsset(card.color,card.value)} alt={familyCardLabel(card.color,card.value)} draggable={false} className="w-full h-full rounded-xl pointer-events-none"/>
 
             </button>
           );

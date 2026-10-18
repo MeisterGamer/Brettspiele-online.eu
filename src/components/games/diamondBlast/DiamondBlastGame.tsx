@@ -1,31 +1,12 @@
-import { CAMPAIGN_TIERS, levelUnlocked } from '../../../services/campaign';
+import {seededRandom} from '../../../services/campaign';
+import {DIAMOND_CHAPTERS} from './levelGenerator';
+import {DIAMOND_SAVE_KEY,normalizeDiamondProgress,diamondLevelUnlocked,recordDiamondWin} from './progress';
+import {resolveDiamondMove,advanceDiamondGoals} from './diamondEngine';
+import {DIAMOND_ART,DiamondSprite} from './diamondArt';
 import { useGameTimers } from '../useGameTimers';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { 
-  BoardGrid, 
-  Gem, 
-  GemColor, 
-  GemSpecial, 
-  GameMode, 
-  LevelConfig, 
-  GameStats, 
-  Settings, 
-  UserProgress, 
-  ObstacleType 
-} from './types';
-import { 
-  BOARD_SIZE, 
-  GEM_COLORS, 
-  createInitialBoard, 
-  isValidSwap, 
-  findMatches, 
-  shuffleBoard, 
-  hasValidMoves, 
-  findHintMove, 
-  cloneBoard, 
-  createGem,
-  isAdjacent 
-} from './matchEngine';
+import type {BoardGrid,GameMode,LevelConfig,GameStats,Settings,UserProgress} from './types';
+import {BOARD_SIZE,GEM_COLORS,createInitialBoard,findHintMove,isAdjacent} from './matchEngine';
 import { getLevelConfig } from './levelGenerator';
 import { GemRenderer } from './gemRenderer';
 import { ParticleSystem } from './particleSystem';
@@ -62,7 +43,7 @@ interface DiamondBlastGameProps {
   isHost?: boolean;
 }
 
-const STORAGE_KEY = 'diamond_blast_campaign_50_v1';
+const STORAGE_KEY = DIAMOND_SAVE_KEY;
 
 const DEFAULT_SETTINGS: Settings = {
   soundVolume: 75,
@@ -84,11 +65,8 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
   // --- Persistent Storage State ---
   const [progress, setProgress] = useState<UserProgress>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) return { ...DEFAULT_PROGRESS, ...JSON.parse(saved) };
-      // Keep existing endless-mode records; the redesigned campaign starts separately.
-      const legacy=JSON.parse(localStorage.getItem('diamond_blast_save_v2')||'null');
-      if(legacy)return {...DEFAULT_PROGRESS,classicHighScore:Number(legacy.classicHighScore)||0,timeHighScore:Number(legacy.timeHighScore)||0};
+      const saved=localStorage.getItem(STORAGE_KEY)||localStorage.getItem('diamond_blast_campaign_50_v1')||localStorage.getItem('diamond_blast_save_v2');
+      if(saved)return normalizeDiamondProgress(JSON.parse(saved));
     } catch {
       // fallback
     }
@@ -115,6 +93,8 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
   const [gameMode, setGameMode] = useState<GameMode>('levels');
   const [currentLevelNum, setCurrentLevelNum] = useState<number>(1);
   const [levelConfig, setLevelConfig] = useState<LevelConfig>(() => getLevelConfig(1));
+  const moveBusy=useRef(false),runVersion=useRef(0),runRandom=useRef<()=>number>(Math.random);
+  useEffect(()=>()=>{runVersion.current++;},[]);
 
   // Screens: 'menu' | 'levels' | 'playing' | 'paused' | 'level-won' | 'game-over' | 'settings' | 'how-to-play'
   const [screen, setScreen] = useState<'menu' | 'levels' | 'playing' | 'paused' | 'level-won' | 'game-over' | 'settings' | 'how-to-play'>('menu');
@@ -232,12 +212,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
 
     const timer = repeat(() => {
       setStats((prev) => {
-        if (prev.timeLeft <= 1) {
-          clearInterval(timer);
-          handleGameOver();
-          return { ...prev, timeLeft: 0 };
-        }
-        return { ...prev, timeLeft: prev.timeLeft - 1 };
+        return { ...prev, timeLeft: Math.max(0,prev.timeLeft - 1) };
       });
     }, 1000);
 
@@ -246,13 +221,16 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
 
   // --- Start Game / Level ---
   const startLevel = (lvlNum: number, mode: GameMode = 'levels') => {
+    if(mode==='levels'&&!diamondLevelUnlocked(lvlNum,progress))return;
+    runVersion.current++;moveBusy.current=false;
     const config = getLevelConfig(lvlNum);
+    runRandom.current=mode==='levels'?seededRandom(config.seed!):Math.random;
     setLevelConfig(config);
-    setCurrentLevelNum(lvlNum);
+    setCurrentLevelNum(config.levelNumber);
     setGameMode(mode);
     setActiveGoals(config.goals.map((g) => ({ ...g, current: 0 })));
 
-    const newBoard = createInitialBoard(config);
+    const newBoard = createInitialBoard(mode==='levels'?config:undefined,runRandom.current);
     setBoard(newBoard);
     setSelectedPos(null);
     setHintPos(null);
@@ -285,562 +263,35 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
     }
   };
 
-  // --- Process Cascades, Gravity & Chain Reactions ---
-  const processBoardCascades = async (currentBoard: BoardGrid, currentCombo: number = 1): Promise<void> => {
-    setIsAnimating(true);
-    let workingBoard = cloneBoard(currentBoard);
-
-    // 1. Detect matches on the current board
-    const { matches, matchedIndices } = findMatches(workingBoard);
-
-    if (matches.length === 0) {
-      // Board has settled!
-      // Check if board has valid moves left
-      if (!hasValidMoves(workingBoard)) {
-        setShuffleNotice(true);
-        diamondAudio.playShuffle();
-        await new Promise((r) => schedule(r, 800));
-        workingBoard = shuffleBoard(workingBoard);
-        setBoard(workingBoard);
-        setShuffleNotice(false);
-      }
-
-      setBoard(workingBoard);
-      setIsAnimating(false);
-
-      // Check win or loss conditions for level mode
-      // Victory is checked by an effect after score and goals have committed.
-      return;
+  // The same pure resolver handles normal matches, special combos, obstacles and all goals.
+  const handleSwapGems=async(r1:number,c1:number,r2:number,c2:number)=>{
+    if(moveBusy.current||isAnimating||screen!=='playing'||gameMode==='levels'&&stats.movesLeft<=0)return;
+    const result=resolveDiamondMove(board,[r1,c1],[r2,c2],runRandom.current,gameMode==='levels'?levelConfig.colors:GEM_COLORS);
+    lastInteractionTime.current=Date.now();setHintPos(null);
+    if(!result.valid){diamondAudio.playInvalid();setSelectedPos(null);return;}
+    moveBusy.current=true;setIsAnimating(true);const version=runVersion.current;
+    setStats(prev=>({...prev,score:prev.score+result.score,movesLeft:Math.max(0,prev.movesLeft-1),comboCount:result.combo,maxCombo:Math.max(prev.maxCombo,result.combo),matchesCount:prev.matchesCount+result.matches,specialGemsCreated:prev.specialGemsCreated+result.created,bombsDetonated:prev.bombsDetonated+result.detonations,timeLeft:gameMode==='time'?Math.min(180,prev.timeLeft+Math.min(8,result.combo*2)):prev.timeLeft}));
+    setActiveGoals(goals=>advanceDiamondGoals(goals,result));
+    diamondAudio.playMatch(Math.max(1,result.combo));
+    if(result.detonations){diamondAudio.playExplosion();triggerScreenShake();}
+    if(result.cleared.rock||result.cleared.ice||result.cleared.chain)diamondAudio.playCrack();
+    const point=getCellPixelCoords(r2,c2);
+    particleEngineRef.current?.addFloatingText(point.x,point.y,`+${result.score}`,'#facc15');
+    particleEngineRef.current?.emitGemsBurst(point.x,point.y,'#38bdf8',16);
+    // Bound animation duration even for an unusually long cascade.
+    const frames=result.frames.length>12?[...result.frames.slice(0,11),result.board]:result.frames;
+    for(const frame of frames){
+      if(version!==runVersion.current)return;
+      setBoard(frame);await new Promise(resolve=>schedule(resolve,110));
     }
-
-    // Play chime sound matching combo
-    diamondAudio.playMatch(currentCombo);
-
-    // Track score & goals
-    let pointsEarned = 0;
-    const gemsDestroyedByColor: Record<GemColor, number> = {
-      red: 0,
-      blue: 0,
-      green: 0,
-      yellow: 0,
-      purple: 0,
-      orange: 0
-    };
-
-    // Obstacles to damage/clear
-    const damagedIce: [number, number][] = [];
-    const damagedRocks: [number, number][] = [];
-    const damagedChains: [number, number][] = [];
-
-    // Special items created
-    const createdSpecials: { r: number; c: number; gem: Gem }[] = [];
-
-    matches.forEach((group) => {
-      // Base points: 100 per gem * combo multiplier
-      const groupScore = group.gems.length * 100 * Math.max(1, currentCombo);
-      pointsEarned += groupScore;
-
-      // Color tally
-      group.gems.forEach((pt) => {
-        gemsDestroyedByColor[group.color]++;
-        const cell = workingBoard[pt.r][pt.c];
-        if (cell?.obstacle === 'chain') {
-          damagedChains.push([pt.r, pt.c]);
-        }
-      });
-
-      // Special creations
-      if (group.createsSpecial) {
-        const { r, c, special, color } = group.createsSpecial;
-        const newSpecialGem = createGem(color, special);
-        createdSpecials.push({ r, c, gem: newSpecialGem });
-        if (special === 'bomb') diamondAudio.playSwap();
-      }
-
-      // Check for adjacent Ice & Rocks
-      group.gems.forEach(({ r, c }) => {
-        const neighbors = [
-          [r - 1, c],
-          [r + 1, c],
-          [r, c - 1],
-          [r, c + 1]
-        ];
-        neighbors.forEach(([nr, nc]) => {
-          if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
-            const neighborGem = workingBoard[nr][nc];
-            if (neighborGem?.obstacle === 'ice') damagedIce.push([nr, nc]);
-            if (neighborGem?.obstacle === 'rock') damagedRocks.push([nr, nc]);
-          }
-        });
-      });
-
-      // Floating text score over group center
-      if (group.gems.length > 0) {
-        const midGem = group.gems[Math.floor(group.gems.length / 2)];
-        const coords = getCellPixelCoords(midGem.r, midGem.c);
-        const text = currentCombo > 1 ? `+${groupScore} (x${currentCombo})` : `+${groupScore}`;
-        particleEngineRef.current?.addFloatingText(coords.x, coords.y, text, '#facc15');
-      }
-    });
-
-    // Particle Bursts for matched gems
-    matchedIndices.forEach((coordStr) => {
-      const [r, c] = coordStr.split(',').map(Number);
-      const coords = getCellPixelCoords(r, c);
-      const gem = workingBoard[r][c];
-      if (gem) {
-        const colorHexMap: Record<GemColor, string> = {
-          red: '#e11d48',
-          blue: '#0284c7',
-          green: '#16a34a',
-          yellow: '#eab308',
-          purple: '#9333ea',
-          orange: '#ea580c'
-        };
-        particleEngineRef.current?.emitGemsBurst(coords.x, coords.y, colorHexMap[gem.color] || '#38bdf8', 12);
-      }
-    });
-
-    // Time bonus in Time Mode
-    if (gameMode === 'time') {
-      const bonusSeconds = matches.length * 2 + (currentCombo > 1 ? 2 : 0);
-      setStats((prev) => ({ ...prev, timeLeft: Math.min(180, prev.timeLeft + bonusSeconds) }));
-    }
-
-    // Update active goals with destroyed items
-    setActiveGoals((prevGoals) =>
-      prevGoals.map((g) => {
-        if (g.type === 'score') {
-          return { ...g, current: g.current + pointsEarned };
-        }
-        if (g.type === 'collect-color' && g.color) {
-          return { ...g, current: Math.min(g.target, g.current + (gemsDestroyedByColor[g.color] || 0)) };
-        }
-        if (g.type === 'clear-ice') {
-          return { ...g, current: Math.min(g.target, g.current + damagedIce.length) };
-        }
-        if (g.type === 'destroy-rocks') {
-          const broken = damagedRocks.filter(([rr, cc]) => (workingBoard[rr][cc]?.obstacleHealth || 0) <= 1).length;
-          return { ...g, current: Math.min(g.target, g.current + broken) };
-        }
-        if (g.type === 'unlock-chains') {
-          return { ...g, current: Math.min(g.target, g.current + damagedChains.length) };
-        }
-        return g;
-      })
-    );
-
-    // Apply obstacle damage
-    damagedIce.forEach(([ir, ic]) => {
-      if (workingBoard[ir][ic]) workingBoard[ir][ic]!.obstacle = 'none';
-      diamondAudio.playCrack();
-    });
-    damagedChains.forEach(([cr, cc]) => {
-      if (workingBoard[cr][cc]) workingBoard[cr][cc]!.obstacle = 'none';
-      diamondAudio.playCrack();
-    });
-    damagedRocks.forEach(([rr, rc]) => {
-      if (workingBoard[rr][rc]) {
-        workingBoard[rr][rc]!.obstacleHealth -= 1;
-        if (workingBoard[rr][rc]!.obstacleHealth <= 0) {
-          workingBoard[rr][rc]!.obstacle = 'none';
-          const coords = getCellPixelCoords(rr, rc);
-          particleEngineRef.current?.emitBombExplosion(coords.x, coords.y);
-          diamondAudio.playCrack();
-        }
-      }
-    });
-
-    // Remove matched gems (set to null)
-    matchedIndices.forEach((coordStr) => {
-      const [r, c] = coordStr.split(',').map(Number);
-      workingBoard[r][c] = null;
-    });
-
-    // Place newly generated special gems into their spots
-    createdSpecials.forEach(({ r, c, gem }) => {
-      workingBoard[r][c] = gem;
-    });
-
-    setStats((prev) => ({
-      ...prev,
-      score: prev.score + pointsEarned,
-      comboCount: currentCombo,
-      maxCombo: Math.max(prev.maxCombo, currentCombo),
-      matchesCount: prev.matchesCount + matches.length,
-      specialGemsCreated: prev.specialGemsCreated + createdSpecials.length
-    }));
-
-    setBoard(workingBoard);
-
-    // Wait for pop animation
-    await new Promise((resolve) => schedule(resolve, 220));
-
-    // 2. Gravity Drop: Gems fall down in columns
-    for (let c = 0; c < BOARD_SIZE; c++) {
-      let writeRow = BOARD_SIZE - 1;
-      for (let r = BOARD_SIZE - 1; r >= 0; r--) {
-        if (workingBoard[r][c] !== null) {
-          if (writeRow !== r) {
-            workingBoard[writeRow][c] = workingBoard[r][c];
-            workingBoard[r][c] = null;
-          }
-          writeRow--;
-        }
-      }
-      // Fill empty spaces from top with new random gems
-      for (let r = writeRow; r >= 0; r--) {
-        workingBoard[r][c] = createGem();
-      }
-    }
-
-    setBoard(workingBoard);
-
-    // Wait for fall animation
-    await new Promise((resolve) => schedule(resolve, 200));
-
-    // 3. Recursive cascade step
-    await processBoardCascades(workingBoard, currentCombo + 1);
-  };
-
-  // --- Special Swaps Execution (Rainbows, Bombs, Laser Lines) ---
-  const executeSpecialSwap = async (
-    r1: number,
-    c1: number,
-    r2: number,
-    c2: number,
-    gem1: Gem,
-    gem2: Gem
-  ) => {
-    setIsAnimating(true);
-    const workingBoard = cloneBoard(board);
-    workingBoard[r1][c1] = null;
-    workingBoard[r2][c2] = null;
-
-    // COMBO 1: RAINBOW + RAINBOW -> Wipe out entire board!
-    if (gem1.special === 'rainbow' && gem2.special === 'rainbow') {
-      diamondAudio.playRainbow();
-      triggerScreenShake();
-      confetti();
-
-      for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-          const coords = getCellPixelCoords(r, c);
-          particleEngineRef.current?.emitRainbowBurst(coords.x, coords.y);
-          workingBoard[r][c] = null;
-        }
-      }
-
-      const totalBonus = 8000;
-      particleEngineRef.current?.addFloatingText(180, 180, 'MEGA WIPEOUT! +8000', '#f43f5e');
-      setStats((prev) => ({ ...prev, score: prev.score + totalBonus }));
-      setBoard(workingBoard);
-      await new Promise((r) => schedule(r, 600));
-
-      // Refill all columns
-      for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-          workingBoard[r][c] = createGem();
-        }
-      }
-      setBoard(workingBoard);
-      await new Promise((r) => schedule(r, 300));
-      await processBoardCascades(workingBoard, 1);
-      return;
-    }
-
-    // COMBO 2: RAINBOW + COLOR -> Wipe out all diamonds of that color
-    if (gem1.special === 'rainbow' || gem2.special === 'rainbow') {
-      const targetColor = gem1.special === 'rainbow' ? gem2.color : gem1.color;
-      diamondAudio.playRainbow();
-
-      const clearedCoords: [number, number][] = [];
-      for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-          if (workingBoard[r][c]?.color === targetColor) {
-            clearedCoords.push([r, c]);
-            workingBoard[r][c] = null;
-            const coords = getCellPixelCoords(r, c);
-            particleEngineRef.current?.emitRainbowBurst(coords.x, coords.y);
-          }
-        }
-      }
-
-      const scoreGain = clearedCoords.length * 200;
-      setStats((prev) => ({ ...prev, score: prev.score + scoreGain }));
-      setBoard(workingBoard);
-      await new Promise((r) => schedule(r, 350));
-
-      // Gravity fall
-      for (let c = 0; c < BOARD_SIZE; c++) {
-        let writeRow = BOARD_SIZE - 1;
-        for (let r = BOARD_SIZE - 1; r >= 0; r--) {
-          if (workingBoard[r][c] !== null) {
-            if (writeRow !== r) {
-              workingBoard[writeRow][c] = workingBoard[r][c];
-              workingBoard[r][c] = null;
-            }
-            writeRow--;
-          }
-        }
-        for (let r = writeRow; r >= 0; r--) {
-          workingBoard[r][c] = createGem();
-        }
-      }
-      setBoard(workingBoard);
-      await new Promise((r) => schedule(r, 220));
-      await processBoardCascades(workingBoard, 1);
-      return;
-    }
-
-    // COMBO 3: BOMB + BOMB -> 5x5 Mega-Explosion!
-    if (gem1.special === 'bomb' && gem2.special === 'bomb') {
-      diamondAudio.playExplosion();
-      triggerScreenShake();
-      const midR = Math.round((r1 + r2) / 2);
-      const midC = Math.round((c1 + c2) / 2);
-      const centerCoords = getCellPixelCoords(midR, midC);
-      particleEngineRef.current?.emitBombExplosion(centerCoords.x, centerCoords.y);
-
-      for (let dr = -2; dr <= 2; dr++) {
-        for (let dc = -2; dc <= 2; dc++) {
-          const nr = midR + dr;
-          const nc = midC + dc;
-          if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
-            workingBoard[nr][nc] = null;
-          }
-        }
-      }
-
-      setStats((prev) => ({ ...prev, score: prev.score + 3500 }));
-      setBoard(workingBoard);
-      await new Promise((r) => schedule(r, 350));
-
-      // Gravity fall
-      for (let c = 0; c < BOARD_SIZE; c++) {
-        let writeRow = BOARD_SIZE - 1;
-        for (let r = BOARD_SIZE - 1; r >= 0; r--) {
-          if (workingBoard[r][c] !== null) {
-            if (writeRow !== r) {
-              workingBoard[writeRow][c] = workingBoard[r][c];
-              workingBoard[r][c] = null;
-            }
-            writeRow--;
-          }
-        }
-        for (let r = writeRow; r >= 0; r--) {
-          workingBoard[r][c] = createGem();
-        }
-      }
-      setBoard(workingBoard);
-      await new Promise((r) => schedule(r, 220));
-      await processBoardCascades(workingBoard, 1);
-      return;
-    }
-
-    // COMBO 4: LINE + LINE -> Cross Laser (Clears full row AND full column)
-    if (
-      (gem1.special === 'line-h' || gem1.special === 'line-v') &&
-      (gem2.special === 'line-h' || gem2.special === 'line-v')
-    ) {
-      diamondAudio.playLaser();
-      triggerScreenShake();
-      const crossR = r2;
-      const crossC = c2;
-
-      // Clear Row
-      for (let c = 0; c < BOARD_SIZE; c++) workingBoard[crossR][c] = null;
-      // Clear Col
-      for (let r = 0; r < BOARD_SIZE; r++) workingBoard[r][crossC] = null;
-
-      const pCenter = getCellPixelCoords(crossR, crossC);
-      particleEngineRef.current?.emitLaserLine(0, pCenter.y, 400, pCenter.y, true);
-      particleEngineRef.current?.emitLaserLine(pCenter.x, 0, pCenter.x, 400, false);
-
-      setStats((prev) => ({ ...prev, score: prev.score + 2200 }));
-      setBoard(workingBoard);
-      await new Promise((r) => schedule(r, 300));
-
-      // Gravity fall
-      for (let c = 0; c < BOARD_SIZE; c++) {
-        let writeRow = BOARD_SIZE - 1;
-        for (let r = BOARD_SIZE - 1; r >= 0; r--) {
-          if (workingBoard[r][c] !== null) {
-            if (writeRow !== r) {
-              workingBoard[writeRow][c] = workingBoard[r][c];
-              workingBoard[r][c] = null;
-            }
-            writeRow--;
-          }
-        }
-        for (let r = writeRow; r >= 0; r--) {
-          workingBoard[r][c] = createGem();
-        }
-      }
-      setBoard(workingBoard);
-      await new Promise((r) => schedule(r, 220));
-      await processBoardCascades(workingBoard, 1);
-      return;
-    }
-
-    // Single Bomb match
-    if (gem1.special === 'bomb' || gem2.special === 'bomb') {
-      diamondAudio.playExplosion();
-      triggerScreenShake();
-      const br = gem1.special === 'bomb' ? r1 : r2;
-      const bc = gem1.special === 'bomb' ? c1 : c2;
-      const bCoords = getCellPixelCoords(br, bc);
-      particleEngineRef.current?.emitBombExplosion(bCoords.x, bCoords.y);
-
-      for (let dr = -1; dr <= 1; dr++) {
-        for (let dc = -1; dc <= 1; dc++) {
-          const nr = br + dr;
-          const nc = bc + dc;
-          if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
-            workingBoard[nr][nc] = null;
-          }
-        }
-      }
-
-      setStats((prev) => ({ ...prev, score: prev.score + 1000 }));
-      setBoard(workingBoard);
-      await new Promise((r) => schedule(r, 300));
-
-      // Gravity fall
-      for (let c = 0; c < BOARD_SIZE; c++) {
-        let writeRow = BOARD_SIZE - 1;
-        for (let r = BOARD_SIZE - 1; r >= 0; r--) {
-          if (workingBoard[r][c] !== null) {
-            if (writeRow !== r) {
-              workingBoard[writeRow][c] = workingBoard[r][c];
-              workingBoard[r][c] = null;
-            }
-            writeRow--;
-          }
-        }
-        for (let r = writeRow; r >= 0; r--) {
-          workingBoard[r][c] = createGem();
-        }
-      }
-      setBoard(workingBoard);
-      await new Promise((r) => schedule(r, 220));
-      await processBoardCascades(workingBoard, 1);
-      return;
-    }
-
-    // Single Line Laser match
-    if (
-      gem1.special === 'line-h' ||
-      gem1.special === 'line-v' ||
-      gem2.special === 'line-h' ||
-      gem2.special === 'line-v'
-    ) {
-      diamondAudio.playLaser();
-      const specialGem = gem1.special !== 'none' ? gem1 : gem2;
-      const sr = gem1.special !== 'none' ? r1 : r2;
-      const sc = gem1.special !== 'none' ? c1 : c2;
-      const pCenter = getCellPixelCoords(sr, sc);
-
-      if (specialGem.special === 'line-h') {
-        for (let c = 0; c < BOARD_SIZE; c++) workingBoard[sr][c] = null;
-        particleEngineRef.current?.emitLaserLine(0, pCenter.y, 400, pCenter.y, true);
-      } else {
-        for (let r = 0; r < BOARD_SIZE; r++) workingBoard[r][sc] = null;
-        particleEngineRef.current?.emitLaserLine(pCenter.x, 0, pCenter.x, 400, false);
-      }
-
-      setStats((prev) => ({ ...prev, score: prev.score + 800 }));
-      setBoard(workingBoard);
-      await new Promise((r) => schedule(r, 300));
-
-      // Gravity fall
-      for (let c = 0; c < BOARD_SIZE; c++) {
-        let writeRow = BOARD_SIZE - 1;
-        for (let r = BOARD_SIZE - 1; r >= 0; r--) {
-          if (workingBoard[r][c] !== null) {
-            if (writeRow !== r) {
-              workingBoard[writeRow][c] = workingBoard[r][c];
-              workingBoard[r][c] = null;
-            }
-            writeRow--;
-          }
-        }
-        for (let r = writeRow; r >= 0; r--) {
-          workingBoard[r][c] = createGem();
-        }
-      }
-      setBoard(workingBoard);
-      await new Promise((r) => schedule(r, 220));
-      await processBoardCascades(workingBoard, 1);
-    }
-  };
-
-  // --- Handle Swapping Two Gems ---
-  const handleSwapGems = async (r1: number, c1: number, r2: number, c2: number) => {
-    if (isAnimating) return;
-    lastInteractionTime.current = Date.now();
-    setHintPos(null);
-
-    const gem1 = board[r1][c1];
-    const gem2 = board[r2][c2];
-    if (!gem1 || !gem2) return;
-
-    // Check if swap is special (Bomb, Rainbow, Line combinations)
-    const isSpecialSwap = 
-      gem1.special === 'rainbow' || 
-      gem2.special === 'rainbow' ||
-      (gem1.special !== 'none' && gem2.special !== 'none');
-
-    if (isSpecialSwap) {
-      // Deduct move
-      setStats((prev) => ({
-        ...prev,
-        movesLeft: Math.max(0, prev.movesLeft - 1)
-      }));
-      await executeSpecialSwap(r1, c1, r2, c2, gem1, gem2);
-      return;
-    }
-
-    // Standard swap check
-    const valid = isValidSwap(r1, c1, r2, c2, board);
-
-    if (!valid) {
-      // Invalid swap: animate swap and swap back
-      diamondAudio.playInvalid();
-      setIsAnimating(true);
-
-      const swappedBoard = cloneBoard(board);
-      swappedBoard[r1][c1] = gem2;
-      swappedBoard[r2][c2] = gem1;
-      setBoard(swappedBoard);
-
-      await new Promise((r) => schedule(r, 180));
-      setBoard(board);
-      setIsAnimating(false);
-      return;
-    }
-
-    // Valid swap: execute move
-    diamondAudio.playSwap();
-    setIsAnimating(true);
-
-    const workingBoard = cloneBoard(board);
-    workingBoard[r1][c1] = gem2;
-    workingBoard[r2][c2] = gem1;
-    setBoard(workingBoard);
-
-    // Deduct move
-    setStats((prev) => ({
-      ...prev,
-      movesLeft: Math.max(0, prev.movesLeft - 1)
-    }));
-
-    await new Promise((r) => schedule(r, 180));
-    await processBoardCascades(workingBoard, 1);
+    if(version!==runVersion.current)return;
+    if(result.shuffled){setShuffleNotice(true);diamondAudio.playShuffle();await new Promise(resolve=>schedule(resolve,450));}
+    if(version!==runVersion.current)return;
+    setShuffleNotice(false);setBoard(result.board);setIsAnimating(false);moveBusy.current=false;
   };
 
   // --- Check Win / Game Over State ---
-  const checkLevelState = (currentBoard: BoardGrid) => {
+  const checkLevelState = () => {
     if (gameMode === 'levels') {
       // Check if all goals are completed
       const allCompleted = activeGoals.every((g) => {
@@ -857,11 +308,12 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
       if (stats.movesLeft <= 0) {
         handleGameOver();
       }
+    } else if(gameMode==='time'&&stats.timeLeft<=0){handleGameOver();
     } else if (gameMode === 'classic') {
       // Classic Mode: Level Up every 5,000 points
       const nextLevelThreshold = stats.level * 5000;
-      if (stats.score >= nextLevelThreshold) {
-        setStats((prev) => ({ ...prev, level: prev.level + 1 }));
+      if (stats.level<50&&stats.score >= nextLevelThreshold) {
+        setStats((prev) => ({ ...prev, level: Math.min(50,prev.level + 1) }));
         diamondAudio.playVictory();
         confetti();
         particleEngineRef.current?.addFloatingText(180, 180, `LEVEL ${stats.level + 1}!`, '#facc15');
@@ -879,25 +331,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
     if (stats.score >= levelConfig.starScores[2]) stars = 3;
     else if (stats.score >= levelConfig.starScores[1]) stars = 2;
 
-    // Update Progress
-    setProgress((prev) => {
-      const nextUnlocked = Math.max(prev.unlockedLevel, Math.min(50, currentLevelNum + 1));
-      const oldStars = prev.levelStars[currentLevelNum] || 0;
-      const oldScore = prev.levelScores[currentLevelNum] || 0;
-
-      return {
-        ...prev,
-        unlockedLevel: nextUnlocked,
-        levelStars: {
-          ...prev.levelStars,
-          [currentLevelNum]: Math.max(oldStars, stars)
-        },
-        levelScores: {
-          ...prev.levelScores,
-          [currentLevelNum]: Math.max(oldScore, stats.score)
-        }
-      };
-    });
+    setProgress(prev=>recordDiamondWin(prev,currentLevelNum,stars,stats.score));
 
     onGameEnd?.(stats.score, stars);
     setScreen('level-won');
@@ -926,7 +360,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
   };
 
   // Read the final cascade result, including points from the very last move.
-  useEffect(()=>{if(screen==='playing'&&!isAnimating)checkLevelState(board);},[screen,isAnimating,stats,activeGoals]);
+  useEffect(()=>{if(screen==='playing'&&!isAnimating)checkLevelState();},[screen,isAnimating,stats,activeGoals]);
 
   // --- User Click / Tap Cell Handler ---
   const handleCellClick = (r: number, c: number) => {
@@ -934,7 +368,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
     lastInteractionTime.current = Date.now();
 
     const clickedGem = board[r][c];
-    if (!clickedGem) return;
+    if (!clickedGem||clickedGem.obstacle!=='none') return;
 
     if (!selectedPos) {
       setSelectedPos([r, c]);
@@ -1004,7 +438,8 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
     <div className="relative w-full min-h-[640px] max-w-5xl mx-auto rounded-3xl bg-slate-950 text-slate-100 border border-indigo-900/40 shadow-2xl overflow-hidden flex flex-col font-sans select-none">
       
       {/* Deep Blue Fantasy Cosmic Gemstone Background */}
-      <div className="absolute inset-0 bg-radial from-indigo-950/80 via-slate-950 to-slate-950 pointer-events-none" />
+      <div className="absolute inset-0 pointer-events-none opacity-30" style={{backgroundImage:`url(${DIAMOND_ART.vault})`,backgroundSize:'cover',backgroundPosition:'center'}}/>
+      <div className="absolute inset-0 bg-slate-950/60 pointer-events-none"/>
       <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-600/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-96 h-96 bg-fuchsia-600/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -1032,7 +467,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
             onClick={() => { setLevelTab(Math.floor((progress.unlockedLevel - 1) / 10)); setScreen('levels'); }}
             className={`hover:text-amber-400 transition whitespace-nowrap shrink-0 ${screen === 'levels' ? 'text-amber-400' : ''}`}
           >
-            Levelauswahl (5 × 10)
+            Levelauswahl (1–50)
           </button>
           <button 
             onClick={() => setScreen('how-to-play')} 
@@ -1168,8 +603,9 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
             )}
           </div>
 
+          {gameMode==='levels'&&<section aria-label="Levelbeschreibung" className="w-full max-w-lg rounded-xl border border-violet-500/30 bg-slate-950/90 p-3 text-xs"><div className="flex items-center justify-between gap-2"><strong>{levelConfig.chapter}</strong><span>Level {currentLevelNum}/50</span></div><p className="text-slate-300 my-2">{levelConfig.briefing}</p><div role="progressbar" aria-label="Schwierigkeit" aria-valuemin={1} aria-valuemax={50} aria-valuenow={currentLevelNum} className="h-1.5 bg-slate-700 rounded-full"><div className="h-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 rounded-full" style={{width:`${currentLevelNum*2}%`}}/></div></section>}
           {/* 8x8 MATCH-3 BOARD & CANVAS CONTAINER */}
-          <div className="relative flex items-center justify-center w-full max-w-[min(94vw,440px)] aspect-square p-1.5 sm:p-2 bg-slate-900/90 rounded-2xl sm:rounded-3xl border-2 border-indigo-700/50 shadow-[0_0_40px_rgba(30,27,75,0.7)] backdrop-blur touch-none select-none">
+          <div style={{backgroundImage:`url(${DIAMOND_ART.vault})`,backgroundSize:'100% 100%'}} className="relative flex items-center justify-center w-full max-w-[min(94vw,480px)] aspect-square p-6 sm:p-8 bg-slate-900/90 rounded-2xl sm:rounded-3xl border-2 border-indigo-700/50 shadow-[0_0_40px_rgba(30,27,75,0.7)] backdrop-blur touch-none select-none">
             
             {/* HTML5 Particle FX Canvas Overlay */}
             <canvas
@@ -1189,7 +625,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
             {/* 8x8 Gem Matrix */}
             <div 
               ref={boardContainerRef}
-              className="grid grid-cols-8 grid-rows-8 w-full h-full gap-0.5 sm:gap-1 p-0.5 sm:p-1 bg-slate-950/80 rounded-xl sm:rounded-2xl border border-indigo-950/80 touch-none select-none"
+              className="grid grid-cols-8 grid-rows-8 w-full h-full gap-0.5 sm:gap-1 p-0.5 sm:p-1 bg-slate-950/55 rounded-xl sm:rounded-2xl border border-indigo-950/80 touch-none select-none"
             >
               {board.map((row, r) =>
                 row.map((gem, c) => {
@@ -1200,7 +636,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
                     <div
                       key={gem ? gem.id : `empty-${r}-${c}`}
                       role="button" tabIndex={isAnimating?-1:0} aria-disabled={isAnimating||!gem}
-                      aria-label={`Feld ${r+1},${c+1}: ${gem?({red:'Rubin',blue:'Saphir',green:'Smaragd',yellow:'Topas',purple:'Amethyst',orange:'Bernstein'}[gem.color]):'leer'}${gem?.obstacle&&gem.obstacle!=='none'?` (${gem.obstacle})`:''}`}
+                      aria-label={`Feld ${r+1},${c+1}: ${gem?({red:'Rubin',blue:'Saphir',green:'Smaragd',yellow:'Topas',purple:'Amethyst',orange:'Bernstein'}[gem.color]):'leer'}${gem?.special&&gem.special!=='none'?` · ${{'line-h':'Zeilenlaser','line-v':'Spaltenlaser',bomb:'Bombe',rainbow:'Regenbogen'}[gem.special]}`:''}${gem?.obstacle&&gem.obstacle!=='none'?` · ${{ice:'Eis',rock:`Fels, ${gem.obstacleHealth} Treffer`,chain:'Kette'}[gem.obstacle]}`:''}`}
                       data-gem-cell={`${r},${c}`} data-color={gem?.color}
                       onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();handleCellClick(r,c);}}}
                       onClick={() => handleCellClick(r, c)}
@@ -1265,6 +701,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
       {/* --- MAIN TITLE MENU SCREEN --- */}
       {screen === 'menu' && (
         <div className="relative flex-1 flex flex-col items-center justify-center p-6 text-center z-10 space-y-8 my-auto">
+          <div aria-hidden="true" className="flex gap-1">{['red','blue','green','yellow','purple','orange'].map((color,i)=><DiamondSprite key={color} sheet="gems" index={i} className="w-10 h-10 sm:w-14 sm:h-14"/>)}</div>
           {/* Logo & Headline */}
           <div className="space-y-3 max-w-md">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-950/80 border border-indigo-700/40 text-amber-400 text-xs font-bold">
@@ -1295,11 +732,11 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
                 </div>
                 <h3 className="text-base font-bold text-white group-hover:text-amber-400 transition">Levelmodus</h3>
                 <p className="text-[11px] text-slate-400 leading-snug">
-                  50 Levels in fünf Schwierigkeitsstufen mit Eisblöcken, Felsen und Ketten.
+                  50 unterschiedliche Levels: zunehmend höhere Ziele, mehr Hindernisse und weniger Züge.
                 </p>
               </div>
               <div className="pt-3 text-[11px] text-cyan-400 font-semibold flex items-center justify-between">
-                <span>Freigeschaltet: {Array.from({length:50},(_,i)=>i+1).filter(id=>levelUnlocked(id,progress.levelStars)).length}/50</span>
+                <span>Freigeschaltet: {Array.from({length:50},(_,i)=>i+1).filter(id=>diamondLevelUnlocked(id,progress)).length}/50</span>
                 <ChevronRight className="w-4 h-4" />
               </div>
             </button>
@@ -1352,7 +789,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
               className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-sm shadow-xl shadow-amber-400/20 transition flex items-center gap-2 cursor-pointer active:scale-95"
             >
               <Play className="w-4 h-4 fill-current" />
-              <span>Level {progress.unlockedLevel} fortsetzen</span>
+              <span>{progress.levelStars[50]?'Finale erneut spielen':`Level ${progress.unlockedLevel} fortsetzen`}</span>
             </button>
             <button
               onClick={() => setScreen('how-to-play')}
@@ -1376,7 +813,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
               <ArrowLeft className="w-4 h-4" />
               <span>Zurück</span>
             </button>
-            <h2 className="text-xl sm:text-2xl font-black text-white">Levelauswahl (5 × 10)</h2>
+            <h2 className="text-xl sm:text-2xl font-black text-white">Levelauswahl (1–50)</h2>
             <div className="text-xs text-amber-400 font-bold flex items-center gap-1">
               <Star className="w-4 h-4 fill-current" />
               <span>{Object.values(progress.levelStars).reduce((a, b) => a + b, 0)} / 150</span>
@@ -1385,7 +822,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
 
           {/* Difficulty tabs */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 p-1.5 bg-slate-900/80 rounded-2xl border border-indigo-900/40">
-            {CAMPAIGN_TIERS.map((label, idx) => (
+            {DIAMOND_CHAPTERS.map((label, idx) => (
               <button
                 key={idx}
                 onClick={() => setLevelTab(idx)}
@@ -1395,24 +832,24 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                {label}
+                {label}<span className="block text-[10px] opacity-70 mt-1">{idx*10+1}–{idx*10+10}</span>
               </button>
             ))}
           </div>
 
-          <p className="text-xs text-slate-400">Jede Schwierigkeit startet mit Level 1. Gewinne ein Level, um das nächste freizuschalten. Sterne und Bestwerte bleiben auf diesem Gerät gespeichert.</p>
+          <p className="text-xs text-slate-400">Eine Kampagne von Level 1 bis 50. Gewinne ein Level, um das nächste freizuschalten. Kapitelwechsel setzen die Schwierigkeit nicht zurück.</p>
           {/* Ten levels per difficulty */}
           <div className="grid grid-cols-5 sm:grid-cols-5 md:grid-cols-5 gap-3 flex-1 overflow-y-auto max-h-[460px] p-2">
             {Array.from({ length: 10 }, (_, i) => {
               const lvlNum = levelTab * 10 + i + 1;
-              const isUnlocked = levelUnlocked(lvlNum, progress.levelStars);
+              const isUnlocked = diamondLevelUnlocked(lvlNum, progress);
               const stars = progress.levelStars[lvlNum] || 0;
               const highScore = progress.levelScores[lvlNum] || 0;
 
               return (
                 <button
                   key={lvlNum}
-                  aria-label={`${CAMPAIGN_TIERS[levelTab]} Level ${i+1}`}
+                  aria-label={`Level ${lvlNum}: ${getLevelConfig(lvlNum).title.split('. ')[1]}`} title={getLevelConfig(lvlNum).briefing}
                   disabled={!isUnlocked}
                   onClick={() => startLevel(lvlNum, 'levels')}
                   className={`p-3 rounded-2xl border flex flex-col items-center justify-between transition relative ${
@@ -1422,7 +859,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
                   }`}
                 >
                   <span className="text-xs uppercase font-bold text-slate-400">Level</span>
-                  <span className="text-xl font-black text-white">{i+1}</span>
+                  <span className="text-xl font-black text-white">{lvlNum}</span><span className="hidden sm:block text-[9px] leading-tight text-slate-400 text-center">{getLevelConfig(lvlNum).title.split('. ')[1]}</span>
 
                   {/* Stars 0-3 */}
                   <div className="flex items-center gap-0.5 mt-1">
@@ -1457,7 +894,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
             </div>
 
             <div className="space-y-1">
-              <h3 className="text-2xl font-black text-white">Level Bestanden!</h3>
+              <h3 className="text-2xl font-black text-white">{currentLevelNum===50?'Kampagne abgeschlossen!':'Level bestanden!'}</h3>
               <p className="text-xs text-slate-400">{levelConfig.title} erfolgreich gemeistert</p>
             </div>
 
@@ -1484,12 +921,12 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
             </div>
 
             <div className="flex flex-col gap-2 pt-2">
-              {currentLevelNum % 10 !== 0 && (
+              {currentLevelNum < 50 && (
                 <button
                   onClick={() => startLevel(currentLevelNum + 1, 'levels')}
                   className="w-full py-3 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-sm shadow-lg shadow-amber-400/20 transition cursor-pointer"
                 >
-                  Nächstes Level ({currentLevelNum % 10 + 1}/10)
+                  Nächstes Level ({currentLevelNum + 1}/50)
                 </button>
               )}
               <button
@@ -1718,7 +1155,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div className="p-3 bg-slate-950/70 rounded-xl border border-indigo-900/50 space-y-1">
                     <span className="font-bold text-white flex items-center gap-1.5">
-                      <Zap className="w-3.5 h-3.5 text-cyan-400" /> 4er-Reihe: Laserblitz
+                      <DiamondSprite sheet="objects" index={0} className="w-7 h-7"/> 4er-Reihe: Laserblitz
                     </span>
                     <p className="text-[11px] text-slate-400 leading-snug">
                       Zerstört eine vollständige Zeile oder Spalte mit einem Energiestrahl.
@@ -1727,16 +1164,16 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
 
                   <div className="p-3 bg-slate-950/70 rounded-xl border border-indigo-900/50 space-y-1">
                     <span className="font-bold text-white flex items-center gap-1.5">
-                      <Flame className="w-3.5 h-3.5 text-amber-400" /> T/L-Form: Dynamitbombe
+                      <DiamondSprite sheet="objects" index={2} className="w-7 h-7"/> T/L-Form: Dynamitbombe
                     </span>
                     <p className="text-[11px] text-slate-400 leading-snug">
-                      Explodiert im 3×3-Radius mit Funkenregen und Erschütterung.
+                      Räumt ein 3×3-Feld ab und beschädigt Hindernisse. Eine Bombe mit einem Laser kombiniert trifft drei Reihen und drei Spalten.
                     </p>
                   </div>
 
                   <div className="p-3 bg-slate-950/70 rounded-xl border border-indigo-900/50 space-y-1">
                     <span className="font-bold text-white flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-fuchsia-400" /> 5er-Reihe: Regenbogen
+                      <DiamondSprite sheet="objects" index={3} className="w-7 h-7"/> 5er-Reihe: Regenbogen
                     </span>
                     <p className="text-[11px] text-slate-400 leading-snug">
                       Entfernt alle Diamanten einer ausgewählten Farbe vom Brett!
@@ -1745,7 +1182,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
 
                   <div className="p-3 bg-slate-950/70 rounded-xl border border-indigo-900/50 space-y-1">
                     <span className="font-bold text-white flex items-center gap-1.5">
-                      <Award className="w-3.5 h-3.5 text-amber-300" /> Mega-Kombos
+                      <DiamondSprite sheet="objects" index={7} className="w-7 h-7"/> Mega-Kombos
                     </span>
                     <p className="text-[11px] text-slate-400 leading-snug">
                       Zwei Bomben = 5×5 Mega-Blast! Zwei Regenbögen räumen das ganze Brett ab!
@@ -1758,8 +1195,8 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
               <div className="space-y-1.5">
                 <h4 className="font-bold text-amber-300 text-sm">Hindernisse</h4>
                 <ul className="list-disc list-inside space-y-1 text-slate-400 leading-relaxed">
-                  <li><strong className="text-cyan-300">Eisblöcke:</strong> Matche Diamanten daneben oder darauf, um das Eis aufzutauen.</li>
-                  <li><strong className="text-slate-300">Felsen (Granit):</strong> Brauchen 2 Treffer daneben oder eine Dynamit-Explosion zum Zerstören.</li>
+                  <li><strong className="text-cyan-300">Eisblöcke:</strong> Gefrorene Steine bleiben fest. Eine Kombination auf dem Feld, direkt daneben oder ein Spezialtreffer schmilzt das Eis.</li>
+                  <li><strong className="text-slate-300">Felsen (Granit):</strong> Benötigen einen oder zwei Treffer; Punkte am Felsen zeigen die Reststärke. Benachbarte Kombinationen und Spezialeffekte beschädigen sie.</li>
                   <li><strong className="text-amber-400">Ketten:</strong> Gefangene Diamanten können nicht getauscht werden, bis sie in eine Farbkombination eingebunden werden.</li>
                 </ul>
               </div>

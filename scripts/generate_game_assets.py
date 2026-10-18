@@ -121,6 +121,6 @@ def boards():
 
 if __name__=='__main__':
     cards(); figures(); boards()
-    FILES.extend('images/'+name for name in ['card-back.png','card-characters.png','chess-pieces.png','game-table.png','game-tokens.png'] if (ROOT/'images'/name).exists())
+    FILES[:]=sorted(str(p.relative_to(ROOT)).replace('\\','/') for p in ROOT.rglob('*') if p.suffix in ('.svg','.png'))
     (ROOT/'manifest.json').write_text(json.dumps({'collection':'FamPlay Atelier','version':1,'files':FILES},indent=2)+'\n',encoding='utf-8')
     print(f'Indexed {len(FILES)} original asset files in {ROOT}')

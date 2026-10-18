@@ -1,3 +1,4 @@
+import {seededRandom} from '../../../services/campaign';
 import { BoardGrid, Gem, GemColor, GemSpecial, MatchGroup, ObstacleType, LevelConfig } from './types';
 
 export const BOARD_SIZE = 8;
@@ -58,7 +59,7 @@ export const findMatches = (board: BoardGrid): { matches: MatchGroup[]; matchedI
       const current = board[r][c];
       const next = c + 1 < BOARD_SIZE ? board[r][c + 1] : null;
 
-      if (current && next && current.color === next.color && current.obstacle !== 'rock') {
+      if (current && next && current.color === next.color && current.obstacle !== 'rock' && next.obstacle !== 'rock') {
         matchLen++;
       } else {
         if (matchLen >= 3 && current && current.obstacle !== 'rock') {
@@ -85,7 +86,7 @@ export const findMatches = (board: BoardGrid): { matches: MatchGroup[]; matchedI
       const current = board[r][c];
       const next = r + 1 < BOARD_SIZE ? board[r + 1][c] : null;
 
-      if (current && next && current.color === next.color && current.obstacle !== 'rock') {
+      if (current && next && current.color === next.color && current.obstacle !== 'rock' && next.obstacle !== 'rock') {
         matchLen++;
       } else {
         if (matchLen >= 3 && current && current.obstacle !== 'rock') {
@@ -220,7 +221,7 @@ export const isValidSwap = (
   c2: number,
   board: BoardGrid
 ): boolean => {
-  if (!isAdjacent(r1, c1, r2, c2)) return false;
+  if (![r1,c1,r2,c2].every(v=>Number.isInteger(v)&&v>=0&&v<8)||!isAdjacent(r1, c1, r2, c2)) return false;
 
   const gem1 = board[r1][c1];
   const gem2 = board[r2][c2];
@@ -230,7 +231,7 @@ export const isValidSwap = (
   if (gem1.obstacle === 'rock' || gem2.obstacle === 'rock') return false;
 
   // Chained gems cannot be swapped
-  if (gem1.obstacle === 'chain' || gem2.obstacle === 'chain') return false;
+  if (gem1.obstacle === 'chain' || gem2.obstacle === 'chain'||gem1.obstacle==='ice'||gem2.obstacle==='ice') return false;
 
   // Swapping with Rainbow is always valid!
   if (gem1.special === 'rainbow' || gem2.special === 'rainbow') return true;
@@ -244,7 +245,7 @@ export const isValidSwap = (
   testBoard[r2][c2] = gem1;
 
   const { matches } = findMatches(testBoard);
-  return matches.length > 0;
+  return matches.some(group=>group.gems.some(p=>p.r===r1&&p.c===c1||p.r===r2&&p.c===c2));
 };
 
 /**
@@ -289,7 +290,8 @@ export const findHintMove = (board: BoardGrid): { from: [number, number]; to: [n
  * 2. Has at least 1 valid move.
  * 3. Incorporates level obstacles if provided.
  */
-export const createInitialBoard = (levelConfig?: LevelConfig): BoardGrid => {
+export const createInitialBoard = (levelConfig?: Pick<LevelConfig,'obstacles'|'seed'|'colors'>, random=levelConfig?.seed?seededRandom(levelConfig.seed):Math.random): BoardGrid => {
+  const colors=levelConfig?.colors?.length?levelConfig.colors:GEM_COLORS;
   let attempts = 0;
   while (attempts < 200) {
     attempts++;
@@ -308,8 +310,8 @@ export const createInitialBoard = (levelConfig?: LevelConfig): BoardGrid => {
           forbidden.push(board[r - 1][c]!.color);
         }
 
-        const allowedColors = GEM_COLORS.filter((color) => !forbidden.includes(color));
-        const chosenColor = allowedColors[Math.floor(Math.random() * allowedColors.length)];
+        const allowedColors = colors.filter((color) => !forbidden.includes(color));
+        const chosenColor = allowedColors[Math.floor(random() * allowedColors.length)];
         board[r][c] = createGem(chosenColor);
       }
     }
@@ -330,58 +332,25 @@ export const createInitialBoard = (levelConfig?: LevelConfig): BoardGrid => {
     }
   }
 
-  // Fallback safe board
-  const fallback: BoardGrid = Array(BOARD_SIZE)
-    .fill(null)
-    .map((_, r) =>
-      Array(BOARD_SIZE)
-        .fill(null)
-        .map((__, c) => createGem(GEM_COLORS[(r * 2 + c) % GEM_COLORS.length]))
-    );
-  return fallback;
+  throw new Error('Für diesen Aufbau konnte kein spielbares Feld erstellt werden.');
 };
 
 /**
  * Shuffles current board gems when no moves are left, ensuring no initial matches
  * and at least 1 valid move exists.
  */
-export const shuffleBoard = (board: BoardGrid): BoardGrid => {
-  const gemsToShuffle: Gem[] = [];
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
-      const g = board[r][c];
-      if (g && g.obstacle !== 'rock') {
-        gemsToShuffle.push(g);
-      }
-    }
+export const shuffleBoard = (board:BoardGrid,random=Math.random,colors=GEM_COLORS):BoardGrid=>{
+  const movable=board.flat().filter((g):g is Gem=>Boolean(g&&g.obstacle!=='rock'));
+  for(let attempt=0;attempt<200;attempt++){
+    const shuffled=[...movable];for(let i=shuffled.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];}
+    let index=0;
+    const next=board.map(row=>row.map(g=>g?.obstacle==='rock'?{...g}:g?{...shuffled[index++],obstacle:g.obstacle,obstacleHealth:g.obstacleHealth}:createGem(colors[Math.floor(random()*colors.length)])));
+    if(!findMatches(next).matches.length&&hasValidMoves(next))return next;
   }
-
-  let attempts = 0;
-  while (attempts < 100) {
-    attempts++;
-    // Fisher-Yates shuffle
-    const shuffled = [...gemsToShuffle];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-
-    const newBoard = cloneBoard(board);
-    let idx = 0;
-    for (let r = 0; r < BOARD_SIZE; r++) {
-      for (let c = 0; c < BOARD_SIZE; c++) {
-        if (newBoard[r][c] && newBoard[r][c]!.obstacle !== 'rock') {
-          newBoard[r][c] = shuffled[idx++];
-        }
-      }
-    }
-
-    const { matches } = findMatches(newBoard);
-    if (matches.length === 0 && hasValidMoves(newBoard)) {
-      return newBoard;
-    }
-  }
-
-  // If impossible, re-generate clean board
-  return createInitialBoard();
+  const obstacles:LevelConfig['obstacles']=[];
+  board.forEach((row,r)=>row.forEach((g,c)=>{if(g&&g.obstacle!=='none')obstacles.push({r,c,type:g.obstacle,health:g.obstacleHealth});}));
+  const next=createInitialBoard({obstacles,colors},random);
+  const specials=movable.filter(g=>g.special!=='none');
+  let index=0;for(const row of next)for(const g of row)if(g&&g.obstacle==='none'&&index<specials.length)g.special=specials[index++].special;
+  return next;
 };

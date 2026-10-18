@@ -12,7 +12,7 @@
     "lint": "tsc --noEmit",
     "setup:mariadb": "tsx scripts/setup-mariadb.ts",
     "create:admin": "tsx scripts/create-admin.ts",
-    "test": "node --import tsx --test server/security.test.ts server/multiplayer.test.ts server/completedGames.test.ts src/services/gameAI.test.ts src/services/rules.test.ts src/services/campaign.test.ts"
+    "test": "node --import tsx --test server/security.test.ts server/multiplayer.test.ts server/completedGames.test.ts src/services/gameAI.test.ts src/services/rules.test.ts src/services/campaign.test.ts src/services/gameAssets.test.ts src/components/games/diamondBlast/diamondEngine.test.ts"
   },
   "overrides": {
     "esbuild": "^0.28.2"

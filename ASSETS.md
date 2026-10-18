@@ -1,39 +1,33 @@
-# FamPlay Atelier
+# Spielgrafiken und passende Kartensets
 
-Eigene Spielgrafiken in `public/assets/atelier/`. Alle Dateien werden lokal ausgeliefert; die Spiele benötigen dafür keine externen Bilddienste.
+## Aktuelle Kartensets (Version 2)
 
-## Bilder
+Jedes Kartenspiel verwendet eigene Vorderseiten und eine eigene PNG-Rückseite:
 
-Mit der integrierten Imagegen-Funktion wurden fünf originale PNG-Bilder erstellt und unverändert ins Projekt kopiert:
+| Spiel | Vorderseite | Rueckseite unter `public/assets/atelier/images/` |
+| --- | --- | --- |
+| Rommé | Klassische weiße französische Spielkarten mit Herz, Karo, Kreuz und Pik; korrekt verteilte Farbsymbole; Bube, Dame und König mit zwölf unterschiedlichen Hofmotiven | `romme-back-v2.png`: bordeauxfarbene Kupferstichornamente und Schwäne |
+| Skip-Bo | Deutliche Zahlen 1 bis 12, blau/grün/rote Zahlenbereiche, Zählpunkte und eigener orangefarbener Joker für eine freie Zahl | `sequence-back-v2.png`: blaue Kartenstapel und orangefarbene Aufwärtspfeile |
+| FamCards | Rote, blaue, grüne und gelbe Farbkarten; zusätzliche Formkennzeichen; eigene Symbole für Aussetzen, Richtungswechsel, +2, Farbwahl und +4 | `family-back-v2.png`: vierfarbige Bänder auf dunklem Grund |
 
-| Datei unter `images/` | Verwendung |
-| --- | --- |
-| `card-back.png` | Illustrierte Kartenrückseite für Rommé, Skip-Bo und FamCards |
-| `card-characters.png` | Freigestellte Illustrationen für König, Dame, Bube und Joker; 2 × 2 Bildatlas |
-| `chess-pieces.png` | Zwölf freigestellte Schachfiguren; sechs Spalten, Weiß oben und Dunkelblau unten |
-| `game-tokens.png` | Vier Ludo-Figuren und vier Dame-Steine; vier Spalten, Figuren oben, Steine unten |
-| `game-table.png` | Holzrahmen mit goldenen Ornamenten und petrolfarbener Filzoberfläche |
+Die 120 Vorderseiten liegen in `romme-v2/`, `sequence-v2/` und `family-v2/`. `romme-courts-v2.png` enthält zwölf eigenständige Illustrationen in vier Spalten (Herz, Karo, Kreuz, Pik) und drei Zeilen (König, Dame, Bube). Der Rommé-Renderer wählt jede Illustration ausdrücklich passend zu Kartenfarbe und Rang. Zahlen- und Aktionskarten erhalten keine Hofmotive.
 
-Die transparenten Bildatlanten werden mit CSS positioniert, ohne zusätzliche Einzeldateien zu laden. In `AtelierPiece.tsx` und `AtelierCard.tsx` bleiben Alternativtexte, Auswahl, Tastaturbedienung und Zugregeln getrennt von der Illustration. Die vier Ludo-Farben besitzen zusätzlich Kreis-, Quadrat-, Dreieck- und Rautensymbole.
+Die vier neuen PNG-Bilder wurden mit dem integrierten Imagegen-Werkzeug erzeugt und unverändert ins Projekt kopiert. Die vollständigen verwendeten Prompts stehen in `public/assets/atelier/card-prompts-v2.json`. Dafür wurde kein API-/CLI-Fallback verwendet. Die genaue Druckgrafik mit Zahlen und Symbolen wird reproduzierbar durch `scripts/generate_card_sets.py` erstellt. Die beiden Kartenspiele mit Zahlen verwenden keine Rommé-Farbsymbole oder Hofkarten.
 
-## Prompt-Set und Gestaltung
+## Weitere vorhandene Bilder
 
-Verwendet wurde der integrierte Bildgenerator, kein API-/CLI-Fallback. Motivvorgaben der fünf Generierungen:
+`chess-pieces.png` enthält zwölf freigestellte Schachfiguren, `game-tokens.png` vier Ludo-Figuren und vier Dame-Steine. `game-table.png` liefert die Holz-Filz-Oberfläche. Diese Bilder und ihre Einbindungen bleiben erhalten. Der separate Joker aus `card-characters.png` wird weiterhin für die Rommé-Jokerkarte verwendet.
 
-1. **Kartenrücken:** Hochformat 2:3, tatsächliches flaches Kartenbild ohne Produkt-Mockup. Symmetrische originale Art-Nouveau-Ranken in Gold, Petrol und Nachtblau, elfenbeinfarbene Kompassblume in einer Raute, fein gravierte Oberfläche und doppelter Ornamentrand. Keine Schrift, Marken oder Wasserzeichen.
-2. **Schachfiguren:** Transparenter 6 × 2 Atlas mit quadratischen Zellen. Oben König, Dame, Turm, Läufer, Springer und Bauer in Elfenbein, unten dieselbe Reihenfolge in Nachtblau. Aufrechte Vorderansicht, geschnitztes Holz, feine Goldeinlagen, erkennbare Staunton-Silhouetten und getrennte Figuren.
-3. **Spielbrettoberfläche:** Quadratische, streng senkrechte Draufsicht. Dunkler Walnussholzrahmen mit goldenen botanischen Eckornamenten, durchgehende petrolfarbene Filzeinlage und dezente Kompassprägung. Keine Spielfelder, Figuren oder Beschriftungen; mathematisch korrekte Felder werden durch die Spieloberfläche darübergelegt.
-4. **Spielsteine:** Transparenter 4 × 2 Atlas. Oben rote, blaue, grüne und gelbe Holzfiguren mit unterschiedlichen elfenbeinfarbenen Symbolen. Unten roter und dunkelblauer Dame-Stein sowie beide Farben mit goldener Krone. Gedrechselte Formen, Holzmaserung und goldene Ränder.
-5. **Kartencharaktere:** Transparenter 2 × 2 Atlas mit freundlichem König, Dame, jungem Buben und verspieltem Hofnarren. Aufwendige märchenhafte Miniaturillustrationen, bestickte Kleidung, Kronen und kleine Requisiten in Nachtblau, Petrol, Elfenbein und Gold. Keine Kartenrahmen, Zahlen oder Schrift.
+Die erste Kartenfassung bleibt als Quelldatei erhalten, wird aber nicht mehr von den drei Kartenspielen verwendet. Ihre alten Vorderseiten und die zuvor gemeinsame Rückseite werden nicht mehr in den Offline-Cache aufgenommen. Alle aktuellen Dateien werden lokal ausgeliefert und ohne externe Bilddienste verwendet.
 
-## Ergänzende Grafiken
+## Erzeugung und Prüfung
 
-151 eigene SVG-Dateien liefern klare Zahlen und Kartenfarben, vier französische Kartenfarben mit 52 Werten plus Joker, Aktionskarten, Zahlenkarten, alternative Figuren und präzise 8 × 8 Bretter. Die Kartenwerte bleiben dadurch auch in kleiner Darstellung lesbar. `scripts/generate_game_assets.py` erzeugt diese Dateien reproduzierbar und aktualisiert das Manifest, ohne die PNG-Bilder zu verändern.
+- `python scripts/generate_card_sets.py`: 120 aktuelle Vorderseiten und Asset-Manifest erzeugen; PNG-Bilder bleiben unverändert.
+- `python scripts/generate_game_assets.py`: ergänzende ursprüngliche SVG-Grafiken neu erzeugen; aktuelle Karten bleiben erhalten.
+- `npm test`: prüft zusätzlich drei unterschiedliche PNG-Rückseiten anhand ihres Dateiinhalts, sämtliche 120 Vorderseiten, korrekte Anzahl der Rommé-Farbsymbole und zwölf verschiedene Hofmotiv-Zuordnungen.
 
-Die gemeinsame Brettoberfläche wird in Schach, Dame, Ludo, FamCards und den weiteren Spielen mit den entsprechenden Tischhintergründen verwendet. Rommé und Skip-Bo verwenden die neuen Kartenrenderer. Bestehende individuelle Catan-, Monopoly-, Mahjong- und Diamond-Blast-Illustrationen bleiben zusätzlich erhalten.
+Die drei Kartenspiele wurden mit ihren tatsächlich geladenen Bilddateien im Browser geprüft, einschließlich 390 Pixel breiter Darstellung. Rommé-Kartenziehen wurde interaktiv getestet. Ein visueller Vergleich liegt in `artifacts/kartensets-v2.png`.
 
-## Offline und Prüfung
+## Diamond Blast
 
-Der Service Worker nimmt die SVG- und PNG-Dateien in den Offline-Cache auf. Das Dateilimit beträgt 4 MiB, damit auch die illustrierten PNG-Bilder vollständig gecacht werden. Die fünf PNG-Dateien belegen zusammen etwa 11 MiB; sie werden zwischen den Spielen wiederverwendet.
-
-Alle Manifestdateien wurden auf Existenz, die SVG-Dateien auf gültiges XML und die PNG-Dateien auf gültige Header und Cachegröße geprüft. Schach- und Dame-Züge sowie die sechs betroffenen Figuren-/Kartenspiele wurden im Browser geprüft, einschließlich einer 390 Pixel breiten Ansicht.
+Diamond Blast verwendet eigene, getrennte PNG-Bilder unter `public/assets/diamond-blast/`: `gems.png` für sechs unterschiedlich geformte Kristalle, `objects.png` für Spezialsteine und Hindernisse sowie `vault.png` für das Kristallhöhlen-Brett. Diese Bilder werden ausschließlich für Diamond Blast eingesetzt. Die vollständigen Imagegen-Prompts stehen in `prompts.json`, Einbindung und Leveltabelle in `DIAMOND_BLAST.md`.

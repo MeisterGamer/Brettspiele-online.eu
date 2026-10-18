@@ -44,6 +44,11 @@ export interface LevelConfig {
   starScores: [number, number, number];
   obstacles: { r: number; c: number; type: ObstacleType; health?: number }[];
   goals: LevelGoal[];
+  seed?: number;
+  colors?: GemColor[];
+  chapter?: string;
+  briefing?: string;
+  difficulty?: number;
 }
 
 export interface GameStats {
