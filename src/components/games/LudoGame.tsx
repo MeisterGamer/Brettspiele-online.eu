@@ -1,3 +1,4 @@
+import {AtelierPiece} from './AtelierPiece';
 import { useGameTimers } from './useGameTimers';
 import React, { useState, useEffect } from 'react';
 import { sound } from '../../services/sound';
@@ -579,67 +580,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     }
   };
 
-  // Render a 3D Realistic Halma Cone Figure (Holzkegel mit Kugelspitze)
-  const renderWoodenConeFigure = (piece: Piece, isMovable: boolean) => {
-    const theme = COLOR_THEMES[piece.color];
-
-    return (
-      <div
-        onClick={() => isMovable && handleMovePiece(piece.id)}
-        className={`w-5 h-7 sm:w-7 sm:h-9 relative flex flex-col items-center justify-center cursor-pointer select-none transition-all duration-300 z-20 ${
-          isMovable ? 'animate-bounce scale-110 sm:scale-125 hover:brightness-125' : ''
-        }`}
-        title={`${COLOR_NAMES[piece.color]} Figur #${piece.id}`}
-      >
-        {/* Glow Ring if Movable */}
-        {isMovable && (
-          <div className="absolute inset-0 -m-1 rounded-full border-2 border-amber-300 animate-ping opacity-75" />
-        )}
-
-        {/* 1. Spherical Turned-Wood Head */}
-        <div
-          className="w-4 h-4 rounded-full relative z-10 shadow-md"
-          style={{
-            background: theme.gradient,
-            boxShadow: `0 2px 4px rgba(0,0,0,0.5), inset 1px 1px 2px rgba(255,255,255,0.7), inset -1px -1px 2px rgba(0,0,0,0.4)`,
-          }}
-        >
-          {/* Specular highlight */}
-          <div className="absolute top-0.5 left-1 w-1.5 h-1.5 bg-white/70 rounded-full blur-[0.3px]" />
-        </div>
-
-        {/* 2. Turned Neck Ring */}
-        <div
-          className="w-2.5 h-1 -my-0.5 relative z-10 rounded-sm"
-          style={{
-            background: theme.border,
-            boxShadow: 'inset 0 1px 1px rgba(0,0,0,0.5)',
-          }}
-        />
-
-        {/* 3. Conical Skirt Body (Halma Cone) */}
-        <div
-          className="w-5 h-4.5 rounded-b-xl relative z-0 shadow-lg"
-          style={{
-            background: theme.gradient,
-            clipPath: 'polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%)',
-            boxShadow: `0 3px 6px rgba(0,0,0,0.6), inset 1px 1px 3px rgba(255,255,255,0.5)`,
-          }}
-        >
-          {/* Subtle wooden lathe groove */}
-          <div className="absolute top-1 inset-x-0 h-0.5 bg-black/20" />
-        </div>
-
-        {/* 4. Weighted Base Ring & Drop Shadow on Board */}
-        <div
-          className="w-6 h-2 -mt-1 rounded-full filter blur-[0.8px]"
-          style={{
-            background: 'radial-gradient(ellipse, rgba(0,0,0,0.7) 0%, transparent 80%)',
-          }}
-        />
-      </div>
-    );
-  };
+  const renderWoodenConeFigure=(piece:Piece,isMovable:boolean)=><button type="button" disabled={!isMovable} aria-label={`${COLOR_NAMES[piece.color]} Figur ${piece.id}`} onClick={()=>handleMovePiece(piece.id)} className={`w-full h-full relative z-20 rounded-full ${isMovable?'ring-2 ring-amber-300 animate-bounce':''}`}><AtelierPiece kind={`pawn-${piece.color}`} label={`${piece.color} Spielfigur`} className="w-full h-full object-contain pointer-events-none"/></button>;
 
   return (
     <div className="flex flex-col items-center w-full max-w-4xl mx-auto select-none text-slate-100 font-sans">
@@ -726,7 +667,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
             src={TABLE_BACKGROUNDS.mahogany}
             alt="Wooden Board Texture"
             referrerPolicy="no-referrer"
-            className="absolute inset-0 w-full h-full object-cover filter brightness-[0.45] contrast-125"
+            className="absolute inset-0 w-full h-full object-cover "
           />
 
           {/* Golden Lacquered Border Groove */}

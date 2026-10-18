@@ -1,3 +1,5 @@
+import {AtelierPiece} from './AtelierPiece';
+import {boardAsset} from '../../services/gameAssets';
 import React, { useEffect, useRef, useState } from 'react';
 import { RefreshCw, Trophy, Bot, Users, Wifi } from 'lucide-react';
 import { Chess } from 'chess.js';
@@ -66,46 +68,7 @@ export const ChessGame:React.FC<ChessGameProps>=({onGameEnd,tableParticipants,cu
   };
   const drawColor=isOnlineMultiplayer?myColor:turn;
   if(!game.ready)return <p role="status">Schachstellung wird geladen …</p>;
-  // Render Staunton piece with wooden textures
-  const renderStauntonPiece = (piece: ChessPiece) => {
-    const isWhite = piece.color === 'w';
-
-    const symbols: Record<PieceType, string> = {
-      k: '♚',
-      q: '♛',
-      r: '♜',
-      b: '♝',
-      n: '♞',
-      p: '♟',
-    };
-
-    return (
-      <div
-        className="w-full h-full flex items-center justify-center relative select-none transform transition-transform"
-        style={{
-          filter: isWhite
-            ? 'drop-shadow(0 4px 6px rgba(0,0,0,0.6))'
-            : 'drop-shadow(0 4px 8px rgba(0,0,0,0.8))',
-        }}
-      >
-        <span
-          className={`text-2xl sm:text-4xl font-serif font-black ${
-            isWhite
-              ? 'text-amber-100 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]'
-              : 'text-amber-950 drop-shadow-[0_1px_1px_rgba(255,255,255,0.2)]'
-          }`}
-          style={{
-            textShadow: isWhite
-              ? '0 1px 2px #000, 0 0 1px #fff'
-              : '0 1px 1px rgba(255,255,255,0.3)',
-          }}
-        >
-          {symbols[piece.type]}
-        </span>
-      </div>
-    );
-  };
-
+  const renderStauntonPiece=(piece:ChessPiece)=><AtelierPiece kind={`chess-${piece.color}-${piece.type}`} label={`${piece.color==='w'?'Weiße':'Schwarze'} Figur: ${{p:'Bauer',r:'Turm',n:'Springer',b:'Läufer',q:'Dame',k:'König'}[piece.type]}`} className="w-[90%] h-[90%] object-contain pointer-events-none drop-shadow-md"/>;
   return (
     <div className="flex flex-col items-center max-w-xl mx-auto w-full select-none text-slate-100">
       
@@ -187,10 +150,10 @@ export const ChessGame:React.FC<ChessGameProps>=({onGameEnd,tableParticipants,cu
           src={TABLE_BACKGROUNDS.mahogany}
           alt="Wood Texture"
           referrerPolicy="no-referrer"
-          className="absolute inset-0 w-full h-full object-cover filter brightness-[0.35] contrast-125"
+          className="absolute inset-0 w-full h-full object-cover "
         />
 
-        <div className="relative z-10 grid grid-cols-8 rounded-2xl overflow-hidden border-2 border-amber-900/90 shadow-2xl bg-amber-950">
+        <div style={{backgroundImage:`url(${boardAsset('chess')})`,backgroundSize:'100% 100%'}} className="relative z-10 grid grid-cols-8 rounded-2xl overflow-hidden border-2 border-amber-900/90 shadow-2xl bg-amber-950">
           {board.map((row, r) =>
             row.map((cell, c) => {
               const isDark = (r + c) % 2 === 1;
@@ -207,8 +170,8 @@ export const ChessGame:React.FC<ChessGameProps>=({onGameEnd,tableParticipants,cu
                   onClick={() => handleSquareClick(r, c)}
                   className={`aspect-square flex items-center justify-center relative cursor-pointer transition-colors ${
                     isDark
-                      ? 'bg-amber-900/90 hover:brightness-110'
-                      : 'bg-amber-200/90 hover:brightness-105'
+                      ? 'hover:bg-white/10'
+                      : 'hover:bg-black/10'
                   } ${isSelected ? 'ring-2 ring-amber-400 z-10' : ''}`}
                 >
                   {/* Destination hint indicator */}

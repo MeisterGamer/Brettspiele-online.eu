@@ -1,3 +1,4 @@
+import {boardAsset} from './gameAssets';
 import { GameInfo, GameCategory } from '../types';
 
 // Helper: converts SVG string to clean data URI
@@ -5,108 +6,8 @@ export const svgToDataUri = (svg: string): string => {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.trim())}`;
 };
 
-// Ambient backgrounds for games & tables (self-contained SVG data URIs, immune to CSP & offline)
-export const TABLE_BACKGROUNDS = {
-  mahogany: svgToDataUri(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" width="1400" height="900">
-      <defs>
-        <radialGradient id="mCenter" cx="50%" cy="50%" r="65%">
-          <stop offset="0%" stop-color="#4e2613"/>
-          <stop offset="60%" stop-color="#34160a"/>
-          <stop offset="100%" stop-color="#190903"/>
-        </radialGradient>
-        <pattern id="grain" width="120" height="24" patternUnits="userSpaceOnUse">
-          <path d="M0 6 Q 60 18 120 6 M0 14 Q 60 2 120 14" stroke="#230b03" stroke-width="1.2" fill="none" opacity="0.35"/>
-        </pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#mCenter)"/>
-      <rect width="100%" height="100%" fill="url(#grain)"/>
-      <rect width="100%" height="100%" fill="none" stroke="#2a1005" stroke-width="14" opacity="0.6"/>
-    </svg>
-  `),
-  feltGreen: svgToDataUri(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" width="1400" height="900">
-      <defs>
-        <radialGradient id="fCenter" cx="50%" cy="45%" r="65%">
-          <stop offset="0%" stop-color="#116239"/>
-          <stop offset="65%" stop-color="#0a3e23"/>
-          <stop offset="100%" stop-color="#051f11"/>
-        </radialGradient>
-        <radialGradient id="vignette" cx="50%" cy="50%" r="60%">
-          <stop offset="80%" stop-color="transparent"/>
-          <stop offset="100%" stop-color="#020e07" stop-opacity="0.85"/>
-        </radialGradient>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#fCenter)"/>
-      <rect width="100%" height="100%" fill="url(#vignette)"/>
-      <rect width="100%" height="100%" fill="none" stroke="#1d7a49" stroke-width="8" opacity="0.3"/>
-    </svg>
-  `),
-  hearthCozy: svgToDataUri(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" width="1400" height="900">
-      <defs>
-        <radialGradient id="hCenter" cx="50%" cy="50%" r="65%">
-          <stop offset="0%" stop-color="#5a2f14"/>
-          <stop offset="50%" stop-color="#3c1e0b"/>
-          <stop offset="100%" stop-color="#1c0b03"/>
-        </radialGradient>
-        <radialGradient id="fireGlow" cx="50%" cy="100%" r="65%">
-          <stop offset="0%" stop-color="#ff7a18" stop-opacity="0.25"/>
-          <stop offset="70%" stop-color="transparent"/>
-        </radialGradient>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#hCenter)"/>
-      <rect width="100%" height="100%" fill="url(#fireGlow)"/>
-    </svg>
-  `),
-  terraceGarden: svgToDataUri(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" width="1400" height="900">
-      <defs>
-        <radialGradient id="tCenter" cx="50%" cy="50%" r="65%">
-          <stop offset="0%" stop-color="#2d3748"/>
-          <stop offset="60%" stop-color="#1a202c"/>
-          <stop offset="100%" stop-color="#0f141d"/>
-        </radialGradient>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#tCenter)"/>
-    </svg>
-  `),
-  oceanRadar: svgToDataUri(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" width="1400" height="900">
-      <defs>
-        <radialGradient id="oceanBg" cx="50%" cy="50%" r="70%">
-          <stop offset="0%" stop-color="#062744"/>
-          <stop offset="55%" stop-color="#031526"/>
-          <stop offset="100%" stop-color="#010a12"/>
-        </radialGradient>
-        <pattern id="radarGrid" width="60" height="60" patternUnits="userSpaceOnUse">
-          <path d="M 60 0 L 0 0 0 60" fill="none" stroke="#00ffff" stroke-width="0.75" opacity="0.12"/>
-        </pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#oceanBg)"/>
-      <rect width="100%" height="100%" fill="url(#radarGrid)"/>
-      <circle cx="700" cy="450" r="180" fill="none" stroke="#00e5ff" stroke-width="1" opacity="0.25" stroke-dasharray="8 6"/>
-      <circle cx="700" cy="450" r="320" fill="none" stroke="#00e5ff" stroke-width="1.2" opacity="0.2"/>
-      <circle cx="700" cy="450" r="460" fill="none" stroke="#00e5ff" stroke-width="1" opacity="0.15"/>
-    </svg>
-  `),
-  slateZen: svgToDataUri(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" width="1400" height="900">
-      <defs>
-        <radialGradient id="slateGrad" cx="50%" cy="50%" r="70%">
-          <stop offset="0%" stop-color="#242b35"/>
-          <stop offset="60%" stop-color="#171b22"/>
-          <stop offset="100%" stop-color="#0c0e12"/>
-        </radialGradient>
-        <pattern id="subtleGrid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#ffffff" stroke-width="0.5" opacity="0.04"/>
-        </pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#slateGrad)"/>
-      <rect width="100%" height="100%" fill="url(#subtleGrid)"/>
-    </svg>
-  `),
-};
+// Original local table artwork, also included in the offline cache.
+export const TABLE_BACKGROUNDS = Object.fromEntries(['mahogany','feltGreen','hearthCozy','terraceGarden','oceanRadar','slateZen'].map(name=>[name,boardAsset(name)])) as Record<'mahogany'|'feltGreen'|'hearthCozy'|'terraceGarden'|'oceanRadar'|'slateZen',string>;
 
 export const HERO_BANNER_IMAGE = svgToDataUri(`
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 700" width="1600" height="700">

@@ -1,3 +1,4 @@
+import {familyCardAsset,cardBack} from '../../services/gameAssets';
 import { shuffle } from '../../services/gameAI';
 import { useGameTimers } from './useGameTimers';
 import React, { useState, useEffect } from 'react';
@@ -424,7 +425,7 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
               key={i}
               className="w-8 h-12 rounded-lg bg-indigo-950 border border-indigo-700/60 shadow-md flex items-center justify-center font-bold text-[9px] text-amber-400"
             >
-              ★
+              <img src={cardBack('family')} alt="Verdeckte Karte" draggable={false} className="w-full h-full rounded-lg"/>
             </div>
           ))}
           {oppHand.length > 7 && (
@@ -447,7 +448,7 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
           src={TABLE_BACKGROUNDS.feltGreen}
           alt="Card Table Texture"
           referrerPolicy="no-referrer"
-          className="absolute inset-0 w-full h-full object-cover filter brightness-[0.25] contrast-125"
+          className="absolute inset-0 w-full h-full object-cover "
         />
         <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/70 via-emerald-950/85 to-slate-950/90 pointer-events-none" />
 
@@ -481,32 +482,22 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
               boxShadow: '4px 4px 0px rgba(15, 23, 42, 0.9), 8px 8px 0px rgba(2, 6, 23, 0.7)'
             }}
           >
-            <div className="w-16 h-24 rounded-xl border border-indigo-500/40 bg-indigo-950/50 flex flex-col items-center justify-center">
-              <Layers className="w-6 h-6 text-amber-400" />
-              <span className="text-[10px] font-black text-amber-300 font-display mt-1">ZIEHEN</span>
-            </div>
+            <img src={cardBack('family')} alt="Karte ziehen" draggable={false} className="absolute inset-0 w-full h-full rounded-xl pointer-events-none"/>
+
           </button>
 
           {/* Active Discard Top Card with Real Oval Card Center */}
           {topCard && (
             <div
-              className={`w-20 h-28 sm:w-24 sm:h-32 rounded-2xl border-2 shadow-2xl flex flex-col items-center justify-between p-2 font-display transition-transform ${getColorBg(
+              className={`w-20 h-28 sm:w-24 sm:h-32 rounded-2xl border-2 shadow-2xl flex flex-col items-center justify-between p-0 font-display transition-transform ${getColorBg(
                 topCard.color === 'wild' ? activeColor : topCard.color
               )}`}
               style={{
                 boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.7), inset 0 2px 4px rgba(255, 255, 255, 0.4)'
               }}
             >
-              <span className="text-xs self-start leading-none font-bold drop-shadow">{topCard.value}</span>
-              
-              {/* Central White Oval Emblem */}
-              <div className="w-16 h-20 rounded-[50%] bg-white/95 text-slate-950 shadow-inner flex items-center justify-center -rotate-12 border border-black/10">
-                <span className="text-3xl font-black font-display tracking-tight text-slate-950">
-                  {topCard.value}
-                </span>
-              </div>
+              <img src={familyCardAsset(topCard.color,topCard.value)} alt={`Ablage: ${topCard.color} ${topCard.value}`} draggable={false} className="w-full h-full object-fill rounded-xl"/>
 
-              <span className="text-xs self-end leading-none font-bold drop-shadow">{topCard.value}</span>
             </div>
           )}
         </div>
@@ -565,7 +556,7 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
               key={card.id}
               onClick={() => handlePlayCard(card)}
               disabled={!playable}
-              className={`w-14 h-22 sm:w-16 sm:h-24 shrink-0 rounded-2xl border-2 flex flex-col items-center justify-between p-1.5 font-display transition-all relative ${
+              className={`w-14 h-22 sm:w-16 sm:h-24 shrink-0 rounded-2xl border-2 flex flex-col items-center justify-between p-0 font-display transition-all relative ${
                 getColorBg(card.color)
               } ${
                 playable
@@ -578,16 +569,8 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
                   : '0 4px 6px rgba(0,0,0,0.5)'
               }}
             >
-              <span className="text-[10px] self-start leading-none font-black drop-shadow">{card.value}</span>
-              
-              {/* Mini Oval Inner Center */}
-              <div className="w-11 h-13 rounded-[50%] bg-white/95 text-slate-950 shadow-inner flex items-center justify-center -rotate-12 border border-black/10">
-                <span className="text-base font-black font-display tracking-tight text-slate-950">
-                  {card.value}
-                </span>
-              </div>
+              <img src={familyCardAsset(card.color,card.value)} alt={`${card.color} ${card.value}`} draggable={false} className="w-full h-full rounded-xl pointer-events-none"/>
 
-              <span className="text-[10px] self-end leading-none font-black drop-shadow">{card.value}</span>
             </button>
           );
         })}

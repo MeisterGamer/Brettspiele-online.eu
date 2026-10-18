@@ -1,3 +1,5 @@
+import {AtelierPiece} from './AtelierPiece';
+import {boardAsset} from '../../services/gameAssets';
 import React,{useEffect,useRef,useState} from 'react';
 import {RefreshCw,Trophy,Bot,Users,Crown,Wifi} from 'lucide-react';
 import {useAIDifficulty} from './GameArena';
@@ -155,10 +157,10 @@ export const CheckersGame:React.FC<CheckersGameProps>=({onGameEnd,tableParticipa
           src={TABLE_BACKGROUNDS.mahogany}
           alt="Wood Texture"
           referrerPolicy="no-referrer"
-          className="absolute inset-0 w-full h-full object-cover filter brightness-[0.25] contrast-125"
+          className="absolute inset-0 w-full h-full object-cover "
         />
 
-        <div className="relative z-10 grid grid-cols-8 gap-0.5 rounded-2xl overflow-hidden border-2 border-amber-900/90 shadow-2xl bg-amber-950">
+        <div style={{backgroundImage:`url(${boardAsset('checkers')})`,backgroundSize:'100% 100%'}} className="relative z-10 grid grid-cols-8 rounded-2xl overflow-hidden border-2 border-amber-900/90 shadow-2xl bg-amber-950">
           {board.map((row, r) =>
             row.map((cell, c) => {
               const isDark = (r + c) % 2 === 1;
@@ -175,8 +177,8 @@ export const CheckersGame:React.FC<CheckersGameProps>=({onGameEnd,tableParticipa
                   onClick={() => handleCellClick(r, c)}
                   className={`aspect-square flex items-center justify-center relative cursor-pointer transition-colors ${
                     isDark
-                      ? 'bg-gradient-to-br from-amber-950 via-amber-900 to-amber-950 hover:brightness-110'
-                      : 'bg-gradient-to-br from-amber-200 via-amber-100 to-amber-200'
+                      ? 'hover:bg-white/10'
+                      : 'hover:bg-black/10'
                   } ${isSelected ? 'ring-2 ring-amber-400 z-10' : ''}`}
                 >
                   {/* Destination hint indicator */}
@@ -184,41 +186,8 @@ export const CheckersGame:React.FC<CheckersGameProps>=({onGameEnd,tableParticipa
                     <div className="w-4 h-4 rounded-full bg-emerald-400/90 animate-ping z-20 shadow-md ring-2 ring-white" />
                   )}
 
-                  {/* 3D Realistic Turned-Wood Draughts Piece */}
-                  {cell && (
-                    <div
-                      className={`w-7 h-7 sm:w-9 sm:h-9 rounded-full flex items-center justify-center font-bold text-xs shadow-xl transition-transform ${
-                        isSelected ? 'scale-110 -translate-y-1' : ''
-                      }`}
-                      style={{
-                        background:
-                          cell.player === 'red'
-                            ? 'radial-gradient(circle at 35% 30%, #ff4b72, #dc2626 65%, #7f1d1d 100%)'
-                            : 'radial-gradient(circle at 35% 30%, #64748b, #1e293b 65%, #020617 100%)',
-                        boxShadow:
-                          cell.player === 'red'
-                            ? '0 6px 10px rgba(0,0,0,0.6), inset 0 2px 4px rgba(255, 255, 255, 0.7), inset 0 -2px 4px rgba(0, 0, 0, 0.5)'
-                            : '0 6px 10px rgba(0,0,0,0.7), inset 0 2px 4px rgba(255, 255, 255, 0.4), inset 0 -2px 4px rgba(0, 0, 0, 0.8)',
-                      }}
-                    >
-                      {/* Concentric turned wood ridge */}
-                      <div
-                        className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border flex items-center justify-center ${
-                          cell.player === 'red' ? 'border-red-300/40' : 'border-slate-500/40'
-                        }`}
-                      >
-                        {cell.isKing ? (
-                          <Crown className="w-3.5 h-3.5 text-amber-300 fill-amber-300 drop-shadow animate-pulse" />
-                        ) : (
-                          <div
-                            className={`w-2 h-2 rounded-full ${
-                              cell.player === 'red' ? 'bg-red-300/60' : 'bg-slate-400/60'
-                            }`}
-                          />
-                        )}
-                      </div>
-                    </div>
-                  )}
+                  {cell&&<AtelierPiece kind={`checker-${cell.player}${cell.isKing?'-king':''}`} label={`${cell.player==='red'?'Roter':'Schwarzer'} ${cell.isKing?'Damenstein':'Stein'}`} className={`w-[88%] h-[88%] object-contain pointer-events-none ${isSelected?'scale-110':''}`}/>}
+
                 </div>
               );
             })
