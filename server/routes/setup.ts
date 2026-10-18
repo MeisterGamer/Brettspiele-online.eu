@@ -12,18 +12,41 @@ import {
   markAsInstalled,
   hasAdminUser,
   createUser,
+  updateUser,
   findUserByEmailOrUsername,
   DbUserRecord,
 } from '../db.js';
 import { configureEmail, testSmtpConnection, getEmailServiceStatus } from '../email.js';
 
 export const setupRouter = Router();
+setupRouter.use(rateLimit(20));
+// Installed systems must never expose configuration writes or connection probes.
+setupRouter.use(async (req, res, next) => {
+  if (req.path === '/status' && req.method === 'GET') return next();
+  try {
+    if (checkIsInstalled() || await hasAdminUser()) {
+      return res.status(403).json({ success: false, error: 'Setup ist gesperrt.' });
+    }
+    const remote = req.socket.remoteAddress;
+    const host = req.hostname;
+    if (!['localhost', '127.0.0.1', '[::1]'].includes(host) || req.headers['x-forwarded-for'] || req.headers.forwarded) {
+      return res.status(403).json({ success: false, error: 'Setup über SSH-Tunnel mit localhost öffnen.' });
+    }
+    if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(remote || '')) {
+      return res.status(403).json({ success: false, error: 'Setup ist nur über eine lokale Verbindung verfügbar.' });
+    }
+    next();
+  } catch { res.status(503).json({ success: false, error: 'Setup-Status nicht verfügbar.' }); }
+});
 
 const ENV_FILE = path.resolve('.env');
-const JWT_SECRET = process.env.JWT_SECRET || 'famplay_secret_jwt_key_2026';
+import { JWT_SECRET, rateLimit } from '../security.js';
 
 // Helper: updates or creates .env file key-value pairs
 function updateEnvFile(keyValuePairs: Record<string, string>) {
+  for (const value of Object.values(keyValuePairs)) {
+    if (typeof value !== 'string' || /[\r\n'\\]/.test(value)) throw new Error('Ungültiger Konfigurationswert.');
+  }
   let existingContent = '';
   try {
     if (fs.existsSync(ENV_FILE)) {
@@ -41,7 +64,7 @@ function updateEnvFile(keyValuePairs: Record<string, string>) {
     if (key in keyValuePairs) {
       updatedKeys.add(key);
       const val = keyValuePairs[key];
-      return `${key}="${val}"`;
+      return `${key}='${val}'`;
     }
     return line;
   });
@@ -49,7 +72,7 @@ function updateEnvFile(keyValuePairs: Record<string, string>) {
   // Append remaining keys that were not present
   for (const [key, val] of Object.entries(keyValuePairs)) {
     if (!updatedKeys.has(key)) {
-      newLines.push(`${key}="${val}"`);
+      newLines.push(`${key}='${val}'`);
     }
   }
 
@@ -57,6 +80,7 @@ function updateEnvFile(keyValuePairs: Record<string, string>) {
     fs.writeFileSync(ENV_FILE, newLines.join('\n') + '\n', 'utf-8');
   } catch (err) {
     console.error('[Setup] Error writing .env:', err);
+    throw err;
   }
 }
 
@@ -66,7 +90,7 @@ function updateEnvFile(keyValuePairs: Record<string, string>) {
  */
 setupRouter.get('/status', async (_req: Request, res: Response) => {
   const hasAdmin = await hasAdminUser();
-  const installed = checkIsInstalled() && hasAdmin;
+  const installed = checkIsInstalled() || hasAdmin;
 
   return res.json({
     installed,
@@ -209,7 +233,7 @@ setupRouter.post('/create-inhaber', async (req: Request, res: Response) => {
     // 1. Update .env with platform & service configs
     const envUpdates: Record<string, string> = {
       APP_URL: appUrl || 'https://brettspiele-online.eu',
-      JWT_SECRET: process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex'),
+      JWT_SECRET,
     };
 
     if (dbConfig) {
@@ -252,6 +276,7 @@ setupRouter.post('/create-inhaber', async (req: Request, res: Response) => {
       existing.password_hash = passwordHash;
       existing.is_verified = true;
       existing.is_vip = true;
+      await updateUser(existing.id, { role: 'admin', password_hash: passwordHash, is_verified: true, is_vip: true });
       adminRecord = existing;
     } else {
       adminRecord = {

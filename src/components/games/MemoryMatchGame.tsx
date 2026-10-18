@@ -1,4 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useAIDifficulty } from './GameArena';
+import { shuffle, pick } from '../../services/gameAI';
+import { useGameTimers } from './useGameTimers';
+import React, { useState, useEffect, useRef } from 'react';
 import { sound } from '../../services/sound';
 import confetti from '../../services/confetti';
 import { RefreshCw, Trophy, Brain, Sparkles, Users, Bot, Wifi } from 'lucide-react';
@@ -53,6 +56,9 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   roomCode,
   isHost,
 }) => {
+  const { schedule, cancelAll } = useGameTimers();
+  const difficulty = useAIDifficulty();
+  const remembered = useRef(new Map<number, string>());
   const p1 = tableParticipants?.[0];
   const p2 = tableParticipants?.[1];
   const p1Name = p1?.name || 'Spieler 1';
@@ -78,6 +84,15 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   const [currentTurn, setCurrentTurn] = useState<1 | 2>(1);
   const [scores, setScores] = useState({ p1: 0, p2: 0 });
 
+  const cardsRef = useRef(cards);
+  const flippedRef = useRef<number[]>([]);
+  const lockedRef = useRef(false);
+  const turnRef = useRef(currentTurn);
+  const scoreRef = useRef(scores);
+  cardsRef.current = cards;
+  turnRef.current = currentTurn;
+  scoreRef.current = scores;
+
   const isMyTurn = isOnlineMultiplayer
     ? myPlayerNumber === currentTurn
     : true;
@@ -92,10 +107,10 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   const generateDeck = (customOrder?: number[]) => {
     const rawPairs = [...ANIMALS, ...ANIMALS];
     let ordered = rawPairs;
-    if (customOrder && customOrder.length === 16) {
-      ordered = customOrder.map((idx) => rawPairs[idx]);
+    if (customOrder && customOrder.length === 16 && customOrder.every(i => Number.isInteger(i) && i >= 0 && i < ANIMALS.length)) {
+      ordered = customOrder.map((idx) => ANIMALS[idx]);
     } else {
-      ordered = rawPairs.sort(() => Math.random() - 0.5);
+      ordered = shuffle(rawPairs);
     }
 
     return ordered.map((item, index) => ({
@@ -109,8 +124,15 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   };
 
   const initGame = (customDeck?: AnimalCard[]) => {
+    cancelAll();
+    remembered.current.clear();
     sound.playCardDeal();
     const deck = customDeck || generateDeck();
+    cardsRef.current = deck;
+    flippedRef.current = [];
+    lockedRef.current = false;
+    turnRef.current = 1;
+    scoreRef.current = { p1:0,p2:0 };
     setCards(deck);
     setFlippedIndices([]);
     setMoves(0);
@@ -148,6 +170,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         const { index } = event.payload;
         applyCardFlip(index);
       } else if (event.action === 'RESET') {
+        cancelAll();
         initGame();
       }
     });
@@ -156,79 +179,55 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   }, [roomCode, currentUserId, isHost]);
 
   const applyCardFlip = (index: number) => {
-    setCards((prevCards) => {
-      if (prevCards[index].isFlipped || prevCards[index].isMatched) return prevCards;
-
-      sound.playClick();
-      const newCards = [...prevCards];
-      newCards[index] = { ...newCards[index], isFlipped: true };
-
-      setFlippedIndices((prevFlipped) => {
-        const nextFlipped = [...prevFlipped, index];
-
-        if (nextFlipped.length === 2) {
-          setMoves((m) => m + 1);
-          setIsLocked(true);
-
-          const [firstIdx, secondIdx] = nextFlipped;
-          if (newCards[firstIdx].animalId === newCards[secondIdx].animalId) {
-            // Match found!
-            sound.playReward();
-            setTimeout(() => {
-              setCards((latestCards) => {
-                const updated = [...latestCards];
-                updated[firstIdx] = { ...updated[firstIdx], isMatched: true };
-                updated[secondIdx] = { ...updated[secondIdx], isMatched: true };
-                return updated;
-              });
-              setFlippedIndices([]);
-              setIsLocked(false);
-              setMatchedPairs((pairs) => {
-                const nextPairs = pairs + 1;
-                if (nextPairs === ANIMALS.length) {
-                  setGameOver(true);
-                  sound.playVictory();
-                  try { confetti({ particleCount: 90, spread: 75 }); } catch (e) {}
-                  setScores((s) => {
-                    const finalP1 = currentTurn === 1 ? s.p1 + 1 : s.p1;
-                    const finalP2 = currentTurn === 2 ? s.p2 + 1 : s.p2;
-                    const winName = finalP1 >= finalP2 ? p1Name : p2Name;
-                    if (onGameEnd) onGameEnd(winName);
-                    return { p1: finalP1, p2: finalP2 };
-                  });
-                }
-                return nextPairs;
-              });
-
-              setScores((s) => ({
-                ...s,
-                [currentTurn === 1 ? 'p1' : 'p2']: s[currentTurn === 1 ? 'p1' : 'p2'] + 1,
-              }));
-            }, 400);
-          } else {
-            // Not a match, flip back
-            setTimeout(() => {
-              setCards((latestCards) => {
-                const updated = [...latestCards];
-                updated[firstIdx] = { ...updated[firstIdx], isFlipped: false };
-                updated[secondIdx] = { ...updated[secondIdx], isFlipped: false };
-                return updated;
-              });
-              setFlippedIndices([]);
-              setIsLocked(false);
-              setCurrentTurn((t) => (t === 1 ? 2 : 1));
-            }, 900);
-          }
+    const current = cardsRef.current;
+    if (lockedRef.current || !Number.isInteger(index) || !current[index] || current[index].isFlipped || current[index].isMatched) return;
+    remembered.current.set(index, current[index].animalId);
+    const limit = difficulty === 'easy' ? 2 : difficulty === 'normal' ? 6 : 16;
+    while (remembered.current.size > limit) remembered.current.delete(remembered.current.keys().next().value!);
+    sound.playClick();
+    const next = current.map((card,i)=>i===index ? {...card,isFlipped:true} : card);
+    cardsRef.current = next;
+    setCards(next);
+    const flipped = [...flippedRef.current,index];
+    flippedRef.current = flipped;
+    setFlippedIndices(flipped);
+    if (flipped.length !== 2) return;
+    lockedRef.current = true;
+    setIsLocked(true);
+    setMoves(m=>m+1);
+    const [first,second] = flipped;
+    const matched = next[first].animalId === next[second].animalId;
+    const actor = turnRef.current;
+    schedule(() => {
+      const updated = cardsRef.current.map((card,i)=>i===first||i===second ? {...card,isMatched:matched,isFlipped:matched} : card);
+      cardsRef.current = updated;
+      setCards(updated);
+      flippedRef.current = [];
+      lockedRef.current = false;
+      setFlippedIndices([]);
+      setIsLocked(false);
+      if (matched) {
+        sound.playReward();
+        const nextScores = {...scoreRef.current,[actor===1?'p1':'p2']:scoreRef.current[actor===1?'p1':'p2']+1};
+        scoreRef.current = nextScores;
+        setScores(nextScores);
+        const pairs = updated.filter(card=>card.isMatched).length/2;
+        setMatchedPairs(pairs);
+        if (pairs === ANIMALS.length) {
+          setGameOver(true);
+          sound.playVictory();
+          onGameEnd?.(mode === 'solo' ? 'player' : nextScores.p1 === nextScores.p2 ? 'draw' : nextScores.p1>nextScores.p2 ? p1Name : p2Name);
         }
-
-        return nextFlipped;
-      });
-
-      return newCards;
-    });
+      } else if (mode === 'duel') {
+        const nextTurn = actor===1 ? 2 : 1;
+        turnRef.current = nextTurn;
+        setCurrentTurn(nextTurn);
+      }
+    }, matched ? 400 : 900);
   };
 
   const handleCardClick = (index: number) => {
+    if (mode === 'duel' && isP2Bot && !isOnlineMultiplayer && currentTurn === 2) return;
     if (isLocked || cards[index].isFlipped || cards[index].isMatched) return;
     if (isOnlineMultiplayer && !isMyTurn) {
       sound.playError();
@@ -248,35 +247,24 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   useEffect(() => {
     if (mode !== 'duel' || currentTurn !== 2 || isOnlineMultiplayer || !isP2Bot || gameOver || isLocked) return;
 
-    const timer = setTimeout(() => {
-      const availableIndices = cards
-        .map((c, i) => (!c.isFlipped && !c.isMatched ? i : null))
-        .filter((i): i is number => i !== null);
-
-      if (availableIndices.length < 2) return;
-
-      const firstPick = availableIndices[Math.floor(Math.random() * availableIndices.length)];
-      applyCardFlip(firstPick);
-
-      setTimeout(() => {
-        setCards((curCards) => {
-          const remaining = curCards
-            .map((c, i) => (!c.isFlipped && !c.isMatched && i !== firstPick ? i : null))
-            .filter((i): i is number => i !== null);
-
-          if (remaining.length > 0) {
-            const secondPick = remaining[Math.floor(Math.random() * remaining.length)];
-            applyCardFlip(secondPick);
-          }
-          return curCards;
-        });
-      }, 750);
-    }, 850);
-
+    const timer = schedule(() => {
+      const available = cards.map((c,i) => !c.isFlipped && !c.isMatched ? i : -1).filter(i => i >= 0);
+      if (!available.length || flippedIndices.length >= 2) return;
+      const first = flippedIndices[0];
+      let chosen: number | undefined;
+      if (first !== undefined) {
+        chosen = available.find(i => remembered.current.get(i) === remembered.current.get(first));
+      } else {
+        chosen = available.find(i => remembered.current.has(i) && available.some(j => j !== i && remembered.current.get(j) === remembered.current.get(i)));
+      }
+      const unknown = available.filter(i => !remembered.current.has(i));
+      applyCardFlip(chosen ?? pick(unknown.length ? unknown : available)!);
+    }, 650);
     return () => clearTimeout(timer);
-  }, [mode, currentTurn, isP2Bot, isOnlineMultiplayer, gameOver, isLocked, cards]);
+  }, [mode, currentTurn, isP2Bot, isOnlineMultiplayer, gameOver, isLocked, cards, flippedIndices, difficulty]);
 
   const resetGame = () => {
+    cancelAll();
     sound.playClick();
     initGame();
 

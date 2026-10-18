@@ -1,3 +1,4 @@
+import { useGameTimers } from './useGameTimers';
 import React, { useState, useEffect } from 'react';
 import { sound } from '../../services/sound';
 import confetti from '../../services/confetti';
@@ -126,6 +127,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   roomCode,
   isHost
 }) => {
+  const { schedule, repeat, cancelAll } = useGameTimers();
   const colorMap: Record<PlayerColor, RoomParticipant | undefined> = {
     red: tableParticipants?.[0],
     blue: tableParticipants?.[1],
@@ -237,7 +239,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     sound.playDiceRoll();
 
     let rolls = 0;
-    const interval = setInterval(() => {
+    const interval = repeat(() => {
       setDiceValue(Math.floor(Math.random() * 6) + 1);
       rolls++;
       if (rolls >= 8) {
@@ -263,12 +265,12 @@ export const LudoGame: React.FC<LudoGameProps> = ({
 
   // Autonomous AI turn execution without stale state traps
   const executeAiTurn = (color: PlayerColor) => {
-    if (winner) return;
+    if (winner || (roomCode && !isHost)) return;
     setIsRolling(true);
     sound.playDiceRoll();
 
     let rolls = 0;
-    const interval = setInterval(() => {
+    const interval = repeat(() => {
       setDiceValue(Math.floor(Math.random() * 6) + 1);
       rolls++;
       if (rolls >= 8) {
@@ -323,14 +325,14 @@ export const LudoGame: React.FC<LudoGameProps> = ({
 
           if (validPieceIds.length === 0) {
             setLastActionLog(`${getPlayerLabel(color)} hat eine ${finalVal} gewürfelt, kann aber keine Figur ziehen.`);
-            setTimeout(() => {
+            schedule(() => {
               passTurn(color, finalVal === 6);
             }, 850);
             return curPieces;
           }
 
           const chosenPieceId = pickBestAiPiece(validPieceIds, color, finalVal, curPieces);
-          setTimeout(() => {
+          schedule(() => {
             applyMovePiece(chosenPieceId, finalVal);
           }, 650);
 
@@ -386,7 +388,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
 
     if (validPieceIds.length === 0) {
       setLastActionLog(`${getPlayerLabel(color)} hat eine ${roll} gewürfelt, kann aber keine Figur ziehen.`);
-      setTimeout(() => {
+      schedule(() => {
         passTurn(color, roll === 6);
       }, 1000);
     } else {
@@ -395,7 +397,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
 
       // If active player is AI, automatically make move
       if (isColorAi(color)) {
-        setTimeout(() => {
+        schedule(() => {
           const chosenPieceId = pickBestAiPiece(validPieceIds, color, roll, pieces);
           applyMovePiece(chosenPieceId, roll);
         }, 750);
@@ -476,7 +478,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     }
 
     // Check Win Condition (all 4 pieces in home 100..103)
-    setTimeout(() => {
+    schedule(() => {
       checkWinCondition(movingPiece.color, roll === 6);
     }, 400);
   };
@@ -523,7 +525,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     if (rolledSix) {
       setLastActionLog(`${getPlayerLabel(currentColor)} hat eine 6 gewürfelt und darf noch einmal!`);
       if (isColorAi(currentColor)) {
-        setTimeout(() => executeAiTurn(currentColor), 750);
+        schedule(() => executeAiTurn(currentColor), 750);
       }
       return;
     }
@@ -536,11 +538,12 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     setLastActionLog(`${getPlayerLabel(nextColor)} ist am Zug. Bitte würfeln.`);
 
     if (isColorAi(nextColor)) {
-      setTimeout(() => executeAiTurn(nextColor), 850);
+      schedule(() => executeAiTurn(nextColor), 850);
     }
   };
 
   const resetGameInternal = () => {
+    cancelAll();
     setPieces([
       { id: 1, color: 'red', position: -1 },
       { id: 2, color: 'red', position: -1 },
@@ -568,6 +571,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   };
 
   const resetGame = () => {
+    cancelAll();
     sound.playClick();
     resetGameInternal();
     if (roomCode) {

@@ -1,3 +1,6 @@
+import { useAIDifficulty } from './GameArena';
+import { chooseConnectMove } from '../../services/gameAI';
+import { useGameTimers } from './useGameTimers';
 import React, { useState, useEffect } from 'react';
 import { sound } from '../../services/sound';
 import confetti from '../../services/confetti';
@@ -31,6 +34,8 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({
   onActiveTurnChange,
   roomCode,
 }) => {
+  const { schedule, cancelAll } = useGameTimers();
+  const difficulty = useAIDifficulty();
   const p1 = tableParticipants?.[0];
   const p2 = tableParticipants?.[1];
 
@@ -132,6 +137,7 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({
         const { col, player } = event.payload;
         applyDropToBoard(col, player);
       } else if (event.action === 'RESET') {
+        cancelAll();
         sound.playClick();
         setBoard(Array(ROWS).fill(null).map(() => Array(COLS).fill(null)));
         setCurrentPlayer(1);
@@ -147,6 +153,10 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({
 
   const applyDropToBoard = (col: number, playerNum: 1 | 2) => {
     setBoard((prev) => {
+      if (!Number.isInteger(col) || col < 0 || col >= COLS || checkWin(prev).winner) return prev;
+      const flat = prev.flat();
+      const expected = flat.filter(v => v === 1).length === flat.filter(v => v === 2).length ? 1 : 2;
+      if (playerNum !== expected) return prev;
       let targetRow = -1;
       for (let r = ROWS - 1; r >= 0; r--) {
         if (!prev[r][col]) {
@@ -189,6 +199,7 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({
 
   const handleDropDisc = (col: number) => {
     if (winner || isBotThinking) return;
+    if (isOnlineMultiplayer && !myPlayer) return;
 
     if (isOnlineMultiplayer && myPlayer && currentPlayer !== myPlayer) {
       sound.playError();
@@ -254,7 +265,7 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({
     // AI bot turn
     if (playMode === 'bot' && nextPlayer === 2) {
       setIsBotThinking(true);
-      setTimeout(() => {
+      schedule(() => {
         executeBotMove(newBoard);
       }, 600);
     }
@@ -271,39 +282,8 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({
       return;
     }
 
-    // 1. Check if bot can win immediately
-    for (const c of validCols) {
-      let r = -1;
-      for (let row = ROWS - 1; row >= 0; row--) {
-        if (!currentBoard[row][c]) { r = row; break; }
-      }
-      const test = currentBoard.map((row) => [...row]);
-      test[r][c] = 2;
-      if (checkWin(test).winner === 2) {
-        finishBotDrop(c, currentBoard, r);
-        return;
-      }
-    }
-
-    // 2. Check if player can win next turn and block them
-    for (const c of validCols) {
-      let r = -1;
-      for (let row = ROWS - 1; row >= 0; row--) {
-        if (!currentBoard[row][c]) { r = row; break; }
-      }
-      const test = currentBoard.map((row) => [...row]);
-      test[r][c] = 1;
-      if (checkWin(test).winner === 1) {
-        finishBotDrop(c, currentBoard, r);
-        return;
-      }
-    }
-
-    // 3. Prefer center column if available
-    let chosenCol = validCols[Math.floor(Math.random() * validCols.length)];
-    if (validCols.includes(3) && Math.random() < 0.6) {
-      chosenCol = 3;
-    }
+    const chosenCol = chooseConnectMove(currentBoard, difficulty);
+    if (chosenCol === null) { setIsBotThinking(false); return; }
 
     let targetRow = -1;
     for (let r = ROWS - 1; r >= 0; r--) {
@@ -340,6 +320,7 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({
   };
 
   const resetBoard = () => {
+    cancelAll();
     sound.playClick();
     setBoard(Array(ROWS).fill(null).map(() => Array(COLS).fill(null)));
     setCurrentPlayer(1);
@@ -475,6 +456,10 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({
           <div
             key={colIdx}
             className="flex justify-center cursor-pointer h-6 items-center"
+            role="button"
+            tabIndex={0}
+            aria-label={`Stein in Spalte ${colIdx + 1} einwerfen`}
+            onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); handleDropDisc(colIdx); } }}
             onClick={() => handleDropDisc(colIdx)}
             onMouseEnter={() => setHoverCol(colIdx)}
             onMouseLeave={() => setHoverCol(null)}

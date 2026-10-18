@@ -1,3 +1,6 @@
+import { useAIDifficulty } from './GameArena';
+import { chooseBattleshipShot } from '../../services/gameAI';
+import { useGameTimers } from './useGameTimers';
 import React, { useState, useEffect } from 'react';
 import { sound } from '../../services/sound';
 import confetti from '../../services/confetti';
@@ -45,6 +48,8 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
   onActiveTurnChange,
   roomCode,
 }) => {
+  const { schedule, cancelAll } = useGameTimers();
+  const difficulty = useAIDifficulty();
   const p1 = tableParticipants?.[0];
   const p2 = tableParticipants?.[1];
   const p1Name = p1?.name || 'Admiral (Du)';
@@ -64,7 +69,7 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
       while (!placed && attempts < 100) {
         attempts++;
         const horizontal = Math.random() > 0.5;
-        const r = Math.floor(Math.random() * (horizontal ? GRID_SIZE : GRID_SIZE - ship.size));
+        const r = Math.floor(Math.random() * (horizontal ? GRID_SIZE : GRID_SIZE - ship.size + 1));
         const c = Math.floor(Math.random() * (horizontal ? GRID_SIZE - ship.size : GRID_SIZE));
 
         let canPlace = true;
@@ -210,6 +215,7 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
         }
 
       } else if (event.action === 'RESET') {
+        cancelAll();
         sound.playClick();
         setPlayerGrid(generateRandomFleet());
         setEnemyGrid(generateRandomFleet());
@@ -307,7 +313,7 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
 
     // Enemy AI turn
     setActiveTurn('enemy');
-    setTimeout(() => {
+    schedule(() => {
       executeEnemyTurn();
     }, 750);
   };
@@ -329,7 +335,9 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
       return;
     }
 
-    const [tarR, tarC] = unhitCoords[Math.floor(Math.random() * unhitCoords.length)];
+    const shot = chooseBattleshipShot(playerDamage, difficulty);
+    if (!shot) return;
+    const [tarR, tarC] = shot;
     const isHit = playerGrid[tarR][tarC] !== 'empty';
 
     const newDamage = playerDamage.map((row) => [...row]);
@@ -360,6 +368,7 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
   };
 
   const resetGame = () => {
+    cancelAll();
     sound.playClick();
     setPlayerGrid(generateRandomFleet());
     setEnemyGrid(generateRandomFleet());

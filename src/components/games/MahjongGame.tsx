@@ -1,3 +1,11 @@
+import { useAuthoritativeGame } from './useAuthoritativeGame';
+import { CampaignSelector } from './CampaignSelector';
+import { mahjongLevelConfig } from '../../services/mahjongCampaign';
+import { initialMahjong, reduceMahjong, chooseMahjongMove } from '../../services/mahjongEngine';
+import { initialUserProfile } from '../../data/mockData';
+import { multiplayerService } from '../../services/multiplayerService';
+import { useAIDifficulty } from './GameArena';
+import { useGameTimers } from './useGameTimers';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   PlacedMahjongTile,
@@ -58,341 +66,53 @@ interface MahjongPlayer {
   matchedPairsCount: number;
 }
 
-export const MahjongGame: React.FC<MahjongGameProps> = ({
-  onGameEnd,
-  tableParticipants,
-  currentUserId = 'user-1',
-  onActiveTurnChange,
-  roomCode,
-  isHost = true,
-}) => {
-  // Preset Bot configurations for Table Duel
-  const BOT_PRESETS = [
-    { name: 'Oma Grete (KI)', color: '#3b82f6' },
-    { name: 'Papa Thomas (KI)', color: '#ef4444' },
-    { name: 'Junior Leo (KI)', color: '#eab308' },
-    { name: 'Tante Lisa (KI)', color: '#10b981' },
-  ];
-
-  // Game Mode: 'solo' or 'duel'
-  const [gameMode, setGameMode] = useState<'solo' | 'duel'>('solo');
-  const [layout, setLayout] = useState<MahjongLayoutType>('turtle');
-  const [tileTheme, setTileTheme] = useState<'ivory' | 'emerald' | 'wood'>('ivory');
-  const [dimBlocked, setDimBlocked] = useState<boolean>(true);
-
-  // Board Tiles State (144 tiles)
-  const [tiles, setTiles] = useState<PlacedMahjongTile[]>(() => generateMahjongBoard('turtle'));
-
-  // Selection & Hint
-  const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
-  const [hintedTileIds, setHintedTileIds] = useState<string[]>([]);
-
-  // History for Undo
-  const [history, setHistory] = useState<MatchHistoryEntry[]>([]);
-
-  // Score & Combo
-  const [score, setScore] = useState<number>(0);
-  const [combo, setCombo] = useState<number>(0);
-  const comboTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Timer
-  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
-  const [isTimerRunning, setIsTimerRunning] = useState<boolean>(true);
-
-  // Players for Table Duel
-  const [players, setPlayers] = useState<MahjongPlayer[]>(() => {
-    const list: MahjongPlayer[] = [];
-    if (tableParticipants && tableParticipants.length > 0) {
-      tableParticipants.slice(0, 4).forEach((part, idx) => {
-        list.push({
-          id: part.id,
-          name: part.name,
-          color: ['#f97316', '#3b82f6', '#eab308', '#10b981'][idx],
-          isAi: part.isBot || false,
-          score: 0,
-          matchedPairsCount: 0,
-        });
-      });
-    } else {
-      list.push({
-        id: currentUserId,
-        name: 'Ich (Spieler 1)',
-        color: '#f97316',
-        isAi: false,
-        score: 0,
-        matchedPairsCount: 0,
-      });
-      list.push({
-        id: 'bot-1',
-        name: BOT_PRESETS[0].name,
-        color: BOT_PRESETS[0].color,
-        isAi: true,
-        score: 0,
-        matchedPairsCount: 0,
-      });
-    }
-    return list;
-  });
-
-  const [activePlayerIndex, setActivePlayerIndex] = useState<number>(0);
-
-  // Modals & Banners
-  const [isRulesOpen, setIsRulesOpen] = useState<boolean>(false);
-  const [isVictoryOpen, setIsVictoryOpen] = useState<boolean>(false);
-  const [noMovesAlert, setNoMovesAlert] = useState<boolean>(false);
-
-  const activePlayer = players[activePlayerIndex];
-  const isHumanTurn = gameMode === 'solo' || (activePlayer && !activePlayer.isAi);
-
-  // Sync turn
-  useEffect(() => {
-    if (gameMode === 'duel' && activePlayer && onActiveTurnChange) {
-      onActiveTurnChange(activePlayer.id);
-    }
-  }, [activePlayerIndex, gameMode, activePlayer?.id]);
-
-  // Timer tick
-  useEffect(() => {
-    if (!isTimerRunning || isVictoryOpen) return;
-    const interval = setInterval(() => {
-      setElapsedSeconds((prev) => prev + 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isTimerRunning, isVictoryOpen]);
-
-  // Remaining and Matched tiles count
-  const remainingTiles = tiles.filter((t) => !t.matched);
-  const remainingCount = remainingTiles.length;
-  const matchedPairsCount = Math.floor((144 - remainingCount) / 2);
-
-  // Available free pairs count
-  const availablePairs = findAvailablePairs(tiles);
-
-  // Check victory or deadlock
-  useEffect(() => {
-    if (remainingCount === 0 && !isVictoryOpen) {
-      setIsVictoryOpen(true);
-      sound.playVictory();
-      confetti({ particleCount: 180, spread: 90 });
-      if (onGameEnd) {
-        const victorName =
-          gameMode === 'duel'
-            ? [...players].sort((a, b) => b.score - a.score)[0]?.name || 'Gewinner'
-            : 'Solo-Meister';
-        onGameEnd(victorName);
-      }
-    } else if (remainingCount > 0 && availablePairs.length === 0) {
-      setNoMovesAlert(true);
-    } else {
-      setNoMovesAlert(false);
-    }
-  }, [remainingCount, availablePairs.length]);
-
-  // Handle Tile Click
-  const handleTileClick = (clickedTile: PlacedMahjongTile) => {
-    if (!isTileFree(clickedTile, tiles) || clickedTile.matched) {
-      sound.playError();
-      return;
-    }
-
-    // Clear hints
-    if (hintedTileIds.length > 0) setHintedTileIds([]);
-
-    // 1. If no tile currently selected -> select this tile
-    if (!selectedTileId) {
-      setSelectedTileId(clickedTile.id);
-      sound.playClick();
-      return;
-    }
-
-    // 2. If clicking same tile -> deselect
-    if (selectedTileId === clickedTile.id) {
-      setSelectedTileId(null);
-      sound.playClick();
-      return;
-    }
-
-    // 3. Second tile clicked -> attempt match
-    const firstTile = tiles.find((t) => t.id === selectedTileId);
-    if (!firstTile) {
-      setSelectedTileId(clickedTile.id);
-      return;
-    }
-
-    const matches = canTilesMatch(firstTile.definition, clickedTile.definition);
-
-    if (matches) {
-      // MATCH SUCCESSFUL!
-      sound.playReward();
-
-      // Combo management
-      const nextCombo = combo + 1;
-      setCombo(nextCombo);
-      if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
-      comboTimerRef.current = setTimeout(() => {
-        setCombo(0);
-      }, 5000);
-
-      // Points calculation
-      const basePoints = 100;
-      const comboBonus = (nextCombo - 1) * 35;
-      const earned = basePoints + comboBonus;
-
-      // Update tiles
-      setTiles((prev) =>
-        prev.map((t) => (t.id === firstTile.id || t.id === clickedTile.id ? { ...t, matched: true } : t))
-      );
-
-      // Record in history
-      setHistory((prev) => [
-        {
-          tile1Id: firstTile.id,
-          tile2Id: clickedTile.id,
-          playerId: activePlayer.id,
-          points: earned,
-        },
-        ...prev,
-      ]);
-
-      // Update score
-      setScore((prev) => prev + earned);
-
-      // If duel mode, update player stats and pass turn if turn-based
-      if (gameMode === 'duel') {
-        setPlayers((prev) =>
-          prev.map((p, idx) =>
-            idx === activePlayerIndex
-              ? { ...p, score: p.score + earned, matchedPairsCount: p.matchedPairsCount + 1 }
-              : p
-          )
-        );
-        // Switch turn to next player in duel
-        setActivePlayerIndex((prev) => (prev + 1) % players.length);
-      }
-
-      setSelectedTileId(null);
-    } else {
-      // Match Failed: Switch selection to the newly clicked valid tile
-      sound.playError();
-      setSelectedTileId(clickedTile.id);
-    }
+export const MahjongGame:React.FC<MahjongGameProps>=({onGameEnd,tableParticipants,currentUserId='user-1',onActiveTurnChange,roomCode,isHost=true})=>{
+  const {schedule,repeat,cancelAll}=useGameTimers(),difficulty=useAIDifficulty();
+  const participants=tableParticipants?.length?tableParticipants:[{id:currentUserId,name:'Du',avatar:initialUserProfile.avatar,isHost:true,isReady:true,score:0,ping:0}];
+  const [localLevel,setLocalLevel]=useState<number|undefined>();
+  const [levelTier,setLevelTier]=useState(0),[showLevels,setShowLevels]=useState(false);
+  const [levelStars,setLevelStars]=useState<Record<number,number>>(()=>{try{const value=JSON.parse(localStorage.getItem('mahjong_levels_v1_'+currentUserId)||'{}');return value&&typeof value==='object'&&!Array.isArray(value)?value:{};}catch{return {};}});
+  const [localLayout,setLocalLayout]=useState<MahjongLayoutType>('turtle');
+  const game=useAuthoritativeGame({roomCode,userId:currentUserId,engine:'mahjong',initial:()=>initialMahjong(participants,localLayout,Date.now(),localLevel),reduce:reduceMahjong});
+  const {state,send}=game;
+  const {tiles,layout,players,activePlayerIndex,history,score,combo}=state;
+  const levelConfig=state.campaignLevel?mahjongLevelConfig(state.campaignLevel):null;
+  const gameMode=players.length>1?'duel':'solo';
+  const activePlayer=players[activePlayerIndex];
+  const isHumanTurn=game.ready&&!game.pending&&!state.finished&&!activePlayer.isAi&&(roomCode?activePlayer.id===currentUserId:true);
+  const [tileTheme,setTileTheme]=useState<'ivory'|'emerald'|'wood'>('ivory');
+  const [dimBlocked,setDimBlocked]=useState(true),[isRulesOpen,setIsRulesOpen]=useState(false);
+  const [selectedTileId,setSelectedTileId]=useState<string|null>(null),[hintedTileIds,setHintedTileIds]=useState<string[]>([]);
+  const [elapsedSeconds,setElapsedSeconds]=useState(0),[zoom,setZoom]=useState(false),[stageWidth,setStageWidth]=useState(960);
+  const stage=useRef<HTMLDivElement>(null),reported=useRef(false);
+  const availablePairs=findAvailablePairs(tiles),remainingCount=tiles.filter(t=>!t.matched).length,matchedPairsCount=state.history.length;
+  const noMovesAlert=!availablePairs.length&&remainingCount>0,isVictoryOpen=state.finished;
+  useEffect(()=>{const update=()=>setElapsedSeconds(Math.max(0,Math.floor(((state.finishedAt||Date.now())-state.startedAt)/1000)));update();if(state.finished)return;const timer=repeat(update,1000);return()=>clearInterval(timer);},[state.startedAt,state.finished]);
+  useEffect(()=>{onActiveTurnChange?.(activePlayer.id);},[activePlayer.id,onActiveTurnChange]);
+  useEffect(()=>{setSelectedTileId(null);if(state.finished&&!reported.current){reported.current=true;const max=Math.max(...players.map(p=>p.score));const winners=players.filter(p=>p.score===max);onGameEnd?.(winners.length>1?'draw':winners[0].id===currentUserId?'player':'opponent');}},[state.revision]);
+  useEffect(()=>{if(roomCode||!activePlayer.isAi||state.finished)return;const timer=schedule(()=>{const command=chooseMahjongMove(state,difficulty);if(command)send(command);},650);return()=>clearTimeout(timer);},[state,difficulty,roomCode]);
+  useEffect(()=>{if(!stage.current)return;const observer=new ResizeObserver(entries=>setStageWidth(entries[0].contentRect.width));observer.observe(stage.current);return()=>observer.disconnect();},[game.ready]);
+  const handleTileClick=(tile:PlacedMahjongTile)=>{
+    if(!isHumanTurn||!isTileFree(tile,tiles)||tile.matched)return;
+    if(!selectedTileId||selectedTileId===tile.id){setSelectedTileId(selectedTileId===tile.id?null:tile.id);return;}
+    const first=tiles.find(t=>t.id===selectedTileId)!;
+    if(canTilesMatch(first.definition,tile.definition)){send({type:'MATCH',first:first.id,second:tile.id});setSelectedTileId(null);}else{sound.playError();setSelectedTileId(tile.id);}
   };
-
-  // AI Turn in Duel Mode
-  useEffect(() => {
-    if (gameMode !== 'duel' || !activePlayer || !activePlayer.isAi || isVictoryOpen) return;
-
-    const timer = setTimeout(() => {
-      const pairs = findAvailablePairs(tiles);
-      if (pairs.length > 0) {
-        // Pick a pair (slightly randomized)
-        const chosen = pairs[Math.floor(Math.random() * Math.min(3, pairs.length))];
-        const [t1, t2] = chosen;
-
-        // Visual selection step 1
-        setSelectedTileId(t1.id);
-        sound.playClick();
-
-        setTimeout(() => {
-          // Visual match step 2
-          handleTileClick(t2);
-        }, 600);
-      } else if (remainingCount > 0) {
-        // AI shuffles if stuck
-        handleShuffle();
-      }
-    }, 1200);
-
-    return () => clearTimeout(timer);
-  }, [activePlayerIndex, gameMode, isVictoryOpen, tiles]);
-
-  // Hint Button: Highlight an available pair
-  const handleHint = () => {
-    if (availablePairs.length === 0) {
-      sound.playError();
-      return;
-    }
-    sound.playReward();
-    const [t1, t2] = availablePairs[0];
-    setHintedTileIds([t1.id, t2.id]);
-
-    // Deduct small penalty from score
-    setScore((prev) => Math.max(0, prev - 25));
-
-    setTimeout(() => {
-      setHintedTileIds([]);
-    }, 3500);
+  const handleHint=()=>{if(!isHumanTurn||!availablePairs.length||levelConfig&&(state.hintsUsed||0)>=levelConfig.hints)return;setHintedTileIds(availablePairs[0].map(t=>t.id));send({type:'HINT'});schedule(()=>setHintedTileIds([]),3500);};
+  const handleUndo=()=>{if(isHumanTurn&&gameMode==='solo')send({type:'UNDO'});};
+  const handleShuffle=()=>{if(isHumanTurn)send({type:'SHUFFLE'});};
+  const startCampaignLevel=(level:number)=>{reported.current=false;setShowLevels(false);setHintedTileIds([]);setSelectedTileId(null);if(roomCode){send({type:'START_LEVEL',level} as any);}else if(localLevel===level)game.resetLocal();else setLocalLevel(level);};
+  useEffect(()=>{if(!state.finished||!state.campaignLevel)return;const seconds=((state.finishedAt||Date.now())-state.startedAt)/1000;const config=mahjongLevelConfig(state.campaignLevel);const stars=1+Number(!(state.hintsUsed||state.shufflesUsed))+Number(!(state.hintsUsed||state.shufflesUsed)&&seconds<=config.parSeconds);setLevelStars(previous=>{const next={...previous,[config.id]:Math.max(previous[config.id]||0,stars)};try{localStorage.setItem('mahjong_levels_v1_'+currentUserId,JSON.stringify(next));}catch{}return next;});},[state.finished,state.campaignLevel]);
+  const handleNewGame=(newLayout?:MahjongLayoutType)=>{
+    if(!newLayout&&state.campaignLevel){startCampaignLevel(state.campaignLevel);return;}
+    if(newLayout)setLocalLevel(undefined);
+    if(roomCode){if(!isHost)return;if(newLayout)send({type:'RESET_LAYOUT',layout:newLayout} as any);else multiplayerService.startRound(roomCode);return;}
+    cancelAll();reported.current=false;
+    if(newLayout&&newLayout!==localLayout)setLocalLayout(newLayout);else game.resetLocal();
   };
-
-  // Undo Button: Restore last matched pair
-  const handleUndo = () => {
-    if (history.length === 0) {
-      sound.playError();
-      return;
-    }
-    sound.playCardDeal();
-    const [last, ...restHistory] = history;
-
-    setTiles((prev) =>
-      prev.map((t) => (t.id === last.tile1Id || t.id === last.tile2Id ? { ...t, matched: false } : t))
-    );
-
-    setScore((prev) => Math.max(0, prev - last.points));
-    setHistory(restHistory);
-    setSelectedTileId(null);
-    setHintedTileIds([]);
-  };
-
-  // Shuffle Remaining Tiles (preserving 3D positions and layers)
-  const handleShuffle = () => {
-    sound.playCardDeal();
-    setSelectedTileId(null);
-    setHintedTileIds([]);
-
-    const unmatched = tiles.filter((t) => !t.matched);
-    const definitions = unmatched.map((t) => t.definition);
-
-    // Shuffle definitions
-    for (let i = definitions.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [definitions[i], definitions[j]] = [definitions[j], definitions[i]];
-    }
-
-    let defIdx = 0;
-    setTiles((prev) =>
-      prev.map((t) => {
-        if (t.matched) return t;
-        const newDef = definitions[defIdx++];
-        return { ...t, definition: newDef };
-      })
-    );
-  };
-
-  // Restart / New Game
-  const handleNewGame = (newLayout?: MahjongLayoutType) => {
-    sound.playClick();
-    const activeL = newLayout || layout;
-    setLayout(activeL);
-    setTiles(generateMahjongBoard(activeL));
-    setSelectedTileId(null);
-    setHintedTileIds([]);
-    setHistory([]);
-    setScore(0);
-    setCombo(0);
-    setElapsedSeconds(0);
-    setIsVictoryOpen(false);
-    setNoMovesAlert(false);
-    setActivePlayerIndex(0);
-    setPlayers((prev) => prev.map((p) => ({ ...p, score: 0, matchedPairsCount: 0 })));
-  };
-
-  // Format Time
-  const formatTime = (secs: number) => {
-    const mins = Math.floor(secs / 60);
-    const remaining = secs % 60;
-    return `${mins}:${remaining < 10 ? '0' : ''}${remaining}`;
-  };
-
+  useEffect(()=>{if(!roomCode){reported.current=false;game.resetLocal();}},[localLayout,localLevel]);
+  const formatTime=(seconds:number)=>`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
+  if(!game.ready)return <p role="status">Mahjong-Spielstand wird geladen …</p>;
   // Board coordinate bounding box calculations for SVG / responsive placement
   const minX = -2;
   const maxX = 30;
@@ -402,8 +122,15 @@ export const MahjongGame: React.FC<MahjongGameProps> = ({
   const boardWidth = maxX - minX;
   const boardHeight = maxY - minY;
 
+  const scale=zoom?1:Math.min(1,Math.max(0.2,(stageWidth-16)/(boardWidth*26+120)));
   return (
     <div className="relative w-full max-w-7xl mx-auto flex flex-col gap-4 text-white">
+      <div className="flex flex-wrap gap-2"><button className="p-3 bg-slate-800 rounded-xl" onClick={()=>setShowLevels(!showLevels)} aria-expanded={showLevels}>Levelauswahl · 5 × 10</button><button className="p-3 bg-slate-800 rounded-xl" disabled={Boolean(roomCode&&!isHost)} onClick={()=>handleNewGame(layout)}>Freies Spiel</button></div>
+      {showLevels&&<CampaignSelector tier={levelTier} setTier={setLevelTier} stars={levelStars} current={state.campaignLevel} disabled={Boolean(game.pending||roomCode&&!isHost)} onSelect={startCampaignLevel}/>}
+      {levelConfig&&<div className="rounded-xl bg-amber-950 border border-amber-600 p-3 text-sm"><strong>{levelConfig.label} · Level {levelConfig.stage}/10</strong><p>{levelConfig.tileCount} Steine · Tipps: {Math.max(0,levelConfig.hints-(state.hintsUsed||0))} · Mischen: {Math.max(0,levelConfig.shuffles-(state.shufflesUsed||0))}</p><p>★ Brett leeren · ★★ ohne Hilfen · ★★★ zusätzlich unter {formatTime(levelConfig.parSeconds)}. Rücknahme im Levelmodus deaktiviert.</p></div>}
+      <div className="rounded-xl bg-slate-800 p-3 text-sm" aria-live="polite"><p>{state.finished?'Partie beendet':`${activePlayer.name} ist am Zug`}</p><div className="flex flex-wrap gap-3">{players.map(p=><span key={p.id}>{p.name}: {p.score} Punkte · {p.matchedPairsCount} Paare</span>)}</div></div>
+      {game.error&&<p role="alert" className="text-rose-300">{game.error}</p>}
+      {game.pending&&<p role="status">Zug wird bestätigt …</p>}
       {/* 1. TOP HEADER & CONTROLS BAR */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/90 border border-slate-800 rounded-2xl p-3 sm:p-4 shadow-xl backdrop-blur-md">
         {/* Title & Mode */}
@@ -416,7 +143,7 @@ export const MahjongGame: React.FC<MahjongGameProps> = ({
               <h2 className="text-base sm:text-lg font-black tracking-tight text-white flex items-center gap-1.5">
                 <span>Mahjong</span>
                 <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-mono">
-                  144 Steine
+                  {tiles.length} Steine
                 </span>
                 <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700">
                   Mojang Edition
@@ -479,7 +206,7 @@ export const MahjongGame: React.FC<MahjongGameProps> = ({
           {/* Hint */}
           <button
             onClick={handleHint}
-            disabled={availablePairs.length === 0}
+            disabled={!isHumanTurn||availablePairs.length === 0||Boolean(levelConfig&&(state.hintsUsed||0)>=levelConfig.hints)}
             className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-amber-300 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-700 text-xs font-bold transition-all shadow-sm active:scale-95"
             title="Freies Paar anzeigen (-25 Punkte)"
           >
@@ -490,7 +217,7 @@ export const MahjongGame: React.FC<MahjongGameProps> = ({
           {/* Undo */}
           <button
             onClick={handleUndo}
-            disabled={history.length === 0}
+            disabled={!isHumanTurn||gameMode==='duel'||history.length===0||Boolean(levelConfig)}
             className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-300 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-700 text-xs font-bold transition-all shadow-sm active:scale-95"
             title="Letzten Zug rückgängig machen"
           >
@@ -500,6 +227,7 @@ export const MahjongGame: React.FC<MahjongGameProps> = ({
 
           {/* Shuffle */}
           <button
+            disabled={!isHumanTurn||(gameMode==='duel'&&availablePairs.length>0)||Boolean(levelConfig&&(state.shufflesUsed||0)>=levelConfig.shuffles)}
             onClick={handleShuffle}
             className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-700 text-xs font-bold transition-all shadow-sm active:scale-95"
             title="Übrige Spielsteine neu mischen"
@@ -519,6 +247,7 @@ export const MahjongGame: React.FC<MahjongGameProps> = ({
 
           {/* Restart */}
           <button
+            disabled={Boolean(roomCode&&!isHost)}
             onClick={() => handleNewGame()}
             className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-slate-300 hover:text-white transition-all"
             title="Neues Spiel starten"
@@ -534,6 +263,7 @@ export const MahjongGame: React.FC<MahjongGameProps> = ({
         <div className="flex items-center gap-1 bg-slate-900/80 border border-slate-800 p-1 rounded-xl">
           <span className="text-[10px] uppercase font-bold text-slate-400 px-2">Aufbau:</span>
           <button
+            disabled={Boolean(roomCode&&!isHost)}
             onClick={() => handleNewGame('turtle')}
             className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
               layout === 'turtle' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-300 hover:text-white'
@@ -542,6 +272,7 @@ export const MahjongGame: React.FC<MahjongGameProps> = ({
             🐢 Schildkröte
           </button>
           <button
+            disabled={Boolean(roomCode&&!isHost)}
             onClick={() => handleNewGame('pyramid')}
             className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
               layout === 'pyramid' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-300 hover:text-white'
@@ -550,6 +281,7 @@ export const MahjongGame: React.FC<MahjongGameProps> = ({
             🔺 Pyramide
           </button>
           <button
+            disabled={Boolean(roomCode&&!isHost)}
             onClick={() => handleNewGame('fortress')}
             className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
               layout === 'fortress' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-300 hover:text-white'
@@ -612,6 +344,7 @@ export const MahjongGame: React.FC<MahjongGameProps> = ({
             </span>
           </div>
           <button
+            disabled={!isHumanTurn||(gameMode==='duel'&&availablePairs.length>0)||Boolean(levelConfig&&(state.shufflesUsed||0)>=levelConfig.shuffles)}
             onClick={handleShuffle}
             className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-md transition-all active:scale-95"
           >
@@ -621,15 +354,18 @@ export const MahjongGame: React.FC<MahjongGameProps> = ({
         </div>
       )}
 
+      <button type="button" className="self-start px-3 py-2 bg-slate-800 rounded-xl text-sm" onClick={()=>setZoom(value=>!value)}>{zoom?'Ganzes Brett anzeigen':'Steine vergrößern und Brett verschieben'}</button>
       {/* 4. MAIN 3D MAHJONG TABLE CANVAS */}
-      <div className="relative w-full rounded-3xl bg-radial from-slate-900 via-slate-950 to-black border border-slate-800/80 p-2 sm:p-6 shadow-2xl overflow-x-auto min-h-[500px] flex items-center justify-center">
+      <div ref={stage} className="relative w-full rounded-3xl bg-radial from-slate-900 via-slate-950 to-black border border-slate-800/80 p-2 sm:p-6 shadow-2xl overflow-auto min-h-[260px] flex items-start justify-start">
         {/* Felt Table Pattern Overlay */}
         <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-40 pointer-events-none rounded-3xl" />
 
+        <div style={{width:(boardWidth*26+120)*scale,height:(boardHeight*30+120)*scale,flexShrink:0,position:"relative",margin:"0 auto"}}>
         {/* 3D Stacked Tiles Container */}
         <div
-          className="relative select-none my-6 mx-auto"
+          className="relative select-none"
           style={{
+            transform:`scale(${scale})`,transformOrigin:"top left",
             width: `${boardWidth * 26 + 120}px`,
             height: `${boardHeight * 30 + 120}px`,
           }}
@@ -666,6 +402,7 @@ export const MahjongGame: React.FC<MahjongGameProps> = ({
             );
           })}
         </div>
+        </div>
       </div>
 
       {/* 5. VICTORY CELEBRATION MODAL */}
@@ -675,11 +412,12 @@ export const MahjongGame: React.FC<MahjongGameProps> = ({
             <div className="w-20 h-20 mx-auto rounded-3xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-4xl mb-4 shadow-inner animate-bounce">
               🀄
             </div>
+            {levelConfig&&<p className="text-amber-300 text-3xl" aria-label={`${levelStars[levelConfig.id]||1} Sterne`}>{"★".repeat(levelStars[levelConfig.id]||1)}</p>}
             <h2 className="text-2xl sm:text-3xl font-black text-amber-300 mb-2">
               Mahjong-Meister!
             </h2>
             <p className="text-sm text-slate-300 mb-6">
-              Du hast alle <strong className="text-white">144 Spielsteine</strong> erfolgreich vom Brett abgeräumt!
+              Du hast alle <strong className="text-white">{tiles.length} Spielsteine</strong> erfolgreich vom Brett abgeräumt!
             </p>
 
             <div className="bg-slate-950/80 rounded-2xl p-4 border border-slate-800 mb-6 text-xs grid grid-cols-2 gap-3 text-left">
@@ -696,13 +434,15 @@ export const MahjongGame: React.FC<MahjongGameProps> = ({
                 <span className="font-bold text-white capitalize">{layout}</span>
               </div>
               <div>
-                <span className="text-slate-400">Rückgängig-Züge:</span>{' '}
+                <span className="text-slate-400">Gefundene Paare:</span>{' '}
                 <span className="font-bold text-white">{history.length}</span>
               </div>
             </div>
 
+            {levelConfig&&<div className="flex flex-wrap gap-2 mb-3">{levelConfig.stage<10&&<button disabled={Boolean(roomCode&&!isHost)} className="bg-amber-600 p-3 rounded-xl" onClick={()=>startCampaignLevel(levelConfig.id+1)}>Nächstes Level</button>}<button className="bg-slate-700 p-3 rounded-xl" disabled={Boolean(roomCode&&!isHost)} onClick={()=>{handleNewGame(layout);setShowLevels(true);}}>Zur Levelauswahl</button></div>}
             <button
-              onClick={() => handleNewGame()}
+              disabled={Boolean(roomCode&&!isHost)}
+            onClick={() => handleNewGame()}
               className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-sm shadow-xl active:scale-95 transition-all"
             >
               Neues Spiel starten

@@ -1,3 +1,4 @@
+import { RoomLobby } from './RoomLobby';
 import React, { useState, useEffect } from 'react';
 import { GameRoom, RoomParticipant, UserProfile } from '../../types';
 import { AvatarDisplay } from '../avatar/AvatarDisplay';
@@ -44,6 +45,7 @@ export const GameTablePanel: React.FC<GameTablePanelProps> = ({
   onInviteFriend,
   activeGameEngine,
 }) => {
+  const mayManage = room.participants.some(p => p.id === currentUser.id && p.isHost);
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
   const [activeEmote, setActiveEmote] = useState<{ emoji: string; senderName: string } | null>(null);
   const [isExpanded, setIsExpanded] = useState<boolean>(() => 
@@ -73,12 +75,14 @@ export const GameTablePanel: React.FC<GameTablePanelProps> = ({
   };
 
   const handleAddBot = () => {
+    if (!mayManage) return;
     sound.playReward();
     const updated = multiplayerService.addBotToRoom(room.id);
     if (updated) onUpdateRoom(updated);
   };
 
   const handleRemoveSeat = (participantId: string) => {
+    if (!mayManage) return;
     sound.playClick();
     const updated = multiplayerService.removeParticipant(room.id, participantId);
     if (updated) onUpdateRoom(updated);
@@ -120,6 +124,8 @@ export const GameTablePanel: React.FC<GameTablePanelProps> = ({
         </div>
       )}
 
+      <div className="relative z-10 mb-4"><RoomLobby room={room} user={currentUser} /></div>
+
       {/* Top Header of the Spieltisch */}
       <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3.5 mb-4">
         <div className="flex items-center gap-3">
@@ -133,7 +139,7 @@ export const GameTablePanel: React.FC<GameTablePanelProps> = ({
               </h3>
               <span className="inline-flex items-center gap-1 text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
                 <Wifi className="w-2.5 h-2.5 animate-pulse text-emerald-400" />
-                {multiplayerService.isRealtimeConnected() ? 'WebSocket Live' : 'Echtzeit-Synchron'}
+                {{ websocket: 'WebSocket Live', http: 'HTTP verbunden', connecting: 'Verbinde …', offline: 'Offline' }[multiplayerService.getConnectionStatus()]}
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 mt-0.5">
@@ -167,6 +173,7 @@ export const GameTablePanel: React.FC<GameTablePanelProps> = ({
           {/* Quick Add Player to Table */}
           {openSeatsCount > 0 && (
             <button
+              disabled={!mayManage}
               onClick={handleAddFamilyPlayer}
               className="px-2.5 py-1.5 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 hover:text-white text-xs font-semibold transition flex items-center gap-1.5"
               title="Familienmitglied direkt an den Tisch setzen"
@@ -277,7 +284,7 @@ export const GameTablePanel: React.FC<GameTablePanelProps> = ({
 
                   {/* Actions for this seat */}
                   <div className="mt-2.5 pt-2 border-t border-slate-800/80 w-full flex items-center justify-center gap-1.5">
-                    {participant.isBot && (
+                    {participant.isBot && mayManage && (
                       <button
                         onClick={() => handleRemoveSeat(participant.id)}
                         className="text-[10px] text-rose-400 hover:text-rose-300 px-2 py-0.5 rounded-lg hover:bg-rose-500/10 transition"
@@ -287,7 +294,7 @@ export const GameTablePanel: React.FC<GameTablePanelProps> = ({
                     )}
                     {!participant.isBot && (
                       <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
-                        <UserCheck className="w-3 h-3" /> Bereit
+                        <UserCheck className="w-3 h-3" /> {participant.isReady ? "Bereit" : "Noch nicht bereit"}
                       </span>
                     )}
                   </div>
@@ -322,12 +329,14 @@ export const GameTablePanel: React.FC<GameTablePanelProps> = ({
                       </button>
                     )}
                     <button
+                      disabled={!mayManage}
                       onClick={handleAddFamilyPlayer}
                       className="w-full py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-[10px] border border-amber-500/40 transition flex items-center justify-center gap-1"
                     >
                       <Users className="w-3 h-3" /> + Mitspieler
                     </button>
                     <button
+                      disabled={!mayManage}
                       onClick={handleAddBot}
                       className="w-full py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 font-bold text-[10px] border border-slate-700 transition flex items-center justify-center gap-1"
                     >

@@ -1,417 +1,71 @@
-import React, { useState, useEffect } from 'react';
-import { sound } from '../../services/sound';
-import confetti from '../../services/confetti';
-import { RefreshCw, Trophy, Bot, Users, Sparkles, Shield } from 'lucide-react';
-import { TABLE_BACKGROUNDS } from '../../services/gameImages';
-
-type PieceType = 'p' | 'r' | 'n' | 'b' | 'q' | 'k';
-type PieceColor = 'w' | 'b';
-
-interface ChessPiece {
-  type: PieceType;
-  color: PieceColor;
-}
-
-import { RoomParticipant } from '../../types';
-import { AvatarDisplay } from '../avatar/AvatarDisplay';
-
+import React, { useEffect, useRef, useState } from 'react';
+import { RefreshCw, Trophy, Bot, Users, Wifi } from 'lucide-react';
+import { Chess } from 'chess.js';
+import { useAIDifficulty } from './GameArena';
+import { useGameTimers } from './useGameTimers';
+import { useAuthoritativeGame } from './useAuthoritativeGame';
+import { initialChess, chessPosition, chessSquare, reduceChess, chooseChessMove, type ChessCommand } from '../../services/chessEngine';
 import { multiplayerService } from '../../services/multiplayerService';
-import { Wifi } from 'lucide-react';
-
+import { sound } from '../../services/sound';
+import { TABLE_BACKGROUNDS } from '../../services/gameImages';
+import { AvatarDisplay } from '../avatar/AvatarDisplay';
+import type { RoomParticipant } from '../../types';
+type PieceType='p'|'r'|'n'|'b'|'q'|'k';
+type PieceColor='w'|'b';
+interface ChessPiece {type:PieceType;color:PieceColor}
 interface ChessGameProps {
-  onGameEnd?: (winner: string) => void;
-  tableParticipants?: RoomParticipant[];
-  currentUserId?: string;
-  onActiveTurnChange?: (turnPlayerId: string) => void;
-  roomCode?: string;
-  isHost?: boolean;
+  onGameEnd?:(winner:string)=>void;tableParticipants?:RoomParticipant[];currentUserId?:string;
+  onActiveTurnChange?:(id:string)=>void;roomCode?:string;isHost?:boolean;
 }
-
-type BoardState = (ChessPiece | null)[][];
-
-const INITIAL_BOARD: BoardState = [
-  [
-    { type: 'r', color: 'b' },
-    { type: 'n', color: 'b' },
-    { type: 'b', color: 'b' },
-    { type: 'q', color: 'b' },
-    { type: 'k', color: 'b' },
-    { type: 'b', color: 'b' },
-    { type: 'n', color: 'b' },
-    { type: 'r', color: 'b' },
-  ],
-  Array(8).fill(null).map(() => ({ type: 'p', color: 'b' })),
-  Array(8).fill(null),
-  Array(8).fill(null),
-  Array(8).fill(null),
-  Array(8).fill(null),
-  Array(8).fill(null).map(() => ({ type: 'p', color: 'w' })),
-  [
-    { type: 'r', color: 'w' },
-    { type: 'n', color: 'w' },
-    { type: 'b', color: 'w' },
-    { type: 'q', color: 'w' },
-    { type: 'k', color: 'w' },
-    { type: 'b', color: 'w' },
-    { type: 'n', color: 'w' },
-    { type: 'r', color: 'w' },
-  ],
-];
-
-export const ChessGame: React.FC<ChessGameProps> = ({ 
-  onGameEnd,
-  tableParticipants,
-  currentUserId,
-  onActiveTurnChange,
-  roomCode,
-}) => {
-  const p1 = tableParticipants?.[0];
-  const p2 = tableParticipants?.[1];
-  const p1Name = p1?.name || 'Weiß (Du)';
-  const p2Name = p2?.name || (p2?.isBot ? 'Schach-KI' : 'Schwarz (Spieler 2)');
-  const isP2Bot = p2 ? !!p2.isBot : true;
-
-  const isOnlineMultiplayer = Boolean(roomCode && p1 && p2 && !p2.isBot);
-  const myColor: PieceColor | null = isOnlineMultiplayer
-    ? currentUserId === p1?.id
-      ? 'w'
-      : currentUserId === p2?.id
-      ? 'b'
-      : null
-    : null;
-
-  const [board, setBoard] = useState<BoardState>(INITIAL_BOARD);
-  const [turn, setTurn] = useState<PieceColor>('w');
-  const [selectedPos, setSelectedPos] = useState<[number, number] | null>(null);
-  const [validMoves, setValidMoves] = useState<[number, number][]>([]);
-  const [mode, setMode] = useState<'bot' | 'local2p' | 'online'>(() => 
-    isOnlineMultiplayer ? 'online' : (isP2Bot ? 'bot' : 'local2p')
-  );
-  const [winner, setWinner] = useState<string | null>(null);
-  const [moveHistory, setMoveHistory] = useState<string[]>([]);
-
-  useEffect(() => {
-    if (isOnlineMultiplayer) {
-      setMode('online');
-    } else {
-      setMode(isP2Bot ? 'bot' : 'local2p');
+export const ChessGame:React.FC<ChessGameProps>=({onGameEnd,tableParticipants,currentUserId,onActiveTurnChange,roomCode})=>{
+  const difficulty=useAIDifficulty(),{schedule,cancelAll}=useGameTimers();
+  const game=useAuthoritativeGame({roomCode,userId:currentUserId,engine:'chess',initial:()=>initialChess(),reduce:reduceChess});
+  const {state,send}=game;
+  const participants:RoomParticipant[]=(state as any).participants||tableParticipants||[];
+  const p1=participants[0],p2=participants[1],p1Name=p1?.name||'Weiß',p2Name=p2?.name||'Schach-KI';
+  const isOnlineMultiplayer=Boolean(roomCode);
+  const myColor:PieceColor|null=currentUserId===p1?.id?'w':currentUserId===p2?.id?'b':null;
+  const [localMode,setLocalMode]=useState<'bot'|'local2p'>(p2&&!p2.isBot?'local2p':'bot');
+  const mode=isOnlineMultiplayer?'online':localMode;
+  const setMode=(value:'bot'|'local2p')=>setLocalMode(value);
+  const [selectedPos,setSelectedPos]=useState<[number,number]|null>(null);
+  const [promotion,setPromotion]=useState<{from:string;to:string}|null>(null);
+  const chess=chessPosition(state),board=chess.board(),turn=state.turn;
+  const winner=state.result==='draw'?'Unentschieden':state.result==='w'?p1Name:state.result==='b'?p2Name:null;
+  const moves=selectedPos?chess.moves({square:chessSquare(...selectedPos),verbose:true}):[];
+  const validMoves:[number,number][]=moves.map(m=>[8-Number(m.to[1]),m.to.charCodeAt(0)-97]);
+  const canPlay=game.ready&&!game.pending&&!state.result&&(isOnlineMultiplayer?myColor===turn:mode==='local2p'||turn==='w');
+  const reported=useRef(false);
+  useEffect(()=>{onActiveTurnChange?.(turn==='w'?p1?.id||'p1':p2?.id||'p2');},[turn,p1?.id,p2?.id,onActiveTurnChange]);
+  useEffect(()=>{
+    setSelectedPos(null);setPromotion(null);
+    if(state.moves.length)sound.playPieceDrop();
+    if(state.result&&!reported.current){reported.current=true;onGameEnd?.(state.result==='draw'?'draw':state.result===(myColor||'w')?'player':'opponent');}
+  },[state.revision,state.result]);
+  useEffect(()=>{
+    if(isOnlineMultiplayer||mode!=='bot'||turn!=='b'||state.result)return;
+    const timer=schedule(()=>{const command=chooseChessMove(state,difficulty);if(command)send(command);},450);
+    return ()=>clearTimeout(timer);
+  },[state,mode,difficulty,isOnlineMultiplayer]);
+  const handleSquareClick=(r:number,c:number)=>{
+    if(!canPlay||promotion)return;
+    const to=chessSquare(r,c);
+    if(selectedPos){
+      const from=chessSquare(...selectedPos),legal=moves.filter(m=>m.to===to);
+      if(legal.length){
+        if(legal.some(m=>m.promotion))setPromotion({from,to});
+        else send({type:'MOVE',from,to});
+        setSelectedPos(null);return;
+      }
     }
-  }, [isOnlineMultiplayer, isP2Bot]);
-
-  useEffect(() => {
-    if (onActiveTurnChange) {
-      const activeId = turn === 'w' ? (p1?.id || 'p1') : (p2?.id || 'p2');
-      onActiveTurnChange(activeId);
-    }
-  }, [turn, p1?.id, p2?.id, onActiveTurnChange]);
-
-  // WebSocket Multiplayer synchronization
-  useEffect(() => {
-    if (!roomCode) return;
-
-    const unsubscribe = multiplayerService.subscribeToGameActions((event) => {
-      if (event.gameType !== 'chess' || event.roomCode !== roomCode) return;
-      if (event.senderId === currentUserId) return;
-
-      if (event.action === 'MOVE') {
-        const { from, to } = event.payload;
-        applyRemoteMove(from[0], from[1], to[0], to[1]);
-      } else if (event.action === 'RESET') {
-        sound.playClick();
-        setBoard(INITIAL_BOARD);
-        setTurn('w');
-        setSelectedPos(null);
-        setValidMoves([]);
-        setWinner(null);
-        setMoveHistory([]);
-      }
-    });
-
-    return () => unsubscribe();
-  }, [roomCode, currentUserId, onGameEnd]);
-
-  const applyRemoteMove = (fromR: number, fromC: number, toR: number, toC: number) => {
-    setBoard((prev) => {
-      const movingPiece = prev[fromR][fromC];
-      if (!movingPiece) return prev;
-      const captured = prev[toR][toC];
-
-      const newBoard = prev.map((row) => [...row]);
-      newBoard[toR][toC] = movingPiece;
-      newBoard[fromR][fromC] = null;
-
-      if (movingPiece.type === 'p' && (toR === 0 || toR === 7)) {
-        newBoard[toR][toC] = { type: 'q', color: movingPiece.color };
-      }
-
-      if (captured) {
-        sound.playSuccess();
-        if (captured.type === 'k') {
-          const winTitle = movingPiece.color === 'w' ? (p1Name) : (p2Name);
-          setWinner(winTitle);
-          sound.playVictory();
-          try { confetti({ particleCount: 100, spread: 70 }); } catch (e) {}
-          if (onGameEnd) onGameEnd(winTitle);
-        }
-      } else {
-        sound.playChip();
-      }
-
-      setTurn(movingPiece.color === 'w' ? 'b' : 'w');
-      return newBoard;
-    });
+    setSelectedPos(board[r][c]?.color===turn?[r,c]:null);
   };
-
-  // Calculate standard moves
-  const getMoves = (r: number, c: number, currentBoard: BoardState): [number, number][] => {
-    const piece = currentBoard[r][c];
-    if (!piece) return [];
-    const moves: [number, number][] = [];
-    const color = piece.color;
-    const opponent = color === 'w' ? 'b' : 'w';
-
-    const addMove = (tr: number, tc: number): boolean => {
-      if (tr < 0 || tr >= 8 || tc < 0 || tc >= 8) return false;
-      const target = currentBoard[tr][tc];
-      if (!target) {
-        moves.push([tr, tc]);
-        return true;
-      } else if (target.color === opponent) {
-        moves.push([tr, tc]);
-        return false;
-      }
-      return false;
-    };
-
-    if (piece.type === 'p') {
-      const dir = color === 'w' ? -1 : 1;
-      const startRow = color === 'w' ? 6 : 1;
-      // Single push
-      if (r + dir >= 0 && r + dir < 8 && !currentBoard[r + dir][c]) {
-        moves.push([r + dir, c]);
-        // Double push from starting rank
-        if (r === startRow && !currentBoard[r + 2 * dir][c]) {
-          moves.push([r + 2 * dir, c]);
-        }
-      }
-      // Diagonal captures
-      [-1, 1].forEach((dc) => {
-        const tr = r + dir;
-        const tc = c + dc;
-        if (tr >= 0 && tr < 8 && tc >= 0 && tc < 8) {
-          if (currentBoard[tr][tc]?.color === opponent) {
-            moves.push([tr, tc]);
-          }
-        }
-      });
-    } else if (piece.type === 'n') {
-      const knightOffsets = [
-        [-2, -1], [-2, 1], [-1, -2], [-1, 2],
-        [1, -2], [1, 2], [2, -1], [2, 1],
-      ];
-      knightOffsets.forEach(([dr, dc]) => addMove(r + dr, c + dc));
-    } else if (piece.type === 'b') {
-      const dirs = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
-      dirs.forEach(([dr, dc]) => {
-        let step = 1;
-        while (addMove(r + dr * step, c + dc * step)) {
-          step++;
-        }
-      });
-    } else if (piece.type === 'r') {
-      const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-      dirs.forEach(([dr, dc]) => {
-        let step = 1;
-        while (addMove(r + dr * step, c + dc * step)) {
-          step++;
-        }
-      });
-    } else if (piece.type === 'q') {
-      const dirs = [
-        [-1, -1], [-1, 1], [1, -1], [1, 1],
-        [-1, 0], [1, 0], [0, -1], [0, 1],
-      ];
-      dirs.forEach(([dr, dc]) => {
-        let step = 1;
-        while (addMove(r + dr * step, c + dc * step)) {
-          step++;
-        }
-      });
-    } else if (piece.type === 'k') {
-      const dirs = [
-        [-1, -1], [-1, 0], [-1, 1],
-        [0, -1], [0, 1],
-        [1, -1], [1, 0], [1, 1],
-      ];
-      dirs.forEach(([dr, dc]) => addMove(r + dr, c + dc));
-    }
-
-    return moves;
+  const resetGame=()=>{
+    cancelAll();setSelectedPos(null);setPromotion(null);reported.current=false;
+    if(roomCode)multiplayerService.startRound(roomCode);else game.resetLocal();
   };
-
-  const handleSquareClick = (r: number, c: number) => {
-    if (winner) return;
-
-    if (isOnlineMultiplayer && myColor && turn !== myColor) {
-      sound.playError();
-      return;
-    }
-
-    if (selectedPos) {
-      const [sr, sc] = selectedPos;
-      // If clicking same piece, deselect
-      if (sr === r && sc === c) {
-        setSelectedPos(null);
-        setValidMoves([]);
-        return;
-      }
-
-      // Check if clicked square is a valid move
-      const isMove = validMoves.some(([mr, mc]) => mr === r && mc === c);
-      if (isMove) {
-        executeMove(sr, sc, r, c, board, turn);
-        return;
-      }
-    }
-
-    // Select new piece of current player
-    const piece = board[r][c];
-    if (piece && piece.color === turn) {
-      if (isOnlineMultiplayer && myColor && piece.color !== myColor) {
-        sound.playError();
-        return;
-      }
-      sound.playClick();
-      setSelectedPos([r, c]);
-      setValidMoves(getMoves(r, c, board));
-    } else {
-      setSelectedPos(null);
-      setValidMoves([]);
-    }
-  };
-
-  const executeMove = (
-    fromR: number, 
-    fromC: number, 
-    toR: number, 
-    toC: number, 
-    sourceBoard?: BoardState, 
-    actingColor?: PieceColor
-  ) => {
-    const currentBoard = sourceBoard || board;
-    const currentColor = actingColor || turn;
-    const movingPiece = currentBoard[fromR][fromC];
-    if (!movingPiece) return;
-    const captured = currentBoard[toR][toC];
-
-    const newBoard = currentBoard.map((row) => [...row]);
-    newBoard[toR][toC] = movingPiece;
-    newBoard[fromR][fromC] = null;
-
-    // Pawn promotion to Queen
-    if (movingPiece.type === 'p' && (toR === 0 || toR === 7)) {
-      newBoard[toR][toC] = { type: 'q', color: movingPiece.color };
-    }
-
-    if (captured) {
-      sound.playSuccess();
-      if (captured.type === 'k') {
-        // King captured
-        const winTitle = currentColor === 'w' ? p1Name : p2Name;
-        setWinner(winTitle);
-        sound.playVictory();
-        try { confetti({ particleCount: 100, spread: 70 }); } catch (e) {}
-        if (onGameEnd) onGameEnd(winTitle);
-        return;
-      }
-    } else {
-      sound.playChip();
-    }
-
-    if (roomCode) {
-      multiplayerService.sendGameAction(roomCode, 'chess', 'MOVE', {
-        from: [fromR, fromC],
-        to: [toR, toC],
-      }, currentUserId || 'p1');
-    }
-
-    setBoard(newBoard);
-    setSelectedPos(null);
-    setValidMoves([]);
-
-    const nextTurn: PieceColor = currentColor === 'w' ? 'b' : 'w';
-    setTurn(nextTurn);
-
-    // AI Move - only triggered when next turn is black in bot mode
-    if (mode === 'bot' && nextTurn === 'b' && !winner) {
-      setTimeout(() => {
-        executeAiMove(newBoard);
-      }, 650);
-    }
-  };
-
-  const executeAiMove = (currentBoard: BoardState) => {
-    const blackPieces: { r: number; c: number; moves: [number, number][] }[] = [];
-
-    currentBoard.forEach((row, r) => {
-      row.forEach((piece, c) => {
-        if (piece && piece.color === 'b') {
-          const moves = getMoves(r, c, currentBoard);
-          if (moves.length > 0) {
-            blackPieces.push({ r, c, moves });
-          }
-        }
-      });
-    });
-
-    if (blackPieces.length === 0) {
-      setWinner(p1Name);
-      sound.playVictory();
-      if (onGameEnd) onGameEnd(p1Name);
-      return;
-    }
-
-    // Prioritize captures
-    let chosenFrom = blackPieces[0];
-    let chosenTarget = blackPieces[0].moves[0];
-    let foundCapture = false;
-
-    for (const p of blackPieces) {
-      for (const m of p.moves) {
-        const dest = currentBoard[m[0]][m[1]];
-        if (dest && dest.color === 'w') {
-          chosenFrom = p;
-          chosenTarget = m;
-          foundCapture = true;
-          break;
-        }
-      }
-      if (foundCapture) break;
-    }
-
-    if (!foundCapture) {
-      const randP = blackPieces[Math.floor(Math.random() * blackPieces.length)];
-      chosenFrom = randP;
-      chosenTarget = randP.moves[Math.floor(Math.random() * randP.moves.length)];
-    }
-
-    executeMove(chosenFrom.r, chosenFrom.c, chosenTarget[0], chosenTarget[1], currentBoard, 'b');
-  };
-
-  const resetGame = () => {
-    sound.playClick();
-    setBoard(INITIAL_BOARD);
-    setTurn('w');
-    setSelectedPos(null);
-    setValidMoves([]);
-    setWinner(null);
-    setMoveHistory([]);
-
-    if (roomCode) {
-      multiplayerService.sendGameAction(roomCode, 'chess', 'RESET', {}, currentUserId || 'p1');
-    }
-  };
-
+  const drawColor=isOnlineMultiplayer?myColor:turn;
+  if(!game.ready)return <p role="status">Schachstellung wird geladen …</p>;
   // Render Staunton piece with wooden textures
   const renderStauntonPiece = (piece: ChessPiece) => {
     const isWhite = piece.color === 'w';
@@ -522,6 +176,9 @@ export const ChessGame: React.FC<ChessGameProps> = ({
         </button>
       </div>
 
+      <p role="status" className="text-sm mb-3 text-amber-200">{game.pending?'Zug wird bestätigt …':state.reason||`${turn==='w'?'Weiß':'Schwarz'} am Zug`}</p>
+      {game.error&&<p role="alert" className="text-rose-300 mb-3">{game.error}</p>}
+      {promotion&&<div role="dialog" aria-label="Bauernumwandlung" className="mb-3 p-3 border border-amber-400 rounded-xl"><p>In welche Figur umwandeln?</p><div className="flex flex-wrap gap-2">{(['q','r','b','n'] as const).map((piece,index)=><button key={piece} className="bg-slate-800 p-3 rounded-xl" onClick={()=>{send({type:'MOVE',...promotion,promotion:piece});setPromotion(null);}}>{['Dame','Turm','Läufer','Springer'][index]}</button>)}</div></div>}
       {/* 8x8 REAL INLAID WOODEN CHESSBOARD */}
       <div className="relative rounded-3xl p-3 sm:p-5 border-4 border-amber-950 shadow-2xl max-w-md w-full overflow-hidden bg-amber-950">
         
@@ -543,6 +200,10 @@ export const ChessGame: React.FC<ChessGameProps> = ({
               return (
                 <div
                   key={`${r}-${c}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Feld ${String.fromCharCode(97 + c)}${8 - r}`}
+                  onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); handleSquareClick(r,c); } }}
                   onClick={() => handleSquareClick(r, c)}
                   className={`aspect-square flex items-center justify-center relative cursor-pointer transition-colors ${
                     isDark
@@ -564,11 +225,17 @@ export const ChessGame: React.FC<ChessGameProps> = ({
         </div>
       </div>
 
+      {!state.result&&drawColor&&<div className="flex flex-wrap gap-2 mt-3 text-xs">
+        <button className="bg-slate-800 rounded-xl px-3 py-2" onClick={()=>send({type:'RESIGN',color:drawColor})}>Aufgeben</button>
+        {state.offer&&state.offer!==drawColor?<button className="bg-slate-800 rounded-xl px-3 py-2" onClick={()=>send({type:'ACCEPT_DRAW',color:drawColor})}>Remis annehmen</button>:<button className="bg-slate-800 rounded-xl px-3 py-2" onClick={()=>send({type:'OFFER_DRAW',color:drawColor})}>Remis anbieten</button>}
+        {(chess.isThreefoldRepetition()||chess.isDrawByFiftyMoves())&&<button className="bg-slate-800 rounded-xl px-3 py-2" onClick={()=>send({type:'CLAIM_DRAW',color:drawColor})}>Remis beanspruchen</button>}
+      </div>}
+      <details className="w-full mt-3 text-xs"><summary>Zugliste ({state.moves.length})</summary><p className="break-words p-2">{state.moves.map((move,index)=>`${index%2===0?`${Math.floor(index/2)+1}. `:''}${move}`).join(' ')||'Noch keine Züge.'}</p></details>
       {/* Winner Banner */}
       {winner && (
         <div className="mt-3 bg-amber-500/20 border border-amber-500/40 text-amber-300 px-4 py-2 rounded-2xl font-bold flex items-center gap-2 animate-bounce">
           <Trophy className="w-4 h-4 text-amber-400" />
-          <span>Schachmatt! {winner} gewinnt das Spiel!</span>
+          <span>{state.result==='draw'?`Remis: ${state.reason}`:`${state.reason}: ${winner} gewinnt!`}</span>
         </div>
       )}
     </div>

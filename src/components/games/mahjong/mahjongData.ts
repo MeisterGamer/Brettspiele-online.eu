@@ -171,7 +171,7 @@ export const TILE_GRID_HEIGHT = 2;
 
 // Check if tile A is directly covered by tile B (tile B is on layer = A.layer + 1 and overlaps in X and Y)
 export const isCoveredBy = (a: PlacedMahjongTile, b: PlacedMahjongTile): boolean => {
-  if (b.layer !== a.layer + 1 || b.matched) return false;
+  if (b.layer <= a.layer || b.matched) return false;
   // Overlap condition in grid units: [x, x + 2) overlaps if abs(a.x - b.x) < 2 and abs(a.y - b.y) < 2
   const overlapX = Math.abs(a.x - b.x) < 2;
   const overlapY = Math.abs(a.y - b.y) < 2;
@@ -250,27 +250,13 @@ export type MahjongLayoutType = 'turtle' | 'pyramid' | 'fortress';
 export const generateTurtleSlots = (): { x: number; y: number; layer: number }[] => {
   const slots: { x: number; y: number; layer: number }[] = [];
 
-  // Layer 0: Base layout
-  // Rows y = 0 to 14 (multiples of 2)
-  // Row 0: 12 tiles
-  for (let col = 2; col <= 24; col += 2) slots.push({ x: col, y: 2, layer: 0 }); // 12
-  // Row 1: 8 tiles
-  for (let col = 6; col <= 20; col += 2) slots.push({ x: col, y: 4, layer: 0 }); // 8
-  // Row 2: 10 tiles
-  for (let col = 4; col <= 22; col += 2) slots.push({ x: col, y: 6, layer: 0 }); // 10
-  // Row 3: 12 tiles + 2 far wing tiles
-  slots.push({ x: 0, y: 8, layer: 0 }); // Left head
-  for (let col = 2; col <= 24; col += 2) slots.push({ x: col, y: 8, layer: 0 }); // 12
-  slots.push({ x: 26, y: 8, layer: 0 }); // Right tail 1
-  slots.push({ x: 28, y: 8, layer: 0 }); // Right tail 2
-  // Row 4: 10 tiles
-  for (let col = 4; col <= 22; col += 2) slots.push({ x: col, y: 10, layer: 0 }); // 10
-  // Row 5: 8 tiles
-  for (let col = 6; col <= 20; col += 2) slots.push({ x: col, y: 12, layer: 0 }); // 8
-  // Row 6: 12 tiles
-  for (let col = 2; col <= 24; col += 2) slots.push({ x: col, y: 14, layer: 0 }); // 12
-  // Far Left wing extra tile
-  slots.push({ x: -2, y: 8, layer: 0 });
+  // Eight base rows (84) plus the centered head and two tail tiles (3).
+  const rows=[12,8,10,12,12,10,8,12];
+  rows.forEach((count,row)=>{
+    const start=2+(12-count);
+    for(let c=0;c<count;c++)slots.push({x:start+c*2,y:2+row*2,layer:0});
+  });
+  slots.push({x:0,y:9,layer:0},{x:26,y:9,layer:0},{x:28,y:9,layer:0});
 
   // Layer 1: Center 6x6 plateau (36 tiles)
   for (let row = 4; row <= 14; row += 2) {
@@ -395,16 +381,16 @@ export const generateFortressSlots = (): { x: number; y: number; layer: number }
   }
   slots.push({ x: 13, y: 9, layer: 3 });
 
-  // Adjust to exactly 144
-  while (slots.length < 144) {
-    slots.push({ x: 8 + (slots.length % 5) * 2, y: 8 + (slots.length % 3) * 2, layer: 1 });
-  }
+  // Complete the supporting base without duplicate coordinates.
+  for(let y=4;y<=14;y+=2)for(const x of [4,22])slots.push({x,y,layer:0});
+  for(const [x,y]of [[4,4],[22,4],[4,14],[22,14]])slots.push({x,y,layer:1});
+  for(const [x,y]of [[8,6],[8,8],[8,10],[8,12],[18,6],[18,8],[18,10]])slots.push({x,y,layer:1});
 
   return slots.slice(0, 144);
 };
 
 // Generate a complete game board with 144 tiles
-export const generateMahjongBoard = (layout: MahjongLayoutType = 'turtle'): PlacedMahjongTile[] => {
+export const generateMahjongBoard = (layout: MahjongLayoutType = 'turtle',random=Math.random): PlacedMahjongTile[] => {
   const slotsGenerator =
     layout === 'turtle' ? generateTurtleSlots :
     layout === 'pyramid' ? generatePyramidSlots :
@@ -415,7 +401,7 @@ export const generateMahjongBoard = (layout: MahjongLayoutType = 'turtle'): Plac
 
   // Shuffle deck
   for (let i = deck.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(random() * (i + 1));
     [deck[i], deck[j]] = [deck[j], deck[i]];
   }
 
@@ -428,5 +414,32 @@ export const generateMahjongBoard = (layout: MahjongLayoutType = 'turtle'): Plac
     matched: false,
   }));
 
-  return placedTiles;
+  return dealMahjongPairs(placedTiles,random);
 };
+
+/** Assign pairs along a legal geometric removal order, preserving the exact tile inventory. */
+export function dealMahjongPairs(tiles:PlacedMahjongTile[],random=Math.random):PlacedMahjongTile[] {
+  const buckets=new Map<string,MahjongTileDefinition[]>();
+  for(const tile of tiles.filter(t=>!t.matched)){
+    const d=tile.definition,key=d.category==='flower'||d.category==='season'?d.category:`${d.category}:${d.value}`;
+    const bucket=buckets.get(key)||[];bucket.push(d);buckets.set(key,bucket);
+  }
+  const pairs:MahjongTileDefinition[][]=[];
+  for(const bucket of buckets.values()){
+    if(bucket.length%2)throw new Error('Mahjong-Kartenbestand enthält ein ungepaartes Symbol.');
+    for(let i=0;i<bucket.length;i+=2)pairs.push([bucket[i],bucket[i+1]]);
+  }
+  for(let i=pairs.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[pairs[i],pairs[j]]=[pairs[j],pairs[i]];}
+  const working=tiles.map(t=>({...t})),assigned=new Map<string,MahjongTileDefinition>();
+  for(const pair of pairs){
+    const free=getFreeTiles(working).sort((a,b)=>b.layer-a.layer||a.x-b.x||a.y-b.y);
+    if(free.length<2){
+      // A deadlocked remainder can require rearranging the remaining tiles, not just their symbols.
+      let index=0;
+      const flat=tiles.map(tile=>tile.matched?tile:{...tile,x:-2+(index%16)*2,y:Math.floor(index++/16)*2,layer:0});
+      return dealMahjongPairs(flat,random);
+    }
+    for(let i=0;i<2;i++){assigned.set(free[i].id,pair[i]);free[i].matched=true;}
+  }
+  return tiles.map(tile=>assigned.has(tile.id)?{...tile,definition:assigned.get(tile.id)!}:tile);
+}

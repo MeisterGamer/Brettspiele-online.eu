@@ -79,3 +79,23 @@
 .animate-float {
   animation: float-gentle 3s ease-in-out infinite;
 }
+
+/* Keep controls reachable around phone notches, browser bars and the keyboard. */
+@layer base {
+  html { min-height: 100%; scroll-padding-bottom: 6rem; }
+  body { min-height: 100dvh; }
+  :focus-visible { outline: 3px solid #fbbf24; outline-offset: 3px; }
+  @media (pointer: coarse) {
+    input, select, textarea { font-size: max(16px, 1em); }
+    button, a { min-height: 44px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  }
+}
+@media (max-width: 767px) {
+  #root { padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px)); }
+  header { padding-top: max(0.75rem, env(safe-area-inset-top, 0px)); padding-left: max(1rem, env(safe-area-inset-left, 0px)); padding-right: max(1rem, env(safe-area-inset-right, 0px)); }
+  header > div { flex-wrap: wrap; }
+  [role="dialog"] { max-height: 100dvh; overflow-y: auto; overscroll-behavior: contain; }
+}

@@ -1,4 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { initialYatzy, reduceYatzy, yatzyScore, yatzyTotal, chooseYatzyCategory, chooseYatzyHolds, type YatzyCategory, type YatzyAction } from '../../services/yatzyEngine';
+import { multiplayerService } from '../../services/multiplayerService';
+import { useGameTimers } from './useGameTimers';
+import React, { useState, useEffect, useRef } from 'react';
 import { sound } from '../../services/sound';
 import confetti from '../../services/confetti';
 import { RefreshCw, Trophy, Play, CheckCircle2, Dices, Sparkles, Bot, Users } from 'lucide-react';
@@ -15,161 +18,103 @@ interface YatzyGameProps {
   isHost?: boolean;
 }
 
-type CategoryKey =
-  | 'ones'
-  | 'twos'
-  | 'threes'
-  | 'fours'
-  | 'fives'
-  | 'sixes'
-  | 'threeOfKind'
-  | 'fourOfKind'
-  | 'fullHouse'
-  | 'smallStraight'
-  | 'largeStraight'
-  | 'yatzy'
-  | 'chance';
+type CategoryKey = YatzyCategory;
 
 export const YatzyGame: React.FC<YatzyGameProps> = ({ 
   onGameEnd,
   tableParticipants,
   currentUserId,
-  onActiveTurnChange
+  onActiveTurnChange,
+  roomCode,
+  isHost,
 }) => {
+  const { schedule, repeat, cancelAll } = useGameTimers();
   const p1 = tableParticipants?.[0];
   const p2 = tableParticipants?.[1];
   const p1Name = p1?.name || 'Spieler 1';
   const p2Name = p2?.name || (p2?.isBot ? 'Kniffel-KI' : 'Spieler 2');
 
-  const [activePlayerIndex, setActivePlayerIndex] = useState<number>(0);
-  const [dice, setDice] = useState<number[]>([1, 2, 3, 4, 5]);
-  const [held, setHeld] = useState<boolean[]>([false, false, false, false, false]);
-  const [rollsLeft, setRollsLeft] = useState<number>(3);
-  const [scores, setScores] = useState<Partial<Record<CategoryKey, number>>>({});
-  const [isRolling, setIsRolling] = useState<boolean>(false);
-  const [gameOver, setGameOver] = useState<boolean>(false);
-
+  const [state, setState] = useState(() => initialYatzy(tableParticipants?.length || 1));
+  const activePlayerIndex = state.active;
+  const { dice, held, rollsLeft } = state;
+  const scores = state.cards[activePlayerIndex] || {};
+  const [isRolling, setIsRolling] = useState(false);
+  const gameOver = state.finished;
+  const online = Boolean(roomCode);
+  const activeParticipant = tableParticipants?.[activePlayerIndex];
+  const activeBot = Boolean(activeParticipant?.isBot);
+  const canAct = !gameOver && (online ? activeParticipant?.id === currentUserId || (activeBot && isHost) : true);
+  const finishedReported = useRef(false);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const update = (action: YatzyAction) => {
+    if (!canAct) return;
+    if (online) multiplayerService.sendGameAction(roomCode!, 'yatzy', 'YATZY_COMMAND', action, currentUserId!);
+    else setState(prev => reduceYatzy(prev, action));
+  };
   useEffect(() => {
-    if (onActiveTurnChange) {
-      const activeP = tableParticipants?.[activePlayerIndex];
-      onActiveTurnChange(activeP?.id || (activePlayerIndex === 0 ? 'p1' : 'p2'));
-    }
-  }, [activePlayerIndex, tableParticipants, onActiveTurnChange]);
-
+    onActiveTurnChange?.(activeParticipant?.id || 'p1');
+  }, [activePlayerIndex, activeParticipant?.id, onActiveTurnChange]);
+  useEffect(() => {
+    if (!roomCode) return;
+    const unsubscribe = multiplayerService.subscribeToGameActions(event => {
+      if (event.roomCode !== roomCode || event.gameType !== 'yatzy' || event.action !== 'YATZY_STATE') return;
+      const next = event.payload?.state;
+      if (next && next.revision >= stateRef.current.revision) { setState(next); setIsRolling(false); }
+    });
+    multiplayerService.sendGameAction(roomCode, 'yatzy', 'YATZY_GET_STATE', {}, currentUserId || 'p1');
+    return unsubscribe;
+  }, [roomCode, currentUserId]);
+  useEffect(() => {
+    if (!gameOver || finishedReported.current) return;
+    finishedReported.current = true;
+    sound.playVictory();
+    onGameEnd?.(yatzyTotal(state.cards[tableParticipants?.findIndex(p=>p.id===currentUserId) ?? 0] || state.cards[0]));
+  }, [gameOver]);
   const rollDice = () => {
-    if (rollsLeft === 0 || isRolling || gameOver) return;
-
+    if (!canAct || !rollsLeft || isRolling) return;
     sound.playDiceRoll();
     setIsRolling(true);
-
-    let count = 0;
-    const interval = setInterval(() => {
-      setDice((prev) =>
-        prev.map((val, idx) => (held[idx] ? val : Math.floor(Math.random() * 6) + 1))
-      );
-      count++;
-      if (count > 6) {
-        clearInterval(interval);
-        setIsRolling(false);
-        setRollsLeft((r) => r - 1);
-      }
-    }, 60);
+    schedule(() => {
+      update({ type:'ROLL', dice:Array.from({length:5},()=>Math.floor(Math.random()*6)+1) });
+      if (!online) setIsRolling(false);
+    }, 350);
   };
-
   const toggleHold = (index: number) => {
-    if (rollsLeft === 3 || isRolling || gameOver) return;
-    sound.playClick();
-    setHeld((prev) => {
-      const copy = [...prev];
-      copy[index] = !copy[index];
-      return copy;
-    });
+    if (isRolling) return;
+    update({type:'HOLD',index});
   };
-
-  // Helper score calculators
-  const getSumOf = (val: number) => dice.filter((d) => d === val).reduce((a, b) => a + b, 0);
-  const getTotalSum = () => dice.reduce((a, b) => a + b, 0);
-
-  const getCountMap = () => {
-    const map: Record<number, number> = {};
-    dice.forEach((d) => (map[d] = (map[d] || 0) + 1));
-    return map;
-  };
-
-  const calculatePotentialScore = (cat: CategoryKey): number => {
-    const counts = getCountMap();
-    const countValues = Object.values(counts);
-
-    switch (cat) {
-      case 'ones': return getSumOf(1);
-      case 'twos': return getSumOf(2);
-      case 'threes': return getSumOf(3);
-      case 'fours': return getSumOf(4);
-      case 'fives': return getSumOf(5);
-      case 'sixes': return getSumOf(6);
-      case 'threeOfKind': return countValues.some((c) => c >= 3) ? getTotalSum() : 0;
-      case 'fourOfKind': return countValues.some((c) => c >= 4) ? getTotalSum() : 0;
-      case 'fullHouse': return (countValues.includes(3) && countValues.includes(2)) || countValues.includes(5) ? 25 : 0;
-      case 'smallStraight': {
-        const unique = Array.from(new Set(dice)).sort();
-        const str = unique.join('');
-        return str.includes('1234') || str.includes('2345') || str.includes('3456') ? 30 : 0;
-      }
-      case 'largeStraight': {
-        const sorted = [...dice].sort().join('');
-        return sorted === '12345' || sorted === '23456' ? 40 : 0;
-      }
-      case 'yatzy': return countValues.some((c) => c === 5) ? 50 : 0;
-      case 'chance': return getTotalSum();
-      default: return 0;
-    }
-  };
-
-  const selectCategory = (cat: CategoryKey) => {
-    if (scores[cat] !== undefined || rollsLeft === 3 || isRolling || gameOver) return;
-
+  const calculatePotentialScore = (category: CategoryKey) => yatzyScore(dice,category);
+  const selectCategory = (category: CategoryKey) => {
+    if (isRolling) return;
     sound.playReward();
-    const scoreVal = calculatePotentialScore(cat);
-    const newScores = { ...scores, [cat]: scoreVal };
-    setScores(newScores);
-
-    // Reset turn
-    setRollsLeft(3);
-    setHeld([false, false, false, false, false]);
-
-    // Check if game complete (13 categories)
-    if (Object.keys(newScores).length === 13) {
-      setGameOver(true);
-      sound.playVictory();
-      try {
-        confetti({ particleCount: 100, spread: 80 });
-      } catch (e) {}
-
-      // Calculate final total
-      const upperSum = ['ones', 'twos', 'threes', 'fours', 'fives', 'sixes']
-        .map((k) => newScores[k as CategoryKey] || 0)
-        .reduce((a, b) => a + b, 0);
-      const bonus = upperSum >= 63 ? 35 : 0;
-      const finalScore = Object.values(newScores).reduce((a, b) => a + b, 0) + bonus;
-
-      if (onGameEnd) onGameEnd(finalScore);
-    }
+    update({type:'SCORE',category});
   };
-
+  useEffect(() => {
+    if (!activeBot || !canAct || isRolling || gameOver) return;
+    const timer = schedule(() => {
+      if (rollsLeft === 3) { rollDice(); return; }
+      if (rollsLeft === 0 || yatzyScore(dice,'yatzy') === 50 || yatzyScore(dice,'largeStraight') === 40) {
+        selectCategory(chooseYatzyCategory(state)); return;
+      }
+      const desired = chooseYatzyHolds(state);
+      const mismatch = desired.findIndex((value,i)=>value!==held[i]);
+      if (mismatch >= 0) toggleHold(mismatch);
+      else rollDice();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [state, canAct, isRolling, activeBot]);
   const resetGame = () => {
-    sound.playClick();
-    setDice([1, 2, 3, 4, 5]);
-    setHeld([false, false, false, false, false]);
-    setRollsLeft(3);
-    setScores({});
-    setGameOver(false);
+    cancelAll();
+    if (roomCode) { multiplayerService.startRound(roomCode); return; }
+    setState(initialYatzy(tableParticipants?.length || 1));
+    setIsRolling(false);
+    finishedReported.current = false;
   };
-
-  // Totals
-  const upperCategories: CategoryKey[] = ['ones', 'twos', 'threes', 'fours', 'fives', 'sixes'];
-  const upperSum = upperCategories.reduce((sum, k) => sum + (scores[k] || 0), 0);
+  const upperCategories: CategoryKey[] = ['ones','twos','threes','fours','fives','sixes'];
+  const upperSum = upperCategories.reduce((sum,k)=>sum+(scores[k]||0),0);
   const upperBonus = upperSum >= 63 ? 35 : 0;
-  const totalScore = Object.values(scores).reduce((a, b) => a + b, 0) + upperBonus;
+  const totalScore = yatzyTotal(scores);
 
   // Render authentic 3D Ivory Dice Face with realistic recessed pips
   const render3DDiceFace = (val: number, isHeldState: boolean) => {
@@ -251,6 +196,10 @@ export const YatzyGame: React.FC<YatzyGameProps> = ({
   return (
     <div className="flex flex-col items-center max-w-xl mx-auto w-full select-none text-slate-100">
       
+      <div className="w-full mb-3 rounded-xl bg-slate-800 p-3 text-sm space-y-1" aria-live="polite">
+        <p className="font-bold">{gameOver ? 'Partie beendet' : `${activeParticipant?.name || p1Name} ist am Zug`}</p>
+        {state.cards.map((card,index)=><p key={index} className={index===activePlayerIndex ? 'text-amber-300' : 'text-slate-400'}>{tableParticipants?.[index]?.name || `Spieler ${index+1}`}: {yatzyTotal(card)} Punkte · {Object.keys(card).length}/13 Kategorien</p>)}
+      </div>
       {/* Top Banner with Player Avatars and Score */}
       <div className="w-full bg-slate-900/90 border border-slate-800 p-3 sm:p-4 rounded-2xl mb-3 text-xs shadow-xl space-y-2.5">
         {/* Players Turn Bar */}
@@ -357,7 +306,10 @@ export const YatzyGame: React.FC<YatzyGameProps> = ({
           {dice.map((val, idx) => (
             <button
               key={idx}
-              onClick={() => toggleHold(idx)}
+              aria-label={`Würfel ${idx + 1}: ${val}`}
+              aria-pressed={held[idx]}
+              disabled={!canAct || activeBot || isRolling || rollsLeft === 3}
+              onClick={() => { if (!activeBot) toggleHold(idx); }}
               className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl font-bold flex flex-col items-center justify-between p-1 transition-all relative ${
                 held[idx]
                   ? 'bg-gradient-to-b from-amber-200 via-amber-300 to-amber-500 text-slate-950 ring-4 ring-amber-300 -translate-y-2 shadow-2xl shadow-amber-500/50'
@@ -383,7 +335,7 @@ export const YatzyGame: React.FC<YatzyGameProps> = ({
         {/* Roll Button */}
         <button
           onClick={rollDice}
-          disabled={rollsLeft === 0 || isRolling || gameOver}
+          disabled={!canAct || activeBot || rollsLeft === 0 || isRolling || gameOver}
           className={`relative z-10 px-8 py-3.5 rounded-2xl font-black text-sm uppercase tracking-wider flex items-center gap-2 shadow-2xl transition-all ${
             rollsLeft > 0 && !gameOver
               ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 hover:from-amber-400 text-slate-950 shadow-amber-500/30 active:scale-95'
@@ -429,7 +381,7 @@ export const YatzyGame: React.FC<YatzyGameProps> = ({
                 <button
                   key={k}
                   onClick={() => selectCategory(k)}
-                  disabled={isFilled || rollsLeft === 3 || gameOver}
+                  disabled={!canAct || activeBot || isFilled || rollsLeft === 3 || gameOver}
                   className={`w-full flex items-center justify-between p-2 rounded-xl transition ${
                     isFilled
                       ? 'bg-slate-900/90 text-slate-300 cursor-default'
@@ -475,7 +427,7 @@ export const YatzyGame: React.FC<YatzyGameProps> = ({
                 <button
                   key={k}
                   onClick={() => selectCategory(k)}
-                  disabled={isFilled || rollsLeft === 3 || gameOver}
+                  disabled={!canAct || activeBot || isFilled || rollsLeft === 3 || gameOver}
                   className={`w-full flex items-center justify-between p-2 rounded-xl transition ${
                     isFilled
                       ? 'bg-slate-900/90 text-slate-300 cursor-default'

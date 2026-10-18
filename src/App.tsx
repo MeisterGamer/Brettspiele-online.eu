@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { GameArena } from './components/games/GameArena';
+import React, { lazy, useState, useEffect } from 'react';
 import { 
   GameInfo, 
   GameCategory, 
@@ -55,22 +56,22 @@ import { PWAInstallButton } from './components/pwa/PWAInstallButton';
 import { OfflineIndicator } from './components/pwa/OfflineIndicator';
 
 // Playable Game Engines
-import { ConnectFour } from './components/games/ConnectFour';
-import { FamCardsUno } from './components/games/FamCardsUno';
-import { CheckersGame } from './components/games/CheckersGame';
-import { BattleshipGame } from './components/games/BattleshipGame';
-import { YatzyGame } from './components/games/YatzyGame';
-import { MemoryMatchGame } from './components/games/MemoryMatchGame';
-import { DotsAndBoxesGame } from './components/games/DotsAndBoxesGame';
-import { TicTacToeGame } from './components/games/TicTacToeGame';
-import { LudoGame } from './components/games/LudoGame';
-import { ChessGame } from './components/games/ChessGame';
-import { DiamondBlastGame } from './components/games/diamondBlast/DiamondBlastGame';
-import { MonopolyGame } from './components/games/MonopolyGame';
-import { SkipBoGame } from './components/games/SkipBoGame';
-import { RommeGame } from './components/games/RommeGame';
-import { CatanGame } from './components/games/CatanGame';
-import { MahjongGame } from './components/games/MahjongGame';
+const ConnectFour = lazy(() => import('./components/games/ConnectFour').then(module => ({ default: module.ConnectFour })));
+const FamCardsUno = lazy(() => import('./components/games/FamCardsUno').then(module => ({ default: module.FamCardsUno })));
+const CheckersGame = lazy(() => import('./components/games/CheckersGame').then(module => ({ default: module.CheckersGame })));
+const BattleshipGame = lazy(() => import('./components/games/BattleshipGame').then(module => ({ default: module.BattleshipGame })));
+const YatzyGame = lazy(() => import('./components/games/YatzyGame').then(module => ({ default: module.YatzyGame })));
+const MemoryMatchGame = lazy(() => import('./components/games/MemoryMatchGame').then(module => ({ default: module.MemoryMatchGame })));
+const DotsAndBoxesGame = lazy(() => import('./components/games/DotsAndBoxesGame').then(module => ({ default: module.DotsAndBoxesGame })));
+const TicTacToeGame = lazy(() => import('./components/games/TicTacToeGame').then(module => ({ default: module.TicTacToeGame })));
+const LudoGame = lazy(() => import('./components/games/LudoGame').then(module => ({ default: module.LudoGame })));
+const ChessGame = lazy(() => import('./components/games/ChessGame').then(module => ({ default: module.ChessGame })));
+const DiamondBlastGame = lazy(() => import('./components/games/diamondBlast/DiamondBlastGame').then(module => ({ default: module.DiamondBlastGame })));
+const MonopolyGame = lazy(() => import('./components/games/MonopolyGame').then(module => ({ default: module.MonopolyGame })));
+const SkipBoGame = lazy(() => import('./components/games/SkipBoGame').then(module => ({ default: module.SkipBoGame })));
+const RommeGame = lazy(() => import('./components/games/RommeGame').then(module => ({ default: module.RommeGame })));
+const CatanGame = lazy(() => import('./components/games/CatanGame').then(module => ({ default: module.CatanGame })));
+const MahjongGame = lazy(() => import('./components/games/MahjongGame').then(module => ({ default: module.MahjongGame })));
 
 // Icons
 import { 
@@ -205,6 +206,8 @@ export default function App() {
         setPublicRooms(multiplayerService.getRooms());
         if (currentRoom && (currentRoom.id === event.room.id || currentRoom.code === event.room.code)) {
           setCurrentRoom(event.room);
+          const selectedGame = gamesCatalog.find(game => game.id === event.room.gameId);
+          if (selectedGame) setActiveGame(previous => previous ? selectedGame : previous);
         }
       }
     });
@@ -825,7 +828,7 @@ export default function App() {
             </div>
 
             {/* GAME ENGINE CONTAINER (Optimized for full viewport display on mobile) */}
-            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl sm:rounded-3xl p-2 sm:p-6 shadow-2xl min-h-[420px] sm:min-h-[500px] flex items-center justify-center overflow-x-hidden">
+            <GameArena engine={activeGame.engine} title={activeGame.title} room={currentRoom} userId={user.id}>
               {activeGame.engine === 'ludo' && (
                 <LudoGame 
                   onGameEnd={handleGameCompletion} 
@@ -986,7 +989,7 @@ export default function App() {
                   isHost={currentRoom?.participants[0]?.id === user.id}
                 />
               )}
-            </div>
+            </GameArena>
           </div>
         ) : (
           /* ARCADE LIBRARY CATALOG VIEW */

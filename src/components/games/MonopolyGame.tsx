@@ -1,3 +1,4 @@
+import { useGameTimers } from './useGameTimers';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   BoardSpace, 
@@ -56,6 +57,7 @@ export const MonopolyGame: React.FC<MonopolyGameProps> = ({
   roomCode,
   isHost = true,
 }) => {
+  const { schedule, repeat, cancelAll } = useGameTimers();
   // Preset AI bot avatars if fewer than 4 human players
   const BOT_PRESETS = [
     { name: 'Oma Grete (KI)', color: '#8b5cf6', figure: 'cat' },
@@ -312,7 +314,7 @@ export const MonopolyGame: React.FC<MonopolyGameProps> = ({
     sound.playDiceRoll();
 
     let rollCount = 0;
-    const interval = setInterval(() => {
+    const interval = repeat(() => {
       setDice([Math.floor(Math.random() * 6) + 1, Math.floor(Math.random() * 6) + 1]);
       rollCount++;
 
@@ -400,7 +402,7 @@ export const MonopolyGame: React.FC<MonopolyGameProps> = ({
     broadcastAction('MOVE_TOKEN', { playerId, newPos, passedGo });
 
     // Resolve landing on new space
-    setTimeout(() => {
+    schedule(() => {
       resolveLanding(playerId, newPos, steps);
     }, 600);
   };
@@ -807,7 +809,7 @@ export const MonopolyGame: React.FC<MonopolyGameProps> = ({
     if (!isHost || winner) return;
     if (!currentPlayer.isAi || currentPlayer.isBankrupt) return;
 
-    const timeout = setTimeout(() => {
+    const timeout = schedule(() => {
       if (!hasRolled) {
         handleRollDice();
       } else {
@@ -826,7 +828,7 @@ export const MonopolyGame: React.FC<MonopolyGameProps> = ({
           }
         }
         // End AI turn
-        setTimeout(() => {
+        schedule(() => {
           handleEndTurn();
         }, 1200);
       }
@@ -848,6 +850,7 @@ export const MonopolyGame: React.FC<MonopolyGameProps> = ({
 
   // Reset Game
   const handleResetGame = () => {
+    cancelAll();
     sound.playClick();
     setPlayers(initializePlayers());
     setCurrentTurnIndex(0);

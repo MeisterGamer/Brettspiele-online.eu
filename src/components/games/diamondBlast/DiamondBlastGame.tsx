@@ -1,3 +1,5 @@
+import { CAMPAIGN_TIERS, levelUnlocked } from '../../../services/campaign';
+import { useGameTimers } from '../useGameTimers';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   BoardGrid, 
@@ -60,7 +62,7 @@ interface DiamondBlastGameProps {
   isHost?: boolean;
 }
 
-const STORAGE_KEY = 'diamond_blast_save_v2';
+const STORAGE_KEY = 'diamond_blast_campaign_50_v1';
 
 const DEFAULT_SETTINGS: Settings = {
   soundVolume: 75,
@@ -78,11 +80,15 @@ const DEFAULT_PROGRESS: UserProgress = {
 };
 
 export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd }) => {
+  const { schedule, repeat, cancelAll } = useGameTimers();
   // --- Persistent Storage State ---
   const [progress, setProgress] = useState<UserProgress>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) return { ...DEFAULT_PROGRESS, ...JSON.parse(saved) };
+      // Keep existing endless-mode records; the redesigned campaign starts separately.
+      const legacy=JSON.parse(localStorage.getItem('diamond_blast_save_v2')||'null');
+      if(legacy)return {...DEFAULT_PROGRESS,classicHighScore:Number(legacy.classicHighScore)||0,timeHighScore:Number(legacy.timeHighScore)||0};
     } catch {
       // fallback
     }
@@ -191,7 +197,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
   const triggerScreenShake = useCallback(() => {
     if (!settings.screenShake) return;
     setScreenShakeActive(true);
-    setTimeout(() => setScreenShakeActive(false), 380);
+    schedule(() => setScreenShakeActive(false), 380);
   }, [settings.screenShake]);
 
   // --- Helper: Get cell pixel position on board ---
@@ -208,7 +214,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
   useEffect(() => {
     if (screen !== 'playing' || isAnimating) return;
 
-    const interval = setInterval(() => {
+    const interval = repeat(() => {
       if (Date.now() - lastInteractionTime.current > 7000 && !hintPos) {
         const hint = findHintMove(board);
         if (hint) {
@@ -224,7 +230,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
   useEffect(() => {
     if (screen !== 'playing' || gameMode !== 'time') return;
 
-    const timer = setInterval(() => {
+    const timer = repeat(() => {
       setStats((prev) => {
         if (prev.timeLeft <= 1) {
           clearInterval(timer);
@@ -266,7 +272,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
     });
 
     setScreen('playing');
-    setTimeout(updateCanvasSize, 100);
+    schedule(updateCanvasSize, 100);
   };
 
   // --- Trigger Hint manually ---
@@ -293,7 +299,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
       if (!hasValidMoves(workingBoard)) {
         setShuffleNotice(true);
         diamondAudio.playShuffle();
-        await new Promise((r) => setTimeout(r, 800));
+        await new Promise((r) => schedule(r, 800));
         workingBoard = shuffleBoard(workingBoard);
         setBoard(workingBoard);
         setShuffleNotice(false);
@@ -303,7 +309,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
       setIsAnimating(false);
 
       // Check win or loss conditions for level mode
-      checkLevelState(workingBoard);
+      // Victory is checked by an effect after score and goals have committed.
       return;
     }
 
@@ -468,7 +474,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
     setBoard(workingBoard);
 
     // Wait for pop animation
-    await new Promise((resolve) => setTimeout(resolve, 220));
+    await new Promise((resolve) => schedule(resolve, 220));
 
     // 2. Gravity Drop: Gems fall down in columns
     for (let c = 0; c < BOARD_SIZE; c++) {
@@ -491,7 +497,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
     setBoard(workingBoard);
 
     // Wait for fall animation
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await new Promise((resolve) => schedule(resolve, 200));
 
     // 3. Recursive cascade step
     await processBoardCascades(workingBoard, currentCombo + 1);
@@ -529,7 +535,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
       particleEngineRef.current?.addFloatingText(180, 180, 'MEGA WIPEOUT! +8000', '#f43f5e');
       setStats((prev) => ({ ...prev, score: prev.score + totalBonus }));
       setBoard(workingBoard);
-      await new Promise((r) => setTimeout(r, 600));
+      await new Promise((r) => schedule(r, 600));
 
       // Refill all columns
       for (let r = 0; r < BOARD_SIZE; r++) {
@@ -538,7 +544,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
         }
       }
       setBoard(workingBoard);
-      await new Promise((r) => setTimeout(r, 300));
+      await new Promise((r) => schedule(r, 300));
       await processBoardCascades(workingBoard, 1);
       return;
     }
@@ -563,7 +569,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
       const scoreGain = clearedCoords.length * 200;
       setStats((prev) => ({ ...prev, score: prev.score + scoreGain }));
       setBoard(workingBoard);
-      await new Promise((r) => setTimeout(r, 350));
+      await new Promise((r) => schedule(r, 350));
 
       // Gravity fall
       for (let c = 0; c < BOARD_SIZE; c++) {
@@ -582,7 +588,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
         }
       }
       setBoard(workingBoard);
-      await new Promise((r) => setTimeout(r, 220));
+      await new Promise((r) => schedule(r, 220));
       await processBoardCascades(workingBoard, 1);
       return;
     }
@@ -608,7 +614,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
 
       setStats((prev) => ({ ...prev, score: prev.score + 3500 }));
       setBoard(workingBoard);
-      await new Promise((r) => setTimeout(r, 350));
+      await new Promise((r) => schedule(r, 350));
 
       // Gravity fall
       for (let c = 0; c < BOARD_SIZE; c++) {
@@ -627,7 +633,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
         }
       }
       setBoard(workingBoard);
-      await new Promise((r) => setTimeout(r, 220));
+      await new Promise((r) => schedule(r, 220));
       await processBoardCascades(workingBoard, 1);
       return;
     }
@@ -653,7 +659,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
 
       setStats((prev) => ({ ...prev, score: prev.score + 2200 }));
       setBoard(workingBoard);
-      await new Promise((r) => setTimeout(r, 300));
+      await new Promise((r) => schedule(r, 300));
 
       // Gravity fall
       for (let c = 0; c < BOARD_SIZE; c++) {
@@ -672,7 +678,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
         }
       }
       setBoard(workingBoard);
-      await new Promise((r) => setTimeout(r, 220));
+      await new Promise((r) => schedule(r, 220));
       await processBoardCascades(workingBoard, 1);
       return;
     }
@@ -698,7 +704,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
 
       setStats((prev) => ({ ...prev, score: prev.score + 1000 }));
       setBoard(workingBoard);
-      await new Promise((r) => setTimeout(r, 300));
+      await new Promise((r) => schedule(r, 300));
 
       // Gravity fall
       for (let c = 0; c < BOARD_SIZE; c++) {
@@ -717,7 +723,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
         }
       }
       setBoard(workingBoard);
-      await new Promise((r) => setTimeout(r, 220));
+      await new Promise((r) => schedule(r, 220));
       await processBoardCascades(workingBoard, 1);
       return;
     }
@@ -745,7 +751,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
 
       setStats((prev) => ({ ...prev, score: prev.score + 800 }));
       setBoard(workingBoard);
-      await new Promise((r) => setTimeout(r, 300));
+      await new Promise((r) => schedule(r, 300));
 
       // Gravity fall
       for (let c = 0; c < BOARD_SIZE; c++) {
@@ -764,7 +770,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
         }
       }
       setBoard(workingBoard);
-      await new Promise((r) => setTimeout(r, 220));
+      await new Promise((r) => schedule(r, 220));
       await processBoardCascades(workingBoard, 1);
     }
   };
@@ -808,7 +814,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
       swappedBoard[r2][c2] = gem1;
       setBoard(swappedBoard);
 
-      await new Promise((r) => setTimeout(r, 180));
+      await new Promise((r) => schedule(r, 180));
       setBoard(board);
       setIsAnimating(false);
       return;
@@ -829,7 +835,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
       movesLeft: Math.max(0, prev.movesLeft - 1)
     }));
 
-    await new Promise((r) => setTimeout(r, 180));
+    await new Promise((r) => schedule(r, 180));
     await processBoardCascades(workingBoard, 1);
   };
 
@@ -875,7 +881,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
 
     // Update Progress
     setProgress((prev) => {
-      const nextUnlocked = Math.max(prev.unlockedLevel, Math.min(100, currentLevelNum + 1));
+      const nextUnlocked = Math.max(prev.unlockedLevel, Math.min(50, currentLevelNum + 1));
       const oldStars = prev.levelStars[currentLevelNum] || 0;
       const oldScore = prev.levelScores[currentLevelNum] || 0;
 
@@ -918,6 +924,9 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
 
     setScreen('game-over');
   };
+
+  // Read the final cascade result, including points from the very last move.
+  useEffect(()=>{if(screen==='playing'&&!isAnimating)checkLevelState(board);},[screen,isAnimating,stats,activeGoals]);
 
   // --- User Click / Tap Cell Handler ---
   const handleCellClick = (r: number, c: number) => {
@@ -982,8 +991,8 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
     }
   };
 
-  // --- Level Selector Tab Range (1-25, 26-50, 51-75, 76-100) ---
-  const [levelTab, setLevelTab] = useState<number>(0); // 0 = 1-25, 1 = 26-50, 2 = 51-75, 3 = 76-100
+  // --- Five difficulty stages of ten levels ---
+  const [levelTab, setLevelTab] = useState<number>(0); // 0 through 4
 
   // Calculate Star rating progress
   const targetStarScore = levelConfig.starScores[0];
@@ -1020,10 +1029,10 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
             Hauptmenü
           </button>
           <button 
-            onClick={() => { setLevelTab(Math.floor((progress.unlockedLevel - 1) / 25)); setScreen('levels'); }} 
+            onClick={() => { setLevelTab(Math.floor((progress.unlockedLevel - 1) / 10)); setScreen('levels'); }}
             className={`hover:text-amber-400 transition whitespace-nowrap shrink-0 ${screen === 'levels' ? 'text-amber-400' : ''}`}
           >
-            Levelauswahl (1-100)
+            Levelauswahl (5 × 10)
           </button>
           <button 
             onClick={() => setScreen('how-to-play')} 
@@ -1190,6 +1199,10 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
                   return (
                     <div
                       key={gem ? gem.id : `empty-${r}-${c}`}
+                      role="button" tabIndex={isAnimating?-1:0} aria-disabled={isAnimating||!gem}
+                      aria-label={`Feld ${r+1},${c+1}: ${gem?({red:'Rubin',blue:'Saphir',green:'Smaragd',yellow:'Topas',purple:'Amethyst',orange:'Bernstein'}[gem.color]):'leer'}${gem?.obstacle&&gem.obstacle!=='none'?` (${gem.obstacle})`:''}`}
+                      data-gem-cell={`${r},${c}`} data-color={gem?.color}
+                      onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();handleCellClick(r,c);}}}
                       onClick={() => handleCellClick(r, c)}
                       onTouchStart={(e) => {
                         const touch = e.touches[0];
@@ -1256,7 +1269,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
           <div className="space-y-3 max-w-md">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-950/80 border border-indigo-700/40 text-amber-400 text-xs font-bold">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>100 Levels · Match-3 Arcade</span>
+              <span>50 Levels · Match-3 Arcade</span>
             </div>
             <h1 className="text-4xl sm:text-5xl font-black font-display tracking-tight text-white leading-tight">
               Diamond Blast
@@ -1268,10 +1281,10 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
 
           {/* Mode Selection Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-2xl">
-            {/* Level Mode (1-100) */}
+            {/* Level Mode (5 × 10) */}
             <button
               onClick={() => {
-                setLevelTab(Math.floor((progress.unlockedLevel - 1) / 25));
+                setLevelTab(Math.floor((progress.unlockedLevel - 1) / 10));
                 setScreen('levels');
               }}
               className="p-5 rounded-2xl bg-gradient-to-b from-indigo-900/40 to-slate-900/80 border border-indigo-700/50 hover:border-amber-400/80 hover:scale-[1.02] transition text-left flex flex-col justify-between group cursor-pointer shadow-lg"
@@ -1282,11 +1295,11 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
                 </div>
                 <h3 className="text-base font-bold text-white group-hover:text-amber-400 transition">Levelmodus</h3>
                 <p className="text-[11px] text-slate-400 leading-snug">
-                  100 spannende Levels mit Eisblöcken, Felsen und Ketten.
+                  50 Levels in fünf Schwierigkeitsstufen mit Eisblöcken, Felsen und Ketten.
                 </p>
               </div>
               <div className="pt-3 text-[11px] text-cyan-400 font-semibold flex items-center justify-between">
-                <span>Freigeschaltet: {progress.unlockedLevel}/100</span>
+                <span>Freigeschaltet: {Array.from({length:50},(_,i)=>i+1).filter(id=>levelUnlocked(id,progress.levelStars)).length}/50</span>
                 <ChevronRight className="w-4 h-4" />
               </div>
             </button>
@@ -1352,7 +1365,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
         </div>
       )}
 
-      {/* --- LEVEL SELECTION SCREEN (100 LEVELS) --- */}
+      {/* --- LEVEL SELECTION SCREEN (50 LEVELS) --- */}
       {screen === 'levels' && (
         <div className="relative flex-1 flex flex-col p-6 z-10 max-w-4xl mx-auto w-full space-y-5">
           <div className="flex items-center justify-between">
@@ -1363,16 +1376,16 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
               <ArrowLeft className="w-4 h-4" />
               <span>Zurück</span>
             </button>
-            <h2 className="text-xl sm:text-2xl font-black text-white">Levelauswahl (1-100)</h2>
+            <h2 className="text-xl sm:text-2xl font-black text-white">Levelauswahl (5 × 10)</h2>
             <div className="text-xs text-amber-400 font-bold flex items-center gap-1">
               <Star className="w-4 h-4 fill-current" />
-              <span>{Object.values(progress.levelStars).reduce((a, b) => a + b, 0)} / 300</span>
+              <span>{Object.values(progress.levelStars).reduce((a, b) => a + b, 0)} / 150</span>
             </div>
           </div>
 
-          {/* 25-Level Range Tabs */}
-          <div className="flex items-center gap-2 p-1.5 bg-slate-900/80 rounded-2xl border border-indigo-900/40">
-            {['1 - 25', '26 - 50', '51 - 75', '76 - 100'].map((label, idx) => (
+          {/* Difficulty tabs */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 p-1.5 bg-slate-900/80 rounded-2xl border border-indigo-900/40">
+            {CAMPAIGN_TIERS.map((label, idx) => (
               <button
                 key={idx}
                 onClick={() => setLevelTab(idx)}
@@ -1387,17 +1400,19 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
             ))}
           </div>
 
-          {/* 25 Level Grid */}
+          <p className="text-xs text-slate-400">Jede Schwierigkeit startet mit Level 1. Gewinne ein Level, um das nächste freizuschalten. Sterne und Bestwerte bleiben auf diesem Gerät gespeichert.</p>
+          {/* Ten levels per difficulty */}
           <div className="grid grid-cols-5 sm:grid-cols-5 md:grid-cols-5 gap-3 flex-1 overflow-y-auto max-h-[460px] p-2">
-            {Array.from({ length: 25 }, (_, i) => {
-              const lvlNum = levelTab * 25 + i + 1;
-              const isUnlocked = lvlNum <= progress.unlockedLevel;
+            {Array.from({ length: 10 }, (_, i) => {
+              const lvlNum = levelTab * 10 + i + 1;
+              const isUnlocked = levelUnlocked(lvlNum, progress.levelStars);
               const stars = progress.levelStars[lvlNum] || 0;
               const highScore = progress.levelScores[lvlNum] || 0;
 
               return (
                 <button
                   key={lvlNum}
+                  aria-label={`${CAMPAIGN_TIERS[levelTab]} Level ${i+1}`}
                   disabled={!isUnlocked}
                   onClick={() => startLevel(lvlNum, 'levels')}
                   className={`p-3 rounded-2xl border flex flex-col items-center justify-between transition relative ${
@@ -1407,7 +1422,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
                   }`}
                 >
                   <span className="text-xs uppercase font-bold text-slate-400">Level</span>
-                  <span className="text-xl font-black text-white">{lvlNum}</span>
+                  <span className="text-xl font-black text-white">{i+1}</span>
 
                   {/* Stars 0-3 */}
                   <div className="flex items-center gap-0.5 mt-1">
@@ -1443,7 +1458,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
 
             <div className="space-y-1">
               <h3 className="text-2xl font-black text-white">Level Bestanden!</h3>
-              <p className="text-xs text-slate-400">Level {currentLevelNum} erfolgreich gemeistert</p>
+              <p className="text-xs text-slate-400">{levelConfig.title} erfolgreich gemeistert</p>
             </div>
 
             {/* Stars Fanfare */}
@@ -1469,12 +1484,12 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
             </div>
 
             <div className="flex flex-col gap-2 pt-2">
-              {currentLevelNum < 100 && (
+              {currentLevelNum % 10 !== 0 && (
                 <button
                   onClick={() => startLevel(currentLevelNum + 1, 'levels')}
                   className="w-full py-3 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-sm shadow-lg shadow-amber-400/20 transition cursor-pointer"
                 >
-                  Nächstes Level ({currentLevelNum + 1})
+                  Nächstes Level ({currentLevelNum % 10 + 1}/10)
                 </button>
               )}
               <button

@@ -54,6 +54,11 @@ export const MahjongTileRenderer: React.FC<MahjongTileRendererProps> = ({
 
   return (
     <div
+      role="button"
+      tabIndex={isClickable?0:-1}
+      aria-label={`${germanName} – ${tile.id}`}
+      aria-disabled={!isClickable}
+      onKeyDown={event=>{if(isClickable&&(event.key==='Enter'||event.key===' ')){event.preventDefault();onClick?.();}}}
       onClick={isClickable ? onClick : undefined}
       style={{
         zIndex: isSelected ? 999 : layerZIndex,

@@ -1,3 +1,4 @@
+import { useGameTimers } from './useGameTimers';
 import React, { useState, useEffect } from 'react';
 import { 
   RommeCard, 
@@ -47,6 +48,7 @@ export const RommeGame: React.FC<RommeGameProps> = ({
   roomCode,
   isHost = true,
 }) => {
+  const { schedule, cancelAll } = useGameTimers();
   // Preset AI bots for filling empty seats
   const BOT_PRESETS = [
     { name: 'Oma Grete (KI)', color: '#8b5cf6' },
@@ -565,7 +567,7 @@ export const RommeGame: React.FC<RommeGameProps> = ({
     const runAi = () => {
       // 1. Draw Phase
       if (turnPhase === 'draw') {
-        timer = setTimeout(() => {
+        timer = schedule(() => {
           // AI checks top discard card: if useful, take it; else take talon
           executeDrawCard(currentPlayer.id, 'talon', true);
         }, 1000);
@@ -574,7 +576,7 @@ export const RommeGame: React.FC<RommeGameProps> = ({
 
       // 2. Play Phase
       if (turnPhase === 'play') {
-        timer = setTimeout(() => {
+        timer = schedule(() => {
           const freshPlayer = players[currentTurnIndex];
           if (!freshPlayer) return;
 
@@ -623,7 +625,7 @@ export const RommeGame: React.FC<RommeGameProps> = ({
           }
 
           // 3. Discard Phase: AI discards least valuable / duplicate card
-          setTimeout(() => {
+          schedule(() => {
             const currentHand = players[currentTurnIndex]?.hand;
             if (currentHand && currentHand.length > 0) {
               // Pick card to discard
@@ -657,6 +659,7 @@ export const RommeGame: React.FC<RommeGameProps> = ({
   };
 
   const handleRestart = () => {
+    cancelAll();
     sound.playClick();
     const fresh = setupInitialGame();
     setDeck(fresh.deck);

@@ -1,363 +1,49 @@
-import React, { useState, useEffect } from 'react';
-import { sound } from '../../services/sound';
-import confetti from '../../services/confetti';
-import { RefreshCw, Trophy, Bot, Users, Crown, Sparkles } from 'lucide-react';
-import { TABLE_BACKGROUNDS } from '../../services/gameImages';
-
-type PlayerColor = 'red' | 'black';
-
-type PieceType = {
-  player: PlayerColor;
-  isKing: boolean;
-};
-
-type BoardState = (PieceType | null)[][];
-
-import { RoomParticipant } from '../../types';
-import { AvatarDisplay } from '../avatar/AvatarDisplay';
-
-import { multiplayerService } from '../../services/multiplayerService';
-import { Wifi } from 'lucide-react';
-
-interface CheckersGameProps {
-  onGameEnd?: (winner: string) => void;
-  tableParticipants?: RoomParticipant[];
-  currentUserId?: string;
-  onActiveTurnChange?: (turnPlayerId: string) => void;
-  roomCode?: string;
-  isHost?: boolean;
-}
-
-export const CheckersGame: React.FC<CheckersGameProps> = ({ 
-  onGameEnd,
-  tableParticipants,
-  currentUserId,
-  onActiveTurnChange,
-  roomCode,
-}) => {
-  const p1 = tableParticipants?.[0];
-  const p2 = tableParticipants?.[1];
-  const p1Name = p1?.name || 'Rot (Du)';
-  const p2Name = p2?.name || (p2?.isBot ? 'KI-Bot' : 'Schwarz (Spieler 2)');
-  const isP2Bot = p2 ? !!p2.isBot : true;
-
-  const isOnlineMultiplayer = Boolean(roomCode && p1 && p2 && !p2.isBot);
-  const myPlayer: 'red' | 'black' | null = isOnlineMultiplayer
-    ? currentUserId === p1?.id
-      ? 'red'
-      : currentUserId === p2?.id
-      ? 'black'
-      : null
-    : null;
-
-  // Initialize standard 8x8 checkers board
-  const initBoard = (): BoardState => {
-    const b: BoardState = Array(8).fill(null).map(() => Array(8).fill(null));
-    // Black pieces at top (rows 0, 1, 2) on dark squares
-    for (let r = 0; r < 3; r++) {
-      for (let c = 0; c < 8; c++) {
-        if ((r + c) % 2 === 1) {
-          b[r][c] = { player: 'black', isKing: false };
-        }
-      }
-    }
-    // Red pieces at bottom (rows 5, 6, 7) on dark squares
-    for (let r = 5; r < 8; r++) {
-      for (let c = 0; c < 8; c++) {
-        if ((r + c) % 2 === 1) {
-          b[r][c] = { player: 'red', isKing: false };
-        }
-      }
-    }
-    return b;
-  };
-
-  const [board, setBoard] = useState<BoardState>(initBoard);
-  const [selectedPos, setSelectedPos] = useState<[number, number] | null>(null);
-  const [validMoves, setValidMoves] = useState<[number, number][]>([]);
-  const [turn, setTurn] = useState<'red' | 'black'>('red');
-  const [winner, setWinner] = useState<string | null>(null);
-  const [mode, setMode] = useState<'bot' | 'local2p' | 'online'>(() => 
-    isOnlineMultiplayer ? 'online' : (isP2Bot ? 'bot' : 'local2p')
-  );
-
-  useEffect(() => {
-    if (isOnlineMultiplayer) {
-      setMode('online');
-    } else {
-      setMode(isP2Bot ? 'bot' : 'local2p');
-    }
-  }, [isOnlineMultiplayer, isP2Bot]);
-
-  useEffect(() => {
-    if (onActiveTurnChange) {
-      const activeId = turn === 'red' ? (p1?.id || 'p1') : (p2?.id || 'p2');
-      onActiveTurnChange(activeId);
-    }
-  }, [turn, p1?.id, p2?.id, onActiveTurnChange]);
-
-  // WebSocket Multiplayer synchronization
-  useEffect(() => {
-    if (!roomCode) return;
-
-    const unsubscribe = multiplayerService.subscribeToGameActions((event) => {
-      if (event.gameType !== 'checkers' || event.roomCode !== roomCode) return;
-      if (event.senderId === currentUserId) return;
-
-      if (event.action === 'MOVE') {
-        const { from, to } = event.payload;
-        applyRemoteCheckersMove(from[0], from[1], to[0], to[1]);
-      } else if (event.action === 'RESET') {
-        sound.playClick();
-        setBoard(initBoard());
-        setTurn('red');
-        setSelectedPos(null);
-        setValidMoves([]);
-        setWinner(null);
-      }
-    });
-
-    return () => unsubscribe();
-  }, [roomCode, currentUserId, onGameEnd]);
-
-  const applyRemoteCheckersMove = (fromR: number, fromC: number, toR: number, toC: number) => {
-    setBoard((prev) => {
-      const movingPiece = prev[fromR][fromC];
-      if (!movingPiece) return prev;
-
-      sound.playPieceDrop();
-      const newBoard = prev.map((row) => [...row]);
-      const pieceCopy = { ...movingPiece };
-
-      newBoard[fromR][fromC] = null;
-
-      if (Math.abs(toR - fromR) === 2) {
-        sound.playReward();
-        const capturedR = (fromR + toR) / 2;
-        const capturedC = (fromC + toC) / 2;
-        newBoard[capturedR][capturedC] = null;
-      }
-
-      if (pieceCopy.player === 'red' && toR === 0) {
-        pieceCopy.isKing = true;
-      } else if (pieceCopy.player === 'black' && toR === 7) {
-        pieceCopy.isKing = true;
-      }
-
-      newBoard[toR][toC] = pieceCopy;
-
-      let redCount = 0;
-      let blackCount = 0;
-      for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 8; c++) {
-          if (newBoard[r][c]?.player === 'red') redCount++;
-          if (newBoard[r][c]?.player === 'black') blackCount++;
-        }
-      }
-
-      if (redCount === 0 || blackCount === 0) {
-        const winPlayer = redCount > 0 ? p1Name : p2Name;
-        setWinner(winPlayer);
-        sound.playVictory();
-        try { confetti({ particleCount: 80, spread: 70 }); } catch (e) {}
-        if (onGameEnd) onGameEnd(winPlayer);
-      } else {
-        setTurn(pieceCopy.player === 'red' ? 'black' : 'red');
-      }
-
-      return newBoard;
-    });
-  };
-
-  const getMovesForPiece = (r: number, c: number, currentBoard: BoardState): [number, number][] => {
-    const piece = currentBoard[r][c];
-    if (!piece) return [];
-
-    const moves: [number, number][] = [];
-    const directions: [number, number][] = [];
-
-    if (piece.isKing) {
-      directions.push([-1, -1], [-1, 1], [1, -1], [1, 1]);
-    } else if (piece.player === 'red') {
-      directions.push([-1, -1], [-1, 1]); // Red moves up
-    } else {
-      directions.push([1, -1], [1, 1]); // Black moves down
-    }
-
-    // Regular moves & jump moves
-    for (const [dr, dc] of directions) {
-      const nextR = r + dr;
-      const nextC = c + dc;
-
-      if (nextR >= 0 && nextR < 8 && nextC >= 0 && nextC < 8) {
-        if (!currentBoard[nextR][nextC]) {
-          moves.push([nextR, nextC]);
-        } else if (currentBoard[nextR][nextC]?.player !== piece.player) {
-          // Check jump over opponent
-          const jumpR = nextR + dr;
-          const jumpC = nextC + dc;
-          if (jumpR >= 0 && jumpR < 8 && jumpC >= 0 && jumpC < 8 && !currentBoard[jumpR][jumpC]) {
-            moves.push([jumpR, jumpC]);
-          }
-        }
-      }
-    }
-
-    return moves;
-  };
-
-  const executeBotMove = (currentBoard: BoardState) => {
-    const allMoves: { from: [number, number]; to: [number, number]; isJump: boolean }[] = [];
-    for (let r = 0; r < 8; r++) {
-      for (let c = 0; c < 8; c++) {
-        if (currentBoard[r][c]?.player === 'black') {
-          const moves = getMovesForPiece(r, c, currentBoard);
-          for (const [toR, toC] of moves) {
-            allMoves.push({
-              from: [r, c],
-              to: [toR, toC],
-              isJump: Math.abs(toR - r) === 2,
-            });
-          }
-        }
-      }
-    }
-
-    if (allMoves.length === 0) {
-      setWinner(p1Name);
-      sound.playVictory();
-      if (onGameEnd) onGameEnd(p1Name);
+import React,{useEffect,useRef,useState} from 'react';
+import {RefreshCw,Trophy,Bot,Users,Crown,Wifi} from 'lucide-react';
+import {useAIDifficulty} from './GameArena';
+import {useGameTimers} from './useGameTimers';
+import {useAuthoritativeGame} from './useAuthoritativeGame';
+import {initialDraughts,reduceDraughts,draughtsMoves,chooseDraughtsMove,type Point} from '../../services/draughtsEngine';
+import {multiplayerService} from '../../services/multiplayerService';
+import {sound} from '../../services/sound';
+import {TABLE_BACKGROUNDS} from '../../services/gameImages';
+import {AvatarDisplay} from '../avatar/AvatarDisplay';
+import type {RoomParticipant} from '../../types';
+interface CheckersGameProps{onGameEnd?:(winner:string)=>void;tableParticipants?:RoomParticipant[];currentUserId?:string;onActiveTurnChange?:(id:string)=>void;roomCode?:string;isHost?:boolean}
+export const CheckersGame:React.FC<CheckersGameProps>=({onGameEnd,tableParticipants,currentUserId,onActiveTurnChange,roomCode})=>{
+  const difficulty=useAIDifficulty(),{schedule,cancelAll}=useGameTimers();
+  const game=useAuthoritativeGame({roomCode,userId:currentUserId,engine:'checkers',initial:()=>initialDraughts(),reduce:reduceDraughts});
+  const {state,send}=game;
+  const participants:RoomParticipant[]=(state as any).participants||tableParticipants||[];
+  const p1=participants[0],p2=participants[1],p1Name=p1?.name||'Rot',p2Name=p2?.name||'Dame-KI';
+  const isOnlineMultiplayer=Boolean(roomCode),myPlayer=currentUserId===p1?.id?'red':currentUserId===p2?.id?'black':null;
+  const [localMode,setMode]=useState<'bot'|'local2p'>(p2&&!p2.isBot?'local2p':'bot');
+  const mode=isOnlineMultiplayer?'online':localMode;
+  const [path,setPath]=useState<Point[]>([]);
+  const legal=draughtsMoves(state.board,state.turn);
+  const matching=legal.filter(move=>path.every((p,i)=>move.path[i]?.[0]===p[0]&&move.path[i]?.[1]===p[1]));
+  const selectedPos=path.at(-1)||null;
+  const validMoves:Point[]=path.length?matching.map(m=>m.path[path.length]).filter(Boolean):[];
+  const board=state.board.map(row=>row.map(p=>p?{...p}:null));
+  if(path.length>1){const piece=board[path[0][0]][path[0][1]];board[path[0][0]][path[0][1]]=null;board[path.at(-1)![0]][path.at(-1)![1]]=piece;}
+  const turn=state.turn,winner=state.result==='draw'?'Unentschieden':state.result==='red'?p1Name:state.result==='black'?p2Name:null;
+  const canPlay=game.ready&&!game.pending&&!state.result&&(isOnlineMultiplayer?myPlayer===turn:mode==='local2p'||turn==='red');
+  const reported=useRef(false);
+  useEffect(()=>{onActiveTurnChange?.(turn==='red'?p1?.id||'p1':p2?.id||'p2');},[turn,p1?.id,p2?.id,onActiveTurnChange]);
+  useEffect(()=>{setPath([]);if(state.revision)sound.playPieceDrop();if(state.result&&!reported.current){reported.current=true;onGameEnd?.(state.result==='draw'?'draw':state.result===(myPlayer||'red')?'player':'opponent');}},[state.revision,state.result]);
+  useEffect(()=>{if(isOnlineMultiplayer||mode!=='bot'||turn!=='black'||state.result)return;const timer=schedule(()=>{const command=chooseDraughtsMove(state,difficulty);if(command)send(command);},450);return()=>clearTimeout(timer);},[state,mode,difficulty,isOnlineMultiplayer]);
+  const handleCellClick=(r:number,c:number)=>{
+    if(!canPlay)return;
+    if(path.length&&validMoves.some(p=>p[0]===r&&p[1]===c)){
+      const next:Point[]=[...path,[r,c]];
+      const complete=matching.find(m=>m.path.length===next.length&&m.path.every((p,i)=>p[0]===next[i][0]&&p[1]===next[i][1]));
+      if(complete){send({type:'MOVE',path:complete.path});setPath([]);}else setPath(next);
       return;
     }
-
-    const jumpMoves = allMoves.filter((m) => m.isJump);
-    const chosen = jumpMoves.length > 0
-      ? jumpMoves[Math.floor(Math.random() * jumpMoves.length)]
-      : allMoves[Math.floor(Math.random() * allMoves.length)];
-
-    executeMove(chosen.from[0], chosen.from[1], chosen.to[0], chosen.to[1], currentBoard, 'black');
+    if(path.length<=1&&legal.some(m=>m.path[0][0]===r&&m.path[0][1]===c))setPath([[r,c]]);
   };
-
-  const handleCellClick = (r: number, c: number) => {
-    if (winner) return;
-
-    if (isOnlineMultiplayer && myPlayer && turn !== myPlayer) {
-      sound.playError();
-      return;
-    }
-
-    const piece = board[r][c];
-
-    // Select piece
-    if (piece && piece.player === turn) {
-      if (isOnlineMultiplayer && myPlayer && piece.player !== myPlayer) {
-        sound.playError();
-        return;
-      }
-      sound.playClick();
-      setSelectedPos([r, c]);
-      const moves = getMovesForPiece(r, c, board);
-      setValidMoves(moves);
-      return;
-    }
-
-    // Execute move
-    if (selectedPos && validMoves.some(([mr, mc]) => mr === r && mc === c)) {
-      executeMove(selectedPos[0], selectedPos[1], r, c, board, turn);
-    }
-  };
-
-  const executeMove = (
-    fromR: number, 
-    fromC: number, 
-    toR: number, 
-    toC: number, 
-    sourceBoard?: BoardState, 
-    actingPlayer?: PlayerColor
-  ) => {
-    sound.playPieceDrop();
-    const currentBoard = sourceBoard || board;
-    const currentTurn = actingPlayer || turn;
-    const newBoard = currentBoard.map((row) => [...row]);
-    const sourcePiece = newBoard[fromR][fromC];
-    if (!sourcePiece) return;
-    const movingPiece = { ...sourcePiece };
-
-    newBoard[fromR][fromC] = null;
-
-    // Check if it's a jump capture
-    if (Math.abs(toR - fromR) === 2) {
-      sound.playReward();
-      const capturedR = (fromR + toR) / 2;
-      const capturedC = (fromC + toC) / 2;
-      newBoard[capturedR][capturedC] = null;
-    }
-
-    // Crown King if reaching end of board
-    if (movingPiece.player === 'red' && toR === 0) {
-      movingPiece.isKing = true;
-      sound.playVictory();
-    } else if (movingPiece.player === 'black' && toR === 7) {
-      movingPiece.isKing = true;
-    }
-
-    newBoard[toR][toC] = movingPiece;
-
-    if (roomCode) {
-      multiplayerService.sendGameAction(roomCode, 'checkers', 'MOVE', {
-        from: [fromR, fromC],
-        to: [toR, toC],
-      }, currentUserId || 'p1');
-    }
-
-    setBoard(newBoard);
-    setSelectedPos(null);
-    setValidMoves([]);
-
-    // Count remaining pieces
-    let redCount = 0;
-    let blackCount = 0;
-    for (let r = 0; r < 8; r++) {
-      for (let c = 0; c < 8; c++) {
-        if (newBoard[r][c]?.player === 'red') redCount++;
-        if (newBoard[r][c]?.player === 'black') blackCount++;
-      }
-    }
-
-    if (redCount === 0 || blackCount === 0) {
-      const winPlayer = redCount > 0 ? p1Name : p2Name;
-      setWinner(winPlayer);
-      sound.playVictory();
-      try {
-        confetti({ particleCount: 80, spread: 70 });
-      } catch (e) {}
-      if (onGameEnd) onGameEnd(winPlayer);
-      return;
-    }
-
-    const nextTurn: PlayerColor = currentTurn === 'red' ? 'black' : 'red';
-    setTurn(nextTurn);
-
-    // AI move only triggered when human finishes move and it is bot's turn
-    if (mode === 'bot' && nextTurn === 'black') {
-      setTimeout(() => {
-        executeBotMove(newBoard);
-      }, 600);
-    }
-  };
-  const resetGame = () => {
-    sound.playClick();
-    setBoard(initBoard());
-    setSelectedPos(null);
-    setValidMoves([]);
-    setTurn('red');
-    setWinner(null);
-
-    if (roomCode) {
-      multiplayerService.sendGameAction(roomCode, 'checkers', 'RESET', {}, currentUserId || 'p1');
-    }
-  };
-
+  const resetGame=()=>{cancelAll();setPath([]);reported.current=false;if(roomCode)multiplayerService.startRound(roomCode);else game.resetLocal();};
+  if(!game.ready)return <p role="status">Dame-Spielstand wird geladen …</p>;
   // Piece counts
   let redPieces = 0;
   let blackPieces = 0;
@@ -369,6 +55,10 @@ export const CheckersGame: React.FC<CheckersGameProps> = ({
   return (
     <div className="flex flex-col items-center max-w-lg mx-auto w-full select-none text-slate-100">
       
+      <p className="text-xs text-slate-400 mb-2">Dame 8×8 · Brasilianisch · Lange Damen · Maximale Schlagpflicht</p>
+      {game.error&&<p role="alert" className="text-rose-300 mb-2">{game.error}</p>}
+      {path.length>1&&<p role="status" className="text-amber-300 mb-2 text-sm">Schlagfolge fortsetzen: dieselbe Figur muss weiterschlagen.</p>}
+      <p role="status" className="text-xs text-amber-200 mb-2">{game.pending?'Zug wird bestätigt …':state.reason|| (legal[0]?.captures.length?`Schlagpflicht: ${legal[0].captures.length} Steine schlagen`:'')}</p>
       {/* Header bar with realistic player badges, avatars and piece count */}
       <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3 sm:p-3.5 rounded-2xl mb-3 text-xs shadow-xl">
         <div className={`flex items-center gap-2 p-1 rounded-xl transition ${turn === 'red' && !winner ? 'bg-rose-950/40 ring-1 ring-rose-500/50' : ''}`}>
@@ -478,6 +168,10 @@ export const CheckersGame: React.FC<CheckersGameProps> = ({
               return (
                 <div
                   key={`${r}-${c}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Feld ${String.fromCharCode(97 + c)}${8 - r}`}
+                  onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); handleCellClick(r,c); } }}
                   onClick={() => handleCellClick(r, c)}
                   className={`aspect-square flex items-center justify-center relative cursor-pointer transition-colors ${
                     isDark
@@ -532,6 +226,10 @@ export const CheckersGame: React.FC<CheckersGameProps> = ({
         </div>
       </div>
 
+      {!state.result&&<div className="flex flex-wrap gap-2 mt-3 text-xs">
+        <button className="bg-slate-800 px-3 py-2 rounded-xl" disabled={isOnlineMultiplayer&&!myPlayer} onClick={()=>send({type:'RESIGN',color:myPlayer||turn})}>Aufgeben</button>
+        <button className="bg-slate-800 px-3 py-2 rounded-xl" disabled={isOnlineMultiplayer&&!myPlayer} onClick={()=>send({type:state.offer&&state.offer!==(myPlayer||turn)?'ACCEPT_DRAW':'OFFER_DRAW',color:myPlayer||turn})}>{state.offer&&state.offer!==(myPlayer||turn)?'Remis annehmen':'Remis anbieten'}</button>
+      </div>}
       {/* Action Footer */}
       <div className="mt-4 flex items-center gap-3">
         <button

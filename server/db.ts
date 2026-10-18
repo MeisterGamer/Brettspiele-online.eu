@@ -117,7 +117,7 @@ const memoryStore: MemoryStorage = {
 };
 
 // Fallback file persistence for non-MariaDB dev environments
-const FALLBACK_DIR = path.resolve('.data');
+const FALLBACK_DIR = path.resolve(process.env.FAMPLAY_DATA_DIR || '.data');
 const FALLBACK_FILE = path.join(FALLBACK_DIR, 'users_fallback.json');
 
 const loadFallback = () => {

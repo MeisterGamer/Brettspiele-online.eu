@@ -1,3 +1,5 @@
+import { shuffle } from '../../services/gameAI';
+import { useGameTimers } from './useGameTimers';
 import React, { useState, useEffect } from 'react';
 import { sound } from '../../services/sound';
 import confetti from '../../services/confetti';
@@ -46,7 +48,7 @@ function createUnoDeck(): Card[] {
     deck.push({ id: `c_${id++}`, color: 'wild', value: '+4' });
   }
 
-  return deck.sort(() => Math.random() - 0.5);
+  return shuffle(deck);
 }
 
 export const FamCardsUno: React.FC<FamCardsUnoProps> = ({ 
@@ -57,6 +59,7 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
   roomCode,
   isHost
 }) => {
+  const { schedule, cancelAll } = useGameTimers();
   const p1 = tableParticipants?.[0];
   const p2 = tableParticipants?.[1];
   const p1Name = p1?.name || 'Spieler 1';
@@ -91,6 +94,7 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
 
   // Initialize round
   const startNewGame = (broadcast = true) => {
+    cancelAll();
     sound.playCardDeal();
     const newDeck = createUnoDeck();
     const pHand = newDeck.splice(0, 7);
@@ -335,7 +339,7 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
   // Bot Turn Automation (Only runs if opponent is actually a Bot)
   useEffect(() => {
     if (currentTurn === 'bot' && isP2Bot && !winner) {
-      const timer = setTimeout(() => {
+      const timer = schedule(() => {
         const playable = botHand.filter(canPlayCard);
         if (playable.length > 0) {
           const chosen = playable[0];

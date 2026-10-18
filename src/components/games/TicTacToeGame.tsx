@@ -1,3 +1,6 @@
+import { useAIDifficulty } from './GameArena';
+import { chooseTicMove } from '../../services/gameAI';
+import { useGameTimers } from './useGameTimers';
 import React, { useState, useEffect } from 'react';
 import { sound } from '../../services/sound';
 import confetti from '../../services/confetti';
@@ -23,6 +26,8 @@ export const TicTacToeGame: React.FC<TicTacToeProps> = ({
   onActiveTurnChange,
   roomCode,
 }) => {
+  const { schedule, cancelAll } = useGameTimers();
+  const difficulty = useAIDifficulty();
   const p1 = tableParticipants?.[0];
   const p2 = tableParticipants?.[1];
   const p1Name = p1?.name || 'X (Du)';
@@ -92,7 +97,9 @@ export const TicTacToeGame: React.FC<TicTacToeProps> = ({
       if (event.action === 'MOVE') {
         const { idx, turnPlayer } = event.payload;
         setBoard((prev) => {
-          if (prev[idx]) return prev;
+          if (!Number.isInteger(idx) || idx < 0 || idx > 8 || prev[idx] || checkWin(prev)) return prev;
+          const expected = prev.filter(v => v === 'X').length === prev.filter(v => v === 'O').length ? 'X' : 'O';
+          if (turnPlayer !== expected || event.senderId !== (expected === 'X' ? p1?.id : p2?.id)) return prev;
           const next = [...prev];
           next[idx] = turnPlayer;
 
@@ -119,6 +126,7 @@ export const TicTacToeGame: React.FC<TicTacToeProps> = ({
           return next;
         });
       } else if (event.action === 'RESET') {
+        cancelAll();
         sound.playClick();
         setBoard(Array(9).fill(null));
         setTurn('X');
@@ -130,7 +138,8 @@ export const TicTacToeGame: React.FC<TicTacToeProps> = ({
   }, [roomCode, currentUserId, onGameEnd]);
 
   const handleCellClick = (idx: number) => {
-    if (board[idx] || winner) return;
+    if (board[idx] || winner || (mode === 'bot' && turn === 'O')) return;
+    if (isOnlineMultiplayer && !mySymbol) return;
 
     // In online mode, verify it's our turn
     if (isOnlineMultiplayer && mySymbol && turn !== mySymbol) {
@@ -177,7 +186,7 @@ export const TicTacToeGame: React.FC<TicTacToeProps> = ({
 
     // AI Move in Bot Mode
     if (mode === 'bot' && nextTurn === 'O') {
-      setTimeout(() => {
+      schedule(() => {
         executeBotMove(newBoard);
       }, 500);
     }
@@ -190,27 +199,8 @@ export const TicTacToeGame: React.FC<TicTacToeProps> = ({
 
     if (emptyIndices.length === 0) return;
 
-    let chosen = emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
-
-    // Check if bot can win
-    for (const idx of emptyIndices) {
-      const test = [...currentBoard];
-      test[idx] = 'O';
-      if (checkWin(test) === 'O') {
-        chosen = idx;
-        break;
-      }
-    }
-
-    // Block X
-    for (const idx of emptyIndices) {
-      const test = [...currentBoard];
-      test[idx] = 'X';
-      if (checkWin(test) === 'X') {
-        chosen = idx;
-        break;
-      }
-    }
+    const chosen = chooseTicMove(currentBoard, difficulty);
+    if (chosen === null) return;
 
     sound.playPieceDrop();
     const newBoard = [...currentBoard];
@@ -235,6 +225,7 @@ export const TicTacToeGame: React.FC<TicTacToeProps> = ({
   };
 
   const resetGame = () => {
+    cancelAll();
     sound.playClick();
     setBoard(Array(9).fill(null));
     setTurn('X');
@@ -357,11 +348,12 @@ export const TicTacToeGame: React.FC<TicTacToeProps> = ({
       >
         <div className="grid grid-cols-3 gap-3 w-64 h-64 sm:w-72 sm:h-72">
           {board.map((cell, idx) => {
-            const isClickable = !cell && !winner && (!isOnlineMultiplayer || turn === mySymbol);
+            const isClickable = !cell && !winner && (mode !== 'bot' || turn === 'X') && (!isOnlineMultiplayer || turn === mySymbol);
 
             return (
               <button
                 key={idx}
+                aria-label={`Feld ${idx + 1}: ${cell || "leer"}`}
                 onClick={() => handleCellClick(idx)}
                 disabled={!isClickable}
                 className={`relative rounded-2xl flex items-center justify-center transition-all duration-200 shadow-inner ${

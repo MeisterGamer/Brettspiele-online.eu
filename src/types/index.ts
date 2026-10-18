@@ -176,6 +176,8 @@ export interface RoomParticipant {
 }
 
 export interface GameRoom {
+  aiDifficulty?: 'easy' | 'normal' | 'hard';
+  roundNumber?: number;
   id: string;
   code: string;
   name: string;

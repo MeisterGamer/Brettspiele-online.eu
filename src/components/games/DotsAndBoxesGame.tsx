@@ -1,3 +1,6 @@
+import { useAIDifficulty } from './GameArena';
+import { chooseBoxLine } from '../../services/gameAI';
+import { useGameTimers } from './useGameTimers';
 import React, { useState, useEffect } from 'react';
 import { sound } from '../../services/sound';
 import confetti from '../../services/confetti';
@@ -26,6 +29,8 @@ export const DotsAndBoxesGame: React.FC<DotsAndBoxesProps> = ({
   onActiveTurnChange,
   roomCode,
 }) => {
+  const { schedule, cancelAll } = useGameTimers();
+  const difficulty = useAIDifficulty();
   const p1 = tableParticipants?.[0];
   const p2 = tableParticipants?.[1];
   const p1Name = p1?.name || 'Blau (Spieler 1)';
@@ -79,6 +84,7 @@ export const DotsAndBoxesGame: React.FC<DotsAndBoxesProps> = ({
         const { lineType, r, c } = event.payload;
         applyRemoteLine(lineType, r, c);
       } else if (event.action === 'RESET') {
+        cancelAll();
         sound.playClick();
         setHLines(Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE - 1).fill(false)));
         setVLines(Array(GRID_SIZE - 1).fill(null).map(() => Array(GRID_SIZE).fill(false)));
@@ -191,7 +197,7 @@ export const DotsAndBoxesGame: React.FC<DotsAndBoxesProps> = ({
   const handleHLineClick = (r: number, c: number) => {
     if (hLines[r][c] || winner) return;
 
-    if (isOnlineMultiplayer && myPlayer && turn !== myPlayer) {
+    if (isOnlineMultiplayer && (!myPlayer || turn !== myPlayer)) {
       sound.playError();
       return;
     }
@@ -215,7 +221,7 @@ export const DotsAndBoxesGame: React.FC<DotsAndBoxesProps> = ({
   const handleVLineClick = (r: number, c: number) => {
     if (vLines[r][c] || winner) return;
 
-    if (isOnlineMultiplayer && myPlayer && turn !== myPlayer) {
+    if (isOnlineMultiplayer && (!myPlayer || turn !== myPlayer)) {
       sound.playError();
       return;
     }
@@ -240,7 +246,7 @@ export const DotsAndBoxesGame: React.FC<DotsAndBoxesProps> = ({
   useEffect(() => {
     if (isOnlineMultiplayer || !isP2Bot || turn !== 'p2' || winner) return;
 
-    const botTimer = setTimeout(() => {
+    const botTimer = schedule(() => {
       // Find all unplaced lines
       const availableHLines: [number, number][] = [];
       const availableVLines: [number, number][] = [];
@@ -259,20 +265,16 @@ export const DotsAndBoxesGame: React.FC<DotsAndBoxesProps> = ({
       const totalAvailable = availableHLines.length + availableVLines.length;
       if (totalAvailable === 0) return;
 
-      const pickH = Math.random() < (availableHLines.length / totalAvailable);
-      if (pickH && availableHLines.length > 0) {
-        const [r, c] = availableHLines[Math.floor(Math.random() * availableHLines.length)];
-        handleHLineClick(r, c);
-      } else if (availableVLines.length > 0) {
-        const [r, c] = availableVLines[Math.floor(Math.random() * availableVLines.length)];
-        handleVLineClick(r, c);
-      }
+      const move = chooseBoxLine(hLines, vLines, difficulty);
+      if (move?.type === 'H') handleHLineClick(move.r, move.c);
+      else if (move) handleVLineClick(move.r, move.c);
     }, 600);
 
     return () => clearTimeout(botTimer);
   }, [turn, isOnlineMultiplayer, isP2Bot, winner, hLines, vLines]);
 
   const resetGame = () => {
+    cancelAll();
     sound.playClick();
     setHLines(Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE - 1).fill(false)));
     setVLines(Array(GRID_SIZE - 1).fill(null).map(() => Array(GRID_SIZE).fill(false)));

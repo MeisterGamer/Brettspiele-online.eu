@@ -15,7 +15,9 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+import { requireUser, rateLimit } from './server/security.js';
 const app = express();
+app.disable('x-powered-by');
 
 // 1. Check command line argument --port (e.g. tsx server.ts --port 5555)
 let argPort: number | null = null;
@@ -41,7 +43,7 @@ app.use((_req, res, next) => {
     'Content-Security-Policy',
     [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",
+      process.env.NODE_ENV === 'production' ? "script-src 'self' 'unsafe-inline'" : "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",
       "worker-src 'self' blob:",
       "child-src 'self' blob:",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
@@ -51,6 +53,8 @@ app.use((_req, res, next) => {
       "media-src 'self' blob: data:",
       "object-src 'none'",
       "base-uri 'self'",
+      "frame-ancestors 'self'",
+      "form-action 'self'",
     ].join('; ')
   );
 
@@ -66,19 +70,21 @@ app.use((_req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '128kb' }));
+app.use(express.urlencoded({ extended: true, limit: '128kb' }));
 
 // Healthcheck endpoint
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-import { 
-  setupWebSocketServer, 
-  getRoomsList, 
-  getRoomEventsSince, 
-  handleExternalGameAction 
+import {
+  setupWebSocketServer,
+  getRoomsList,
+  getRoom,
+  getRoomEventsSince,
+  handleHttpMessage,
+  touchHttpSession
 } from './server/multiplayer/wsServer.js';
 
 // Authentication and user management routes
@@ -102,28 +108,34 @@ app.get('/api/multiplayer/status', (_req, res) => {
   });
 });
 
-app.post('/api/multiplayer/action', (req, res) => {
-  const roomCode = req.body.roomCode;
-  const action = req.body.action || req.body.type;
-  const gameType = req.body.gameType || 'general';
-  const payload = req.body.payload !== undefined ? req.body.payload : req.body;
-  const senderId = req.body.senderId || 'anonymous';
-
-  if (!roomCode || !action) {
-    return res.status(400).json({ error: 'Missing roomCode or action' });
+const multiplayerMessageHandler: express.RequestHandler = (req, res) => {
+  try {
+    const messages = handleHttpMessage(res.locals.user, req.body);
+    const error = messages.find((message: any) => message.type === 'ROOM_ERROR') as any;
+    res.status(error ? 409 : 200).json({ success: !error, messages });
+  } catch {
+    res.status(400).json({ success: false, error: 'Ungültige Multiplayer-Nachricht.' });
   }
-  const event = handleExternalGameAction(roomCode, gameType, action, payload, senderId);
-  res.json({ success: true, event });
-});
+};
+app.post(['/api/multiplayer/action', '/api/multiplayer/message'], rateLimit(240), requireUser, multiplayerMessageHandler);
 
-app.get('/api/multiplayer/events', (req, res) => {
+app.get('/api/multiplayer/events', requireUser, (req, res) => {
   const roomCode = String(req.query.roomCode || '');
+  const room = getRoom(roomCode);
+  if (!room?.participants.some(p => p.id === res.locals.user.id)) return res.status(403).json({ error: 'Kein Raumzugriff.' });
   const since = parseInt(String(req.query.since || '0'), 10);
   if (!roomCode) {
     return res.status(400).json({ error: 'Missing roomCode' });
   }
+  touchHttpSession(res.locals.user.id);
   const events = getRoomEventsSince(roomCode, isNaN(since) ? 0 : since);
   res.json({ events });
+});
+
+app.use('/api', (_req, res) => { res.status(404).json({ error: 'API-Endpunkt nicht gefunden.' }); });
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const status = err.status === 413 ? 413 : err.type === 'entity.parse.failed' ? 400 : 500;
+  res.status(status).json({ error: status === 500 ? 'Interner Serverfehler.' : 'Ungültige Anfrage.' });
 });
 
 // Initialize MariaDB

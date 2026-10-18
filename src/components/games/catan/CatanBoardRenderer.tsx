@@ -84,67 +84,67 @@ export const CatanBoardRenderer: React.FC<CatanBoardRendererProps> = ({
         <defs>
           {/* Sea Ocean Gradient */}
           <radialGradient id="catanOcean" cx="50%" cy="50%" r="65%">
-            <stop offset="0%" stop-color="#0284c7" />
-            <stop offset="50%" stop-color="#0369a1" />
-            <stop offset="100%" stop-color="#082f49" />
+            <stop offset="0%" stopColor="#0284c7" />
+            <stop offset="50%" stopColor="#0369a1" />
+            <stop offset="100%" stopColor="#082f49" />
           </radialGradient>
 
           {/* Terrain Patterns & Textures */}
           <linearGradient id="forestTile" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#166534" />
-            <stop offset="50%" stop-color="#14532d" />
-            <stop offset="100%" stop-color="#052e16" />
+            <stop offset="0%" stopColor="#166534" />
+            <stop offset="50%" stopColor="#14532d" />
+            <stop offset="100%" stopColor="#052e16" />
           </linearGradient>
 
           <linearGradient id="pastureTile" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#65a30d" />
-            <stop offset="50%" stop-color="#4d7c0f" />
-            <stop offset="100%" stop-color="#365314" />
+            <stop offset="0%" stopColor="#65a30d" />
+            <stop offset="50%" stopColor="#4d7c0f" />
+            <stop offset="100%" stopColor="#365314" />
           </linearGradient>
 
           <linearGradient id="fieldTile" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#eab308" />
-            <stop offset="50%" stop-color="#ca8a04" />
-            <stop offset="100%" stop-color="#854d0e" />
+            <stop offset="0%" stopColor="#eab308" />
+            <stop offset="50%" stopColor="#ca8a04" />
+            <stop offset="100%" stopColor="#854d0e" />
           </linearGradient>
 
           <linearGradient id="hillsTile" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#b91c1c" />
-            <stop offset="50%" stop-color="#991b1b" />
-            <stop offset="100%" stop-color="#450a0a" />
+            <stop offset="0%" stopColor="#b91c1c" />
+            <stop offset="50%" stopColor="#991b1b" />
+            <stop offset="100%" stopColor="#450a0a" />
           </linearGradient>
 
           <linearGradient id="mountainTile" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#64748b" />
-            <stop offset="50%" stop-color="#475569" />
-            <stop offset="100%" stop-color="#1e293b" />
+            <stop offset="0%" stopColor="#64748b" />
+            <stop offset="50%" stopColor="#475569" />
+            <stop offset="100%" stopColor="#1e293b" />
           </linearGradient>
 
           <linearGradient id="desertTile" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#d97706" />
-            <stop offset="50%" stop-color="#b45309" />
-            <stop offset="100%" stop-color="#78350f" />
+            <stop offset="0%" stopColor="#d97706" />
+            <stop offset="50%" stopColor="#b45309" />
+            <stop offset="100%" stopColor="#78350f" />
           </linearGradient>
 
           {/* Number Token Parchment Gradient */}
           <radialGradient id="tokenParchment" cx="40%" cy="35%" r="65%">
-            <stop offset="0%" stop-color="#ffffff" />
-            <stop offset="60%" stop-color="#fef3c7" />
-            <stop offset="100%" stop-color="#fde68a" />
+            <stop offset="0%" stopColor="#ffffff" />
+            <stop offset="60%" stopColor="#fef3c7" />
+            <stop offset="100%" stopColor="#fde68a" />
           </radialGradient>
 
           {/* Harbor Flag Gradient */}
           <linearGradient id="harborWood" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#d97706" />
-            <stop offset="100%" stop-color="#78350f" />
+            <stop offset="0%" stopColor="#d97706" />
+            <stop offset="100%" stopColor="#78350f" />
           </linearGradient>
 
           <filter id="tileShadow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#000" flood-opacity="0.45" />
+            <feDropShadow dx="0" dy="5" stdDeviation="4" floodColor="#000" floodOpacity="0.45" />
           </filter>
 
           <filter id="tokenShadow" x="-30%" y="-30%" width="160%" height="160%">
-            <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.5" />
+            <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000" floodOpacity="0.5" />
           </filter>
         </defs>
 
@@ -152,9 +152,9 @@ export const CatanBoardRenderer: React.FC<CatanBoardRendererProps> = ({
         <rect width="720" height="640" rx="24" fill="url(#catanOcean)" />
 
         {/* Wave textures around island */}
-        <g opacity="0.25" stroke="#ffffff" stroke-width="1.5" fill="none">
-          <ellipse cx="360" cy="320" rx="310" ry="260" stroke-dasharray="16, 12" />
-          <ellipse cx="360" cy="320" rx="335" ry="285" stroke-dasharray="8, 16" />
+        <g opacity="0.25" stroke="#ffffff" strokeWidth="1.5" fill="none">
+          <ellipse cx="360" cy="320" rx="310" ry="260" strokeDasharray="16, 12" />
+          <ellipse cx="360" cy="320" rx="335" ry="285" strokeDasharray="8, 16" />
         </g>
 
         {/* 2. Coastal Harbors Docks */}
@@ -184,11 +184,11 @@ export const CatanBoardRenderer: React.FC<CatanBoardRendererProps> = ({
                   x2={pierX}
                   y2={pierY}
                   stroke="#78350f"
-                  stroke-width="3"
-                  stroke-linecap="round"
+                  strokeWidth="3"
+                  strokeLinecap="round"
                 />
                 {/* Harbor Dock Icon */}
-                <circle cx={pierX} cy={pierY} r="13" fill="#1e293b" stroke="#f59e0b" stroke-width="1.5" />
+                <circle cx={pierX} cy={pierY} r="13" fill="#1e293b" stroke="#f59e0b" strokeWidth="1.5" />
                 <text
                   x={pierX}
                   y={pierY + 4}
@@ -226,7 +226,9 @@ export const CatanBoardRenderer: React.FC<CatanBoardRendererProps> = ({
           return (
             <g
               key={`hex-${hex.id}`}
-              onClick={() => onHexClick && onHexClick(hex.id)}
+              role="button" aria-label={`Räuber auf Feld ${hex.id+1}`} aria-disabled={!isHighlighted} tabIndex={isHighlighted?0:-1}
+              onKeyDown={event=>{if(isHighlighted&&(event.key==='Enter'||event.key===' ')){event.preventDefault();onHexClick?.(hex.id);}}}
+              onClick={() => isHighlighted&&onHexClick?.(hex.id)}
               className={onHexClick && isHighlighted ? 'cursor-pointer group' : ''}
             >
               {/* Hex Base Polygon */}
@@ -234,7 +236,7 @@ export const CatanBoardRenderer: React.FC<CatanBoardRendererProps> = ({
                 points={getHexPoints(hex.x, hex.y, 53)}
                 fill={fillId}
                 stroke={isHighlighted ? '#38bdf8' : isLastDiceRoll ? '#facc15' : '#020617'}
-                stroke-width={isHighlighted ? 4 : isLastDiceRoll ? 3.5 : 2}
+                strokeWidth={isHighlighted ? 4 : isLastDiceRoll ? 3.5 : 2}
                 filter="url(#tileShadow)"
                 className="transition-all duration-300"
               />
@@ -244,7 +246,7 @@ export const CatanBoardRenderer: React.FC<CatanBoardRendererProps> = ({
                 points={getHexPoints(hex.x, hex.y, 48)}
                 fill="none"
                 stroke="#ffffff"
-                stroke-width="0.8"
+                strokeWidth="0.8"
                 opacity="0.18"
               />
 
@@ -270,7 +272,7 @@ export const CatanBoardRenderer: React.FC<CatanBoardRendererProps> = ({
                     r="18"
                     fill="url(#tokenParchment)"
                     stroke="#78350f"
-                    stroke-width="1.5"
+                    strokeWidth="1.5"
                   />
 
                   {/* Dice Number (Red 6 and 8, Dark Slate others) */}
@@ -315,7 +317,7 @@ export const CatanBoardRenderer: React.FC<CatanBoardRendererProps> = ({
               {activeBuildingMode === 'robber' && isHighlighted && (
                 <g className="animate-pulse">
                   <circle cx={hex.x} cy={hex.y} r="28" fill="#38bdf8" opacity="0.35" />
-                  <circle cx={hex.x} cy={hex.y} r="32" fill="none" stroke="#38bdf8" stroke-width="2.5" />
+                  <circle cx={hex.x} cy={hex.y} r="32" fill="none" stroke="#38bdf8" strokeWidth="2.5" />
                 </g>
               )}
             </g>
@@ -348,7 +350,9 @@ export const CatanBoardRenderer: React.FC<CatanBoardRendererProps> = ({
             return (
               <g
                 key={`edge-target-${edge.id}`}
-                onClick={() => onEdgeClick && onEdgeClick(edge.id)}
+                role="button" aria-label={`Straße ${edge.id}`} aria-disabled={!isHighlighted} tabIndex={isHighlighted?0:-1}
+                onKeyDown={event=>{if(isHighlighted&&(event.key==='Enter'||event.key===' ')){event.preventDefault();onEdgeClick?.(edge.id);}}}
+                onClick={() => isHighlighted&&onEdgeClick?.(edge.id)}
                 className={isHighlighted ? 'cursor-pointer group' : 'pointer-events-none'}
               >
                 {/* Wide invisible click target */}
@@ -358,7 +362,7 @@ export const CatanBoardRenderer: React.FC<CatanBoardRendererProps> = ({
                   x2={edge.x2}
                   y2={edge.y2}
                   stroke="transparent"
-                  stroke-width="18"
+                  strokeWidth="18"
                 />
                 {isHighlighted && (
                   <line
@@ -367,9 +371,9 @@ export const CatanBoardRenderer: React.FC<CatanBoardRendererProps> = ({
                     x2={edge.x2}
                     y2={edge.y2}
                     stroke="#38bdf8"
-                    stroke-width="4.5"
-                    stroke-linecap="round"
-                    stroke-dasharray="4, 4"
+                    strokeWidth="4.5"
+                    strokeLinecap="round"
+                    strokeDasharray="4, 4"
                     className="animate-pulse"
                   />
                 )}
@@ -407,7 +411,9 @@ export const CatanBoardRenderer: React.FC<CatanBoardRendererProps> = ({
             return (
               <g
                 key={`vertex-target-${v.id}`}
-                onClick={() => onVertexClick && onVertexClick(v.id)}
+                role="button" aria-label={`Bauplatz ${v.id+1}`} tabIndex={0}
+                onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();onVertexClick?.(v.id);}}}
+                onClick={() => onVertexClick?.(v.id)}
                 className="cursor-pointer group"
               >
                 {/* Large touch target */}
@@ -427,7 +433,7 @@ export const CatanBoardRenderer: React.FC<CatanBoardRendererProps> = ({
                   r="8"
                   fill="#0284c7"
                   stroke="#ffffff"
-                  stroke-width="2"
+                  strokeWidth="2"
                   className="group-hover:scale-125 transition-transform"
                 />
               </g>

@@ -1,6 +1,8 @@
 import { GameRoom, RoomParticipant, UserProfile, AvatarConfig } from '../types';
 import { initialPublicRooms } from '../data/mockData';
 
+import { apiAuth } from './apiAuth';
+
 const STORAGE_KEY = 'famplay_multiplayer_rooms_v2';
 const CHANNEL_NAME = 'famplay_multiplayer_sync_channel';
 
@@ -64,7 +66,11 @@ export const FAMILY_BOT_PRESETS: { name: string; avatar: AvatarConfig }[] = [
   },
 ];
 
+export type ConnectionStatus = 'websocket' | 'http' | 'connecting' | 'offline';
+
 export type MultiplayerEvent =
+  | { type: 'CONNECTION_STATUS'; status: ConnectionStatus }
+  | { type: 'ROOM_ERROR'; error: string }
   | { type: 'ROOMS_UPDATED'; rooms: GameRoom[] }
   | { type: 'ROOM_STATE_SYNC'; room: GameRoom }
   | { type: 'GAME_MOVE'; roomCode: string; moveData: any; senderId: string }
@@ -118,6 +124,12 @@ class MultiplayerService {
       // 4. Start HTTP polling fallback for proxies where WebSockets are not forwarded
       this.startPollingFallback();
 
+      window.addEventListener('online', () => {
+        this.wsDisabledForSession = false;
+        this.reconnectAttempts = 0;
+        if (!this.socket || this.socket.readyState === WebSocket.CLOSED) this.connectWebSocket();
+      });
+      window.addEventListener('offline', () => this.setConnectionStatus('offline'));
       // Initial HTTP fetch of rooms
       this.fetchRoomsFromHttp();
     }
@@ -128,6 +140,7 @@ class MultiplayerService {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify({
         type: 'IDENTIFY',
+        token: apiAuth.getToken(),
         user,
       }));
     }
@@ -144,6 +157,7 @@ class MultiplayerService {
   private connectWebSocket() {
     if (typeof window === 'undefined') return;
     if (this.wsDisabledForSession) return;
+    if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) return;
 
     try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -155,11 +169,13 @@ class MultiplayerService {
 
       socket.onopen = () => {
         this.isConnected = true;
+        this.setConnectionStatus('websocket');
         this.reconnectAttempts = 0;
 
         if (this.currentUser) {
           socket.send(JSON.stringify({
             type: 'IDENTIFY',
+            token: apiAuth.getToken(),
             user: this.currentUser,
           }));
         }
@@ -167,6 +183,7 @@ class MultiplayerService {
         if (this.currentRoomCode && this.currentUser) {
           socket.send(JSON.stringify({
             type: 'JOIN_ROOM',
+            since: this.lastPolledEventId,
             roomCode: this.currentRoomCode,
             user: this.currentUser,
           }));
@@ -176,15 +193,18 @@ class MultiplayerService {
       socket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          this.handleIncomingEvent(data, true);
+          this.incomingQueue = this.incomingQueue.then(async () => {
+            if (data.type === 'ROOM_EVENTS' && Array.isArray(data.events)) await this.replayEvents(data.events);
+            else this.handleIncomingEvent(data, true);
+          }).catch(() => {});
         } catch (err) {}
       };
 
       socket.onclose = () => {
         this.isConnected = false;
-        if (this.reconnectAttempts >= 1) {
-          // If 2 attempts failed (e.g. /api/ws and /ws), stop attempting WebSocket to avoid console errors.
-          // HTTP fast-sync handles 100% of the game events seamlessly.
+        this.setConnectionStatus(navigator.onLine ? 'connecting' : 'offline');
+        if (this.reconnectAttempts >= 20) {
+          // Pause after prolonged failure; an online event enables another attempt.
           this.wsDisabledForSession = true;
           return;
         }
@@ -205,7 +225,7 @@ class MultiplayerService {
 
   private scheduleReconnect() {
     if (this.reconnectTimer || this.wsDisabledForSession) return;
-    if (this.reconnectAttempts >= 1) {
+    if (this.reconnectAttempts >= 20) {
       this.wsDisabledForSession = true;
       return;
     }
@@ -214,50 +234,67 @@ class MultiplayerService {
       this.reconnectAttempts++;
       this.wsPathIndex++;
       this.connectWebSocket();
-    }, 1500);
+    }, Math.min(30000, 1500 * 2 ** Math.min(this.reconnectAttempts, 5)));
   }
 
   private lastPolledEventId = 0;
+  private httpQueue: Promise<void> = Promise.resolve();
+  private incomingQueue: Promise<void> = Promise.resolve();
+  private connectionStatus: ConnectionStatus = 'connecting';
+
+  public getConnectionStatus() { return this.connectionStatus; }
+  private setConnectionStatus(status: ConnectionStatus) {
+    if (status === this.connectionStatus) return;
+    this.connectionStatus = status;
+    this.notifyListeners({ type: 'CONNECTION_STATUS', status });
+  }
+  private async replayEvents(events: any[]) {
+    for (const item of events) {
+      if (item.data) this.handleIncomingEvent({ ...item.data, eventId: item.id } as any, true);
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+  }
   private pollInterval: any = null;
+  private polling = false;
+  private lastRoomsFetch = 0;
 
   private startPollingFallback() {
     if (this.pollInterval || typeof window === 'undefined') return;
-    // 450ms fast polling when in game room for instantaneous responsiveness
+    // Keep both the lobby and active rooms usable behind proxies without WebSocket support.
     this.pollInterval = setInterval(async () => {
       if (this.isConnected && this.socket?.readyState === WebSocket.OPEN) {
         return;
       }
+      if (this.polling || document.hidden || !navigator.onLine) {
+        return;
+      }
       if (!this.currentRoomCode) {
+        if(Date.now()-this.lastRoomsFetch>5000){this.lastRoomsFetch=Date.now();await this.fetchRoomsFromHttp();}
         return;
       }
 
+      this.polling = true;
       try {
         const res = await fetch(
-          `/api/multiplayer/events?roomCode=${encodeURIComponent(this.currentRoomCode)}&since=${this.lastPolledEventId}`
+          `/api/multiplayer/events?roomCode=${encodeURIComponent(this.currentRoomCode)}&since=${this.lastPolledEventId}`,
+          { headers: { Authorization: `Bearer ${apiAuth.getToken()}` }, signal: AbortSignal.timeout(10000) }
         );
         if (res.ok) {
           const json = await res.json();
-          if (Array.isArray(json.events) && json.events.length > 0) {
-            for (const item of json.events) {
-              if (item.id > this.lastPolledEventId) {
-                this.lastPolledEventId = item.id;
-              }
-              if (item.data) {
-                this.handleIncomingEvent(item.data, true);
-              }
-            }
-          }
+          this.setConnectionStatus('http');
+          if (Array.isArray(json.events)) await this.replayEvents(json.events);
         }
-      } catch (e) {}
-    }, 450);
+      } catch (e) {} finally { this.polling = false; }
+    }, 1000);
   }
 
   private async fetchRoomsFromHttp() {
     try {
-      const res = await fetch('/api/rooms');
+      const res = await fetch('/api/rooms',{signal:AbortSignal.timeout(10000)});
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data.rooms) && data.rooms.length > 0) {
+        if (Array.isArray(data.rooms)) {
+          if(!this.isRealtimeConnected())this.setConnectionStatus('http');
           this.cachedRooms = data.rooms;
           this.saveRooms(data.rooms, false);
           this.notifyListeners({ type: 'ROOMS_UPDATED', rooms: data.rooms });
@@ -267,6 +304,12 @@ class MultiplayerService {
   }
 
   private handleIncomingEvent(event: MultiplayerEvent, fromServer = false) {
+    const id = (event as any).eventId;
+    const code = (event as any).roomCode || (event as any).room?.code;
+    if (fromServer && Number.isSafeInteger(id) && code === this.currentRoomCode) {
+      if (id <= this.lastPolledEventId) return;
+      this.lastPolledEventId = id;
+    }
     if (event.type === 'ROOMS_UPDATED') {
       this.cachedRooms = event.rooms;
       try {
@@ -294,12 +337,6 @@ class MultiplayerService {
 
     this.notifyListeners(event);
 
-    // Relay to local BroadcastChannel if received from server
-    if (fromServer && this.channel) {
-      try {
-        this.channel.postMessage(event);
-      } catch (e) {}
-    }
   }
 
   public subscribe(callback: (event: MultiplayerEvent) => void): () => void {
@@ -337,27 +374,26 @@ class MultiplayerService {
       } catch (e) {}
     }
 
-    // If WebSocket is not connected or in case of game action, push to HTTP endpoint
-    if (!sentViaWs && (event.type === 'GAME_ACTION' || event.type === 'TABLE_EMOTE' || event.type === 'ROOM_STATE_SYNC')) {
-      try {
-        fetch('/api/multiplayer/action', {
+    if (!sentViaWs && !['ROOMS_UPDATED', 'ROOM_STATE_SYNC'].includes(event.type)) {
+      this.httpQueue = this.httpQueue.then(async () => {
+        const res = await fetch('/api/multiplayer/message', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiAuth.getToken()}` },
           body: JSON.stringify(event),
-        }).catch(() => {});
-      } catch (e) {}
+          signal: AbortSignal.timeout(10000),
+        });
+        const data = await res.json();
+        if (Array.isArray(data.messages)) for (const message of data.messages) this.handleIncomingEvent(message, true);
+        if (!res.ok && !data.messages) throw new Error(data.error || 'Aktion fehlgeschlagen.');
+        if (res.ok) this.setConnectionStatus('http');
+      }).catch(error => {
+        this.setConnectionStatus(navigator.onLine ? 'connecting' : 'offline');
+        this.notifyListeners({ type: 'ROOM_ERROR', error: error.message || 'Verbindung unterbrochen.' });
+      });
     }
 
-    // Also post locally so caller receives it
-    if (this.channel) {
-      try {
-        this.channel.postMessage(event);
-      } catch (e) {}
-    }
-    // Only dispatch non-state events locally; room state is already updated in memory
-    if (event.type !== 'ROOM_STATE_SYNC' && event.type !== 'ROOMS_UPDATED') {
-      this.handleIncomingEvent(event, false);
-    }
+    // Game engines apply their own outgoing moves. Server delivery is authoritative for chat.
+    if (!['ROOM_STATE_SYNC', 'ROOMS_UPDATED', 'ROOM_CHAT'].includes(event.type)) this.handleIncomingEvent(event, false);
   }
 
   public getRooms(): GameRoom[] {
@@ -410,7 +446,7 @@ class MultiplayerService {
     }
   ): GameRoom {
     this.currentUser = host;
-    const code = `FAM-${Math.floor(100 + Math.random() * 900)}`;
+    const code = `FAM-${Array.from(crypto.getRandomValues(new Uint8Array(6)), n => n.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
     this.currentRoomCode = code;
 
     const hostParticipant: RoomParticipant = {
@@ -443,6 +479,7 @@ class MultiplayerService {
 
     this.sendWsOrPost({
       type: 'CREATE_ROOM',
+      roomCode: code,
       host,
       config,
     });
@@ -454,6 +491,7 @@ class MultiplayerService {
 
   public joinRoom(roomCode: string, user: UserProfile): GameRoom | null {
     this.currentUser = user;
+    if (this.currentRoomCode !== roomCode) this.lastPolledEventId = 0;
     this.currentRoomCode = roomCode;
 
     this.sendWsOrPost({
@@ -602,6 +640,16 @@ class MultiplayerService {
     const updated = rooms.map((r) => (r.id === room.id ? room : r));
     this.saveRooms(updated, false);
     this.sendWsOrPost({ type: 'ROOM_STATE_SYNC', room });
+  }
+
+  public setReady(roomCode: string, ready: boolean) {
+    this.sendWsOrPost({ type: 'SET_READY', roomCode, ready });
+  }
+  public startRound(roomCode: string) {
+    this.sendWsOrPost({ type: 'START_ROUND', roomCode });
+  }
+  public setDifficulty(roomCode: string, difficulty: 'easy' | 'normal' | 'hard') {
+    this.sendWsOrPost({ type: 'SET_DIFFICULTY', roomCode, difficulty });
   }
 
   public sendGameAction(roomCode: string, gameType: string, action: string, payload: any, senderId: string): void {

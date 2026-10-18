@@ -1,3 +1,4 @@
+import { useGameTimers } from './useGameTimers';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   SkipBoCard, 
@@ -49,6 +50,7 @@ export const SkipBoGame: React.FC<SkipBoGameProps> = ({
   roomCode,
   isHost = true,
 }) => {
+  const { schedule, cancelAll } = useGameTimers();
   // Preset AI bots for filling empty seats
   const BOT_PRESETS = [
     { name: 'Oma Grete (KI)', color: '#8b5cf6' },
@@ -256,7 +258,7 @@ export const SkipBoGame: React.FC<SkipBoGameProps> = ({
     if (pileCompleted) {
       sound.playSuccess();
       setLastCompletedPileId(buildingPileId);
-      setTimeout(() => setLastCompletedPileId(null), 1800);
+      schedule(() => setLastCompletedPileId(null), 1800);
       setCompletedPilesCards(prev => [...prev, ...newCompletedCards]);
       addLog(`✨ Baustapel ${buildingPileId} wurde mit 12 vollendet und abgeräumt!`);
     }
@@ -470,7 +472,7 @@ export const SkipBoGame: React.FC<SkipBoGameProps> = ({
             if (canPlayOnBuildingPile(topStockCard, pile.currentValue)) {
               const assignedVal = pile.currentValue + 1;
               executePlayCard(freshPlayer.id, 'stockpile', 0, pile.id, topStockCard, assignedVal, true);
-              aiTimeout = setTimeout(runAiStep, 1000);
+              aiTimeout = schedule(runAiStep, 1000);
               return;
             }
           }
@@ -483,7 +485,7 @@ export const SkipBoGame: React.FC<SkipBoGameProps> = ({
             if (canPlayOnBuildingPile(hCard, pile.currentValue)) {
               const assignedVal = pile.currentValue + 1;
               executePlayCard(freshPlayer.id, 'hand', hIdx, pile.id, hCard, assignedVal, true);
-              aiTimeout = setTimeout(runAiStep, 1000);
+              aiTimeout = schedule(runAiStep, 1000);
               return;
             }
           }
@@ -498,7 +500,7 @@ export const SkipBoGame: React.FC<SkipBoGameProps> = ({
               if (canPlayOnBuildingPile(topDCard, pile.currentValue)) {
                 const assignedVal = pile.currentValue + 1;
                 executePlayCard(freshPlayer.id, 'discard', dIdx, pile.id, topDCard, assignedVal, true);
-                aiTimeout = setTimeout(runAiStep, 1000);
+                aiTimeout = schedule(runAiStep, 1000);
                 return;
               }
             }
@@ -532,7 +534,7 @@ export const SkipBoGame: React.FC<SkipBoGameProps> = ({
         }
       };
 
-      aiTimeout = setTimeout(runAiStep, 1200);
+      aiTimeout = schedule(runAiStep, 1200);
     };
 
     playAiTurn();
@@ -556,6 +558,7 @@ export const SkipBoGame: React.FC<SkipBoGameProps> = ({
   };
 
   const handleRestart = () => {
+    cancelAll();
     sound.playClick();
     const fresh = setupInitialGame();
     setDeck(fresh.deck);

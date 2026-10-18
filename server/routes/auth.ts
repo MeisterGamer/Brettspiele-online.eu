@@ -21,8 +21,9 @@ import {
 import { sendVerificationEmail, sendPasswordResetEmail, sendTestEmail, getEmailServiceStatus } from '../email.js';
 
 export const authRouter = Router();
+authRouter.use(rateLimit(40));
 
-const JWT_SECRET = process.env.JWT_SECRET || 'famplay_secret_jwt_key_2026';
+import { JWT_SECRET, requireAdmin, rateLimit } from '../security.js';
 const JWT_EXPIRES_IN = '7d';
 
 const DEFAULT_AVATAR = {
@@ -84,13 +85,13 @@ authRouter.post('/register', async (req: Request, res: Response) => {
   try {
     const { username, email, password, familyRole, clanName } = req.body;
 
-    if (!username || typeof username !== 'string' || username.trim().length < 3) {
+    if (!username || typeof username !== 'string' || username.trim().length < 3 || username.length > 80) {
       return res.status(400).json({ success: false, error: 'Der Benutzername muss mindestens 3 Zeichen lang sein.' });
     }
-    if (!email || typeof email !== 'string' || !email.includes('@')) {
+    if (!email || typeof email !== 'string' || !email.includes('@') || email.length > 254) {
       return res.status(400).json({ success: false, error: 'Bitte gib eine gültige E-Mail-Adresse ein.' });
     }
-    if (!password || typeof password !== 'string' || password.length < 6) {
+    if (!password || typeof password !== 'string' || password.length < 6 || Buffer.byteLength(password, 'utf8') > 72) {
       return res.status(400).json({ success: false, error: 'Das Passwort muss mindestens 6 Zeichen lang sein.' });
     }
 
@@ -112,7 +113,7 @@ authRouter.post('/register', async (req: Request, res: Response) => {
 
     const userId = `usr_${crypto.randomBytes(8).toString('hex')}`;
     const tokenStr = crypto.randomBytes(32).toString('hex');
-    const sixDigitCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const sixDigitCode = crypto.randomInt(100000, 1000000).toString();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     const newRecord: DbUserRecord = {
@@ -177,7 +178,7 @@ authRouter.post('/login', async (req: Request, res: Response) => {
   try {
     const { usernameOrEmail, password } = req.body;
 
-    if (!usernameOrEmail || !password) {
+    if (typeof usernameOrEmail !== 'string' || typeof password !== 'string' || !usernameOrEmail || !password || usernameOrEmail.length > 254 || Buffer.byteLength(password, 'utf8') > 72) {
       return res.status(400).json({ success: false, error: 'Bitte Benutzername/E-Mail und Passwort angeben.' });
     }
 
@@ -330,7 +331,7 @@ authRouter.post('/forgot-password', async (req: Request, res: Response) => {
 authRouter.post('/reset-password', async (req: Request, res: Response) => {
   try {
     const { token, newPassword } = req.body;
-    if (!token || !newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
+    if (!token || !newPassword || typeof newPassword !== 'string' || newPassword.length < 6 || Buffer.byteLength(newPassword, 'utf8') > 72) {
       return res.status(400).json({ success: false, error: 'Ungültiges Token oder zu kurzes Passwort (min. 6 Zeichen).' });
     }
 
@@ -364,7 +365,7 @@ authRouter.post('/logout', (_req: Request, res: Response) => {
  * POST /api/system/test-email
  * Tests SMTP connection by sending a test email
  */
-authRouter.post('/test-email', async (req: Request, res: Response) => {
+authRouter.post('/test-email', requireAdmin, async (req: Request, res: Response) => {
   const { toEmail } = req.body;
   if (!toEmail || typeof toEmail !== 'string' || !toEmail.includes('@')) {
     return res.status(400).json({ success: false, error: 'Gültige Empfänger-E-Mail erforderlich.' });
@@ -381,12 +382,12 @@ authRouter.post('/test-email', async (req: Request, res: Response) => {
 authRouter.post('/create-admin', async (req: Request, res: Response) => {
   try {
     const { username, email, password, adminSecret } = req.body;
-    const expectedKey = process.env.ADMIN_SETUP_KEY || 'famplay_admin_setup_2026';
+    const expectedKey = process.env.ADMIN_SETUP_KEY;
 
     const allUsers = await getAllUsers();
     const existingAdmin = allUsers.find((u) => u.role === 'admin');
 
-    if (existingAdmin && adminSecret !== expectedKey) {
+    if (!expectedKey || adminSecret !== expectedKey) {
       return res.status(403).json({ success: false, error: 'Ungültiger Admin-Sicherheitsschlüssel.' });
     }
 
@@ -450,7 +451,7 @@ authRouter.get('/users', async (req: Request, res: Response) => {
     const decoded: any = jwt.verify(token, JWT_SECRET);
     const user = await findUserById(decoded.userId);
 
-    if (!user || user.role !== 'admin') {
+    if (!user || user.is_banned || user.role !== 'admin') {
       return res.status(403).json({ success: false, error: 'Nur Administratoren haben Zugriff auf diese Daten.' });
     }
 
