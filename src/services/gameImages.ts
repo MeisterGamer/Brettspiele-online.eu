@@ -2,7 +2,7 @@ import { GameInfo, GameCategory } from '../types';
 
 // Helper: converts SVG string to clean data URI
 export const svgToDataUri = (svg: string): string => {
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg.trim())}`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.trim())}`;
 };
 
 // Ambient backgrounds for games & tables (self-contained SVG data URIs, immune to CSP & offline)
@@ -1940,7 +1940,7 @@ const SVG_SKIP_BO = svgToDataUri(`
 
   <!-- Title Badge Plaque -->
   <rect x="50" y="206" width="300" height="26" rx="8" fill="#020617" opacity="0.95" stroke="#ea580c" stroke-width="1.5"/>
-  <text x="200" y="224" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="900" fill="#fb923c" text-anchor="middle" letter-spacing="2">SKIP-BO • ECHTE KARTEN & REGELN</text>
+  <text x="200" y="224" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="900" fill="#fb923c" text-anchor="middle" letter-spacing="2">SKIP-BO • 100% ECHTE KARTEN</text>
 </svg>
 `);
 
@@ -2060,7 +2060,188 @@ const SVG_ROMME = svgToDataUri(`
 
   <!-- Title Badge Plaque -->
   <rect x="50" y="206" width="300" height="26" rx="8" fill="#020617" opacity="0.95" stroke="#22c55e" stroke-width="1.5"/>
-  <text x="200" y="224" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="900" fill="#4ade80" text-anchor="middle" letter-spacing="2">ROMMÉ • 110 KARTEN & JOKER</text>
+  <text x="200" y="224" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="900" fill="#4ade80" text-anchor="middle" letter-spacing="2">ROMMÉ • 110 KARTEN + JOKER</text>
+</svg>
+`);
+
+// 15. DIE SIEDLER VON CATAN - Hex board, lands, number tokens, robber, settlements & cities
+const SVG_CATAN = svgToDataUri(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" width="400" height="240">
+  <defs>
+    <radialGradient id="catanOcean" cx="50%" cy="50%" r="75%">
+      <stop offset="0%" stop-color="#0284c7"/>
+      <stop offset="55%" stop-color="#0369a1"/>
+      <stop offset="100%" stop-color="#082f49"/>
+    </radialGradient>
+    <filter id="catanDrop" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <!-- Deep Blue Ocean Background -->
+  <rect width="100%" height="100%" fill="url(#catanOcean)"/>
+  <ellipse cx="200" cy="115" rx="180" ry="105" fill="none" stroke="#ffffff" stroke-width="1.5" opacity="0.2" stroke-dasharray="8 6"/>
+
+  <!-- Hexagonal Island Formation -->
+  <g transform="translate(200, 105)" filter="url(#catanDrop)">
+    <!-- Hex: Forest (Green, Wood) with 6 -->
+    <g transform="translate(-56, -32)">
+      <polygon points="0,-30 26,-15 26,15 0,30 -26,15 -26,-15" fill="#15803d" stroke="#052e16" stroke-width="2"/>
+      <text x="0" y="-6" font-size="15" text-anchor="middle">🌲</text>
+      <circle cx="0" cy="12" r="10" fill="#fef3c7" stroke="#78350f" stroke-width="1.2"/>
+      <text x="0" y="16" font-family="sans-serif" font-weight="900" font-size="12" fill="#dc2626" text-anchor="middle">6</text>
+    </g>
+
+    <!-- Hex: Mountains (Slate, Ore) with 8 -->
+    <g transform="translate(0, -32)">
+      <polygon points="0,-30 26,-15 26,15 0,30 -26,15 -26,-15" fill="#475569" stroke="#0f172a" stroke-width="2"/>
+      <text x="0" y="-6" font-size="15" text-anchor="middle">⛰️</text>
+      <circle cx="0" cy="12" r="10" fill="#fef3c7" stroke="#78350f" stroke-width="1.2"/>
+      <text x="0" y="16" font-family="sans-serif" font-weight="900" font-size="12" fill="#dc2626" text-anchor="middle">8</text>
+    </g>
+
+    <!-- Hex: Fields (Gold, Wheat) with 9 -->
+    <g transform="translate(56, -32)">
+      <polygon points="0,-30 26,-15 26,15 0,30 -26,15 -26,-15" fill="#ca8a04" stroke="#713f12" stroke-width="2"/>
+      <text x="0" y="-6" font-size="15" text-anchor="middle">🌾</text>
+      <circle cx="0" cy="12" r="10" fill="#fef3c7" stroke="#78350f" stroke-width="1.2"/>
+      <text x="0" y="16" font-family="sans-serif" font-weight="900" font-size="12" fill="#1e293b" text-anchor="middle">9</text>
+    </g>
+
+    <!-- Hex: Desert with Robber Pawn -->
+    <g transform="translate(-84, 16)">
+      <polygon points="0,-30 26,-15 26,15 0,30 -26,15 -26,-15" fill="#d97706" stroke="#78350f" stroke-width="2"/>
+      <text x="0" y="2" font-size="16" text-anchor="middle">🌵</text>
+      <!-- Robber Figurine -->
+      <g transform="translate(0, 8)">
+        <ellipse cx="0" cy="8" rx="8" ry="3" fill="#0f172a"/>
+        <path d="M-6,8 Q-3,1 -2,-4 Q0,-3 2,-4 Q3,1 6,8 Z" fill="#1e293b"/>
+        <circle cx="0" cy="-6" r="4.5" fill="#1e293b"/>
+      </g>
+    </g>
+
+    <!-- Hex: Hills (Red, Brick) with 5 -->
+    <g transform="translate(-28, 16)">
+      <polygon points="0,-30 26,-15 26,15 0,30 -26,15 -26,-15" fill="#b91c1c" stroke="#450a0a" stroke-width="2"/>
+      <text x="0" y="-6" font-size="15" text-anchor="middle">🧱</text>
+      <circle cx="0" cy="12" r="10" fill="#fef3c7" stroke="#78350f" stroke-width="1.2"/>
+      <text x="0" y="16" font-family="sans-serif" font-weight="900" font-size="12" fill="#1e293b" text-anchor="middle">5</text>
+    </g>
+
+    <!-- Hex: Pasture (Lime, Wool) with 10 -->
+    <g transform="translate(28, 16)">
+      <polygon points="0,-30 26,-15 26,15 0,30 -26,15 -26,-15" fill="#65a30d" stroke="#365314" stroke-width="2"/>
+      <text x="0" y="-6" font-size="15" text-anchor="middle">🐑</text>
+      <circle cx="0" cy="12" r="10" fill="#fef3c7" stroke="#78350f" stroke-width="1.2"/>
+      <text x="0" y="16" font-family="sans-serif" font-weight="900" font-size="12" fill="#1e293b" text-anchor="middle">10</text>
+    </g>
+
+    <!-- 3D Wooden Figures & Roads -->
+    <!-- Red Settlement on Vertex -->
+    <g transform="translate(-28, -16)">
+      <polygon points="0,-14 9,-4 -9,-4" fill="#ef4444" stroke="#1e293b" stroke-width="1"/>
+      <rect x="-7" y="-4" width="14" height="10" fill="#ef4444" stroke="#1e293b" stroke-width="1" rx="1"/>
+    </g>
+    <!-- Blue City with Cathedral Nave -->
+    <g transform="translate(28, -16)">
+      <polygon points="-7,-18 0,-12 -14,-12" fill="#2563eb" stroke="#0f172a" stroke-width="1"/>
+      <rect x="-12" y="-12" width="10" height="18" fill="#2563eb" stroke="#0f172a" stroke-width="1" rx="1"/>
+      <polygon points="5,-11 12,-5 -2,-5" fill="#2563eb" stroke="#0f172a" stroke-width="1"/>
+      <rect x="-2" y="-5" width="14" height="11" fill="#2563eb" stroke="#0f172a" stroke-width="1" rx="1"/>
+    </g>
+    <!-- Orange Settlement -->
+    <g transform="translate(56, 16)">
+      <polygon points="0,-14 9,-4 -9,-4" fill="#f97316" stroke="#1e293b" stroke-width="1"/>
+      <rect x="-7" y="-4" width="14" height="10" fill="#f97316" stroke="#1e293b" stroke-width="1" rx="1"/>
+    </g>
+
+    <!-- Wooden Roads -->
+    <line x1="-28" y1="-16" x2="0" y2="0" stroke="#ef4444" stroke-width="4.5" stroke-linecap="round"/>
+    <line x1="0" y1="0" x2="28" y2="-16" stroke="#2563eb" stroke-width="4.5" stroke-linecap="round"/>
+    <line x1="28" y1="-16" x2="56" y2="16" stroke="#f97316" stroke-width="4.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- Title Badge Plaque -->
+  <rect x="50" y="206" width="300" height="26" rx="8" fill="#020617" opacity="0.95" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="200" y="224" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="900" fill="#fbbf24" text-anchor="middle" letter-spacing="2">DIE SIEDLER VON CATAN • 2026</text>
+</svg>
+`);
+
+// 16. MAHJONG (MOJANG) - 144 Authentic Chinese 3D Ivory Tiles, Dragons, Winds & Bamboo
+const SVG_MAHJONG = svgToDataUri(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" width="400" height="240">
+  <defs>
+    <radialGradient id="mahjongFelt" cx="50%" cy="45%" r="70%">
+      <stop offset="0%" stop-color="#064e3b"/>
+      <stop offset="60%" stop-color="#022c22"/>
+      <stop offset="100%" stop-color="#011812"/>
+    </radialGradient>
+    <linearGradient id="tileFace" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fffbeb"/>
+      <stop offset="60%" stop-color="#fef3c7"/>
+      <stop offset="100%" stop-color="#fde68a"/>
+    </linearGradient>
+    <filter id="mDrop" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#000" flood-opacity="0.65"/>
+    </filter>
+  </defs>
+
+  <!-- Luxury Green Silk Table Felt -->
+  <rect width="100%" height="100%" fill="url(#mahjongFelt)"/>
+  <rect width="384" height="224" x="8" y="8" rx="14" fill="none" stroke="#10b981" stroke-width="1.5" opacity="0.25" stroke-dasharray="6 4"/>
+
+  <!-- 3D Stacked Mahjong Tiles Formation (Turtle-like Stack) -->
+  <g transform="translate(200, 108)" filter="url(#mDrop)">
+    <!-- Left Tile: 1-Bamboo (Sparrow / Spatz) -->
+    <g transform="translate(-105, 10) rotate(-4)">
+      <rect x="-24" y="-34" width="48" height="68" rx="6" fill="#14532d"/>
+      <rect x="-26" y="-36" width="48" height="68" rx="6" fill="url(#tileFace)" stroke="#d97706" stroke-width="1.2"/>
+      <text x="-19" y="-23" font-size="9" font-weight="900" fill="#15803d">1</text>
+      <text x="0" y="8" font-size="28" text-anchor="middle">🀐</text>
+      <text x="0" y="26" font-size="7" font-weight="bold" fill="#047857" text-anchor="middle">BAMBUS</text>
+    </g>
+
+    <!-- Left-Center Tile: East Wind (東) -->
+    <g transform="translate(-55, 6)">
+      <rect x="-24" y="-34" width="48" height="68" rx="6" fill="#14532d"/>
+      <rect x="-26" y="-36" width="48" height="68" rx="6" fill="url(#tileFace)" stroke="#d97706" stroke-width="1.2"/>
+      <text x="-19" y="-23" font-size="8" font-weight="bold" fill="#0284c7">東</text>
+      <text x="0" y="10" font-family="sans-serif" font-weight="900" font-size="26" fill="#0284c7" text-anchor="middle">東</text>
+      <text x="0" y="26" font-size="7" font-weight="bold" fill="#0369a1" text-anchor="middle">OSTWIND</text>
+    </g>
+
+    <!-- Center Hero Tile (Layer 2, Elevated): Red Dragon (中) -->
+    <g transform="translate(0, -10) scale(1.08)">
+      <rect x="-24" y="-34" width="48" height="68" rx="6" fill="#0f172a"/>
+      <rect x="-26" y="-38" width="48" height="68" rx="6" fill="url(#tileFace)" stroke="#f59e0b" stroke-width="2"/>
+      <text x="-19" y="-24" font-size="9" font-weight="900" fill="#dc2626">中</text>
+      <text x="0" y="10" font-family="sans-serif" font-weight="900" font-size="30" fill="#dc2626" text-anchor="middle">中</text>
+      <text x="0" y="25" font-size="7.5" font-weight="900" fill="#b91c1c" text-anchor="middle">ROTER DRACHE</text>
+    </g>
+
+    <!-- Right-Center Tile: 8-Wan / Character (八萬) -->
+    <g transform="translate(55, 6)">
+      <rect x="-24" y="-34" width="48" height="68" rx="6" fill="#14532d"/>
+      <rect x="-26" y="-36" width="48" height="68" rx="6" fill="url(#tileFace)" stroke="#d97706" stroke-width="1.2"/>
+      <text x="-19" y="-23" font-size="9" font-weight="900" fill="#dc2626">8</text>
+      <text x="0" y="-3" font-family="sans-serif" font-weight="900" font-size="16" fill="#1e293b" text-anchor="middle">八</text>
+      <text x="0" y="16" font-family="sans-serif" font-weight="900" font-size="18" fill="#dc2626" text-anchor="middle">萬</text>
+      <text x="0" y="26" font-size="7" font-weight="bold" fill="#991b1b" text-anchor="middle">ZEICHEN</text>
+    </g>
+
+    <!-- Right Tile: Green Dragon (發) -->
+    <g transform="translate(105, 10) rotate(4)">
+      <rect x="-24" y="-34" width="48" height="68" rx="6" fill="#14532d"/>
+      <rect x="-26" y="-36" width="48" height="68" rx="6" fill="url(#tileFace)" stroke="#d97706" stroke-width="1.2"/>
+      <text x="-19" y="-23" font-size="8" font-weight="bold" fill="#16a34a">發</text>
+      <text x="0" y="10" font-family="sans-serif" font-weight="900" font-size="26" fill="#16a34a" text-anchor="middle">發</text>
+      <text x="0" y="26" font-size="7" font-weight="bold" fill="#15803d" text-anchor="middle">GRÜNER DRACHE</text>
+    </g>
+  </g>
+
+  <!-- Title Badge Plaque -->
+  <rect x="50" y="206" width="300" height="26" rx="8" fill="#020617" opacity="0.95" stroke="#10b981" stroke-width="1.5"/>
+  <text x="200" y="224" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="900" fill="#34d399" text-anchor="middle" letter-spacing="2">MAHJONG • 144 ECHTE SPIELSTEINE</text>
 </svg>
 `);
 
@@ -2070,6 +2251,8 @@ const SVG_ROMME = svgToDataUri(`
 
 export const SPECIFIC_GAME_IMAGES: Record<string, string> = {
   // Flagship Core Playable Games
+  'mahjong': SVG_MAHJONG,
+  'catan': SVG_CATAN,
   'romme': SVG_ROMME,
   'skip-bo': SVG_SKIP_BO,
   'monopoly': SVG_MONOPOLY_2026,
