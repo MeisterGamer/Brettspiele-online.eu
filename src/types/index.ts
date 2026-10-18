@@ -23,6 +23,7 @@ export type GameEngineType =
   | 'skip-bo' // Skip-Bo classic card game with authentic rules and multiplayer
   | 'romme' // Deutsches Rommé classic card game with authentic rules, 40-point initial meld and multiplayer
   | 'catan' // Die Siedler von Catan with 3D wooden pieces, full hex board, authentic trading and robber rules
+  | 'mahjong' // Mahjong (Mojang / Mah-Jongg) Classic Solitaire & Table Duel with 144 authentic 3D tiles and official rules
   | 'catalog-simulation';
 
 export interface GameInfo {

@@ -105,7 +105,7 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
     hero_subtitle: 'Klassische Gesellschaftsspiele am virtuellen Familientisch: Spiele mit echten Spielfiguren, würfle live im 3D-Becher und lade deine Familie per Tisch-Code ein!',
     open_family_table: 'Familientisch eröffnen',
     play_random_game: 'Zufälliges Spiel starten',
-    search_input_placeholder: 'Spiel suchen... z.B. Catan, Monopoly, Skip-Bo, Rommé, Schach, Dame, Uno',
+    search_input_placeholder: 'Spiel suchen... z.B. Mahjong (Mojang), Catan, Monopoly, Skip-Bo, Rommé, Schach, Dame, Uno',
     games_available: 'Spiele verfügbar',
     cat_all: 'Alle Spiele',
     cat_board: 'Klassische Brettspiele',
@@ -226,7 +226,7 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
     hero_subtitle: 'Classic tabletop games at your virtual family table: Play with handcrafted 3D pieces, live 3D dice rolls, and invite your family via table code!',
     open_family_table: 'Host Family Table',
     play_random_game: 'Start Random Game',
-    search_input_placeholder: 'Search games... e.g. Catan, Monopoly, Skip-Bo, Rummy, Chess, Uno, Checkers',
+    search_input_placeholder: 'Search games... e.g. Mahjong (Mojang), Catan, Monopoly, Skip-Bo, Rummy, Chess, Uno, Checkers',
     games_available: 'games available',
     cat_all: 'All Games',
     cat_board: 'Classic Board Games',
@@ -768,6 +768,44 @@ export const getTranslation = (lang: SupportedLanguage, key: string, params?: Re
 
 // Localized Game Titles & Descriptions
 const GAME_LOCALIZATIONS: Record<string, Record<SupportedLanguage, { title?: string; description?: string; rulesSummary?: string; players?: string }>> = {
+  mahjong: {
+    de: {
+      title: 'Mahjong (Mojang) Classic 2026',
+      description: 'Das faszinierende chinesische Legespiel mit 144 echten 3D-Elfenbein-Spielsteinen (Bambus, Kreise, Schriftzeichen, Winde, Drachen, Jahreszeiten und Blumen)! Spiele nach 100% echten Originalregeln im klassischen Schildkröten-Aufbau: Finde freie Paare, nutze Tipps und spiele Solo oder im Familientisch-Duell!',
+      rulesSummary: 'Kombiniere 2 identische freie Steine (bzw. beliebige Blumen/Jahreszeiten untereinander). Ein Stein ist frei, wenn kein anderer Stein auf ihm liegt und seine linke oder rechte Seite frei ist.',
+      players: '1-4 Spieler',
+    },
+    en: {
+      title: 'Mahjong (Mojang) Classic 2026',
+      description: 'The ancient and captivating Chinese tile game with 144 authentic 3D ivory tiles (Bamboo, Circles, Characters, Winds, Dragons, Seasons, and Flowers)! Play with 100% official rules in the classic Turtle layout: match free open pairs, use hints, and play solo or table duel!',
+      rulesSummary: 'Match 2 identical free tiles (or any flowers/seasons together). A tile is free if no tile covers it and its left or right side is open.',
+      players: '1-4 Players',
+    },
+    es: {
+      title: 'Mahjong (Mojang) Clásico',
+      description: '¡El milenario y fascinante juego de fichas chinas con 144 fichas 3D auténticas! Juega con reglas 100% oficiales en el diseño clásico de Tortuga: empareja fichas libres y despeja el tablero.',
+      rulesSummary: 'Empareja 2 fichas libres idénticas (o flores/estaciones entre sí). Una ficha es libre si no tiene ninguna encima y al menos un lado abierto.',
+      players: '1-4 Jugadores',
+    },
+    fr: {
+      title: 'Mahjong (Mojang) Classique',
+      description: 'Le fascinant jeu de tuiles traditionnel chinois avec 144 tuiles en 3D ! Jouez selon les règles officielles dans la célèbre disposition Tortue : éliminez les paires libres.',
+      rulesSummary: 'Associez 2 tuiles libres identiques (ou fleurs/saisons entre elles). Une tuile est libre si elle n’est pas recouverte et a au moins un côté libre.',
+      players: '1-4 Joueurs',
+    },
+    it: {
+      title: 'Mahjong (Mojang) Classico',
+      description: 'L’antico e affascinante gioco di tessere cinese con 144 tessere 3D realistiche! Gioca secondo le regole ufficiali nella classica disposizione a Tartaruga: abbina le coppie libere.',
+      rulesSummary: 'Abbina 2 tessere libere uguali (o fiori/stagioni tra loro). Una tessera è libera se non è coperta e ha almeno un lato sinistro o destro aperto.',
+      players: '1-4 Giocatori',
+    },
+    ja: {
+      title: '麻雀牌パズル (Mahjong / Mojang)',
+      description: '伝統的な144枚の牌（萬子、筒子、索子、字牌、花牌、季節牌）を使った本格麻雀ソリティア！亀（タートル）をはじめとする立体配置から、開いている同じ牌のペアを見つけて消していこう！',
+      rulesSummary: '左右どちらかが空いており、上に別の牌が乗っていない「自由な牌」同士をペアにして消します。花牌・季節牌は同じグループならペアにできます。',
+      players: '1〜4人',
+    },
+  },
   catan: {
     de: {
       title: 'Die Siedler von Catan',

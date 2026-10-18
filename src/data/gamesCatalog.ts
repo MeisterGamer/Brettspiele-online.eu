@@ -2,6 +2,24 @@ import { GameInfo } from '../types';
 
 export const gamesCatalog: GameInfo[] = [
   {
+    id: 'mahjong',
+    title: 'Mahjong (Mojang) Classic 2026',
+    category: 'board',
+    categories: ['board', 'strategy', 'kids', 'party'],
+    players: '1-4 Spieler',
+    duration: '10-25 Min',
+    minAge: 6,
+    description: 'Das Jahrtausende alte, faszinierende chinesische Legespiel mit 144 echten 3D-Elfenbein-Spielsteinen (Bambus, Kreise, Schriftzeichen, Winde, Drachen, Jahreszeiten und Blumen)! Spiele nach 100% echten Originalregeln im klassischen Schildkröten-Aufbau: Finde freie Paare ohne aufliegende Steine, nutze clevere Tipps und Mischer, spiele Solo gegen die Zeit oder trete im spannenden Familientisch-Duell gegen Freunde und KI an!',
+    rulesSummary: 'Kombiniere 2 identische freie Steine (bzw. beliebige Blumen/Jahreszeiten untereinander). Ein Stein ist frei, wenn kein anderer Stein auf ihm liegt und mindestens seine linke ODER rechte Seite frei ist. Räume alle 144 Steine ab, um zu gewinnen!',
+    tags: ['Echte Spielsteine', '144 Steine', 'Originalregeln', 'Schildkröte & Pyramide', '3D Stapel', 'Multiplayer & Solo', 'Mojang', 'Mahjongg'],
+    engine: 'mahjong',
+    featured: true,
+    icon: '🀄',
+    difficulty: 'Medium',
+    rating: 5.0,
+    playsCount: 520,
+  },
+  {
     id: 'catan',
     title: 'Die Siedler von Catan',
     category: 'board',
