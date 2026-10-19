@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, MatchHistoryItem, FamilyFriend, ThemeId, SupportedLanguage } from '../../types';
 import { sound } from '../../services/sound';
-import { apiAuth } from '../../services/apiAuth';
 import { AvatarDisplay } from '../avatar/AvatarDisplay';
-import { friendsService } from '../../services/friendsService';
+import { friendsService, STARTER_FAMILY_MEMBERS } from '../../services/friendsService';
 import { FriendsListModal } from '../friends/FriendsListModal';
 import { themeService, THEME_LIST, APP_THEMES } from '../../services/themeService';
 import { getStoredLanguage, setStoredLanguage } from '../../services/i18n';
@@ -46,13 +45,16 @@ interface UserPanelModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: UserProfile;
-  onUpdateUser: (updatedUser: UserProfile) => Promise<void>;
+  onUpdateUser: (updatedUser: UserProfile) => void;
   onOpenAvatarStudio: () => void;
   onOpenLoginSwitcher: () => void;
   onLogout: () => void;
   onOpenAndroidModal?: () => void;
   onOpenFriendsList?: () => void;
   onInviteFriendToGame?: (friend: FamilyFriend) => void;
+  onOpenPointsShop?: () => void;
+  onOpenVipModal?: () => void;
+  onOpenDailyModal?: () => void;
 }
 
 export const UserPanelModal: React.FC<UserPanelModalProps> = ({
@@ -66,6 +68,9 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
   onOpenAndroidModal,
   onOpenFriendsList,
   onInviteFriendToGame,
+  onOpenPointsShop,
+  onOpenVipModal,
+  onOpenDailyModal,
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'friends' | 'stats' | 'history' | 'settings'>('overview');
   
@@ -85,14 +90,10 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
   const [selectedThemeId, setSelectedThemeId] = useState<ThemeId>(() => user.themeId || themeService.getStoredTheme());
   const [selectedLang, setSelectedLang] = useState<SupportedLanguage>(() => getStoredLanguage());
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
-  const [verificationCode,setVerificationCode] = useState('');
-  const [verificationNotice,setVerificationNotice] = useState('');
-  const [verificationPending,setVerificationPending] = useState(false);
 
   useEffect(() => {
     if (isOpen && user) {
       setFriends(friendsService.getFriends(user.id));
-      void friendsService.fetchFriends(user.id).then(setFriends).catch(error=>setQuickAddError(error.message));
       setSelectedThemeId(user.themeId || themeService.getStoredTheme());
       setSelectedLang(getStoredLanguage());
       setNameInput(user.name);
@@ -114,15 +115,18 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
     sound.playReward();
     setSelectedThemeId(themeId);
     themeService.applyTheme(themeId);
-    void onUpdateUser({...user,themeId}).catch(error=>setQuickAddError(error.message));
+    onUpdateUser({
+      ...user,
+      themeId,
+    });
   };
 
-  const handleSaveProfile = async (e: React.FormEvent) => {
+  const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
     sound.playReward();
     themeService.applyTheme(selectedThemeId);
     setStoredLanguage(selectedLang);
-    try { await onUpdateUser({
+    onUpdateUser({
       ...user,
       name: nameInput.trim() || user.name,
       clanName: clanInput.trim() || user.clanName,
@@ -131,7 +135,6 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
     });
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
-    } catch(error) { setQuickAddError(error instanceof Error ? error.message : 'Profil konnte nicht gespeichert werden.'); }
   };
 
   const onlineFriendsCount = friends.filter((f) => f.status === 'online' || f.status === 'in-game').length;
@@ -273,28 +276,6 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
         </div>
 
         {/* Tab Navigation */}
-        {!user.isVerified && <form className="px-4 py-3 bg-amber-950/40 text-xs space-y-2" onSubmit={async event=>{
-          event.preventDefault();setVerificationPending(true);
-          try {
-            const result=await apiAuth.verifyEmail(verificationCode);
-            setVerificationNotice(result.message || result.error || 'Bestätigung fehlgeschlagen.');
-            if(result.success) await onUpdateUser({...user,isVerified:true});
-          }catch(error){setVerificationNotice(error instanceof Error?error.message:'Bestätigung fehlgeschlagen.');}
-          finally{setVerificationPending(false);}
-        }}>
-          <p>E-Mail-Adresse bestätigen: Gib den Code aus deiner Bestätigungs-E-Mail ein.</p>
-          <div className="flex flex-wrap gap-2">
-            <input aria-label="E-Mail-Bestätigungscode" inputMode="numeric" maxLength={6} pattern="[0-9]{6}" value={verificationCode} onChange={e=>setVerificationCode(e.target.value)} className="bg-slate-800 p-2 rounded-lg w-32" required />
-            <button disabled={verificationPending} className="p-2 rounded-lg bg-indigo-600">Bestätigen</button>
-            <button type="button" disabled={verificationPending} className="p-2 underline" onClick={async ()=>{
-              setVerificationPending(true);
-              try {const result=await apiAuth.resendVerification();setVerificationNotice(result.message || result.error || 'Versand fehlgeschlagen.');}
-              catch(error){setVerificationNotice(error instanceof Error?error.message:'Versand fehlgeschlagen.');}
-              finally{setVerificationPending(false);}
-            }}>Code erneut senden</button>
-          </div>
-          {verificationNotice && <p role="status">{verificationNotice}</p>}
-        </form>}
         <div className="flex border-b border-slate-800 bg-slate-900/60 px-6 gap-2 overflow-x-auto">
           <button
             onClick={() => { sound.playClick(); setActiveTab('overview'); }}
@@ -393,45 +374,77 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
 
               {/* Currency & Streak Wallets */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-slate-800/40 border border-slate-700/60 p-4 rounded-2xl flex flex-col justify-between">
-                  <div className="flex items-center justify-between text-amber-400 mb-2">
-                    <span className="text-xs font-bold text-slate-400">Münzen</span>
+                <button
+                  onClick={() => {
+                    sound.playClick();
+                    onClose();
+                    if (onOpenPointsShop) onOpenPointsShop();
+                  }}
+                  className="bg-slate-800/40 hover:bg-slate-800/80 border border-slate-700/60 hover:border-amber-500/50 p-4 rounded-2xl flex flex-col justify-between text-left transition group cursor-pointer"
+                  title="Punkte- & Belohnungs-Shop öffnen"
+                >
+                  <div className="flex items-center justify-between text-amber-400 mb-2 w-full">
+                    <span className="text-xs font-bold text-slate-400 group-hover:text-amber-300">Münzen</span>
                     <Coins className="w-5 h-5 fill-current" />
                   </div>
-                  <div className="text-xl font-black font-mono text-white">
+                  <div className="text-xl font-black font-mono text-white group-hover:text-amber-300">
                     {user.coins.toLocaleString()}
                   </div>
-                </div>
+                </button>
 
-                <div className="bg-slate-800/40 border border-slate-700/60 p-4 rounded-2xl flex flex-col justify-between">
-                  <div className="flex items-center justify-between text-sky-400 mb-2">
-                    <span className="text-xs font-bold text-slate-400">Edelsteine</span>
+                <button
+                  onClick={() => {
+                    sound.playClick();
+                    onClose();
+                    if (onOpenPointsShop) onOpenPointsShop();
+                  }}
+                  className="bg-slate-800/40 hover:bg-slate-800/80 border border-slate-700/60 hover:border-sky-500/50 p-4 rounded-2xl flex flex-col justify-between text-left transition group cursor-pointer"
+                  title="Punkte- & Belohnungs-Shop öffnen"
+                >
+                  <div className="flex items-center justify-between text-sky-400 mb-2 w-full">
+                    <span className="text-xs font-bold text-slate-400 group-hover:text-sky-300">Edelsteine</span>
                     <Gem className="w-5 h-5 fill-current" />
                   </div>
-                  <div className="text-xl font-black font-mono text-white">
+                  <div className="text-xl font-black font-mono text-white group-hover:text-sky-300">
                     {user.gems.toLocaleString()}
                   </div>
-                </div>
+                </button>
 
-                <div className="bg-slate-800/40 border border-slate-700/60 p-4 rounded-2xl flex flex-col justify-between">
-                  <div className="flex items-center justify-between text-orange-400 mb-2">
-                    <span className="text-xs font-bold text-slate-400">Tages-Streak</span>
+                <button
+                  onClick={() => {
+                    sound.playClick();
+                    onClose();
+                    if (onOpenDailyModal) onOpenDailyModal();
+                  }}
+                  className="bg-slate-800/40 hover:bg-slate-800/80 border border-slate-700/60 hover:border-orange-500/50 p-4 rounded-2xl flex flex-col justify-between text-left transition group cursor-pointer"
+                  title="Tages-Bonus Kalender öffnen"
+                >
+                  <div className="flex items-center justify-between text-orange-400 mb-2 w-full">
+                    <span className="text-xs font-bold text-slate-400 group-hover:text-orange-300">Tages-Streak</span>
                     <Flame className="w-5 h-5 fill-current" />
                   </div>
-                  <div className="text-xl font-black text-white">
+                  <div className="text-xl font-black text-white group-hover:text-orange-300">
                     {user.streakDays} Tage
                   </div>
-                </div>
+                </button>
 
-                <div className="bg-slate-800/40 border border-slate-700/60 p-4 rounded-2xl flex flex-col justify-between">
-                  <div className="flex items-center justify-between text-amber-300 mb-2">
-                    <span className="text-xs font-bold text-slate-400">VIP Status</span>
+                <button
+                  onClick={() => {
+                    sound.playClick();
+                    onClose();
+                    if (onOpenVipModal) onOpenVipModal();
+                  }}
+                  className="bg-slate-800/40 hover:bg-slate-800/80 border border-slate-700/60 hover:border-amber-400/50 p-4 rounded-2xl flex flex-col justify-between text-left transition group cursor-pointer"
+                  title="VIP Club & Pässe öffnen"
+                >
+                  <div className="flex items-center justify-between text-amber-300 mb-2 w-full">
+                    <span className="text-xs font-bold text-slate-400 group-hover:text-amber-200">VIP Status</span>
                     <Crown className="w-5 h-5 fill-current" />
                   </div>
-                  <div className="text-sm font-black text-white">
-                    {user.isVip ? 'Aktiv (2x XP)' : 'Standard'}
+                  <div className="text-sm font-black text-white group-hover:text-amber-200">
+                    {user.isVip ? `Aktiv (${user.vipTier ? `Stufe ${user.vipTier}` : 'Pass'})` : 'Kostenlos (Upgrade)'}
                   </div>
-                </div>
+                </button>
               </div>
 
               {/* Favorite & Quick Launch */}
@@ -650,11 +663,12 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
                     <button
                       onClick={() => {
                         sound.playReward();
-                        setIsFriendsModalOpen(true);
+                        friendsService.saveFriends(user.id, STARTER_FAMILY_MEMBERS);
+                        setFriends(STARTER_FAMILY_MEMBERS);
                       }}
                       className="px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition inline-flex items-center gap-1.5"
                     >
-                      <Sparkles className="w-3 h-3" /> Freunde hinzufügen
+                      <Sparkles className="w-3 h-3" /> Muster-Familie laden
                     </button>
                   </div>
                 ) : (
@@ -718,7 +732,8 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
 
                           <button
                             onClick={() => {
-                              void friendsService.toggleFavorite(user.id,friend.id).then(setFriends).catch(error=>setQuickAddError(error.message));
+                              const updated = friendsService.toggleFavorite(user.id, friend.id);
+                              setFriends(updated);
                             }}
                             className={`p-1.5 rounded-xl border transition ${
                               friend.isFavorite
@@ -733,7 +748,8 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
                           <button
                             onClick={() => {
                               if (window.confirm(`"${friend.name}" aus Freundesliste entfernen?`)) {
-                                void friendsService.removeFriend(user.id,friend.id).then(setFriends).catch(error=>setQuickAddError(error.message));
+                                const updated = friendsService.removeFriend(user.id, friend.id);
+                                setFriends(updated);
                               }
                             }}
                             className="p-1.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 transition"
@@ -850,7 +866,6 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
           {/* TAB 4: EINSTELLUNGEN & SICHERHEIT */}
           {activeTab === 'settings' && (
             <form onSubmit={handleSaveProfile} className="space-y-4">
-              {quickAddError && <p role="alert" className="text-rose-300">{quickAddError}</p>}
               
               {savedSuccess && (
                 <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 rounded-2xl text-emerald-300 text-xs font-bold flex items-center gap-2">

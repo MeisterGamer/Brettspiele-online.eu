@@ -45,6 +45,8 @@ import { LeaderboardModal } from './components/leaderboards/LeaderboardModal';
 import { AchievementsModal } from './components/achievements/AchievementsModal';
 import { VipModal } from './components/vip/VipModal';
 import { DailyRewardModal } from './components/rewards/DailyRewardModal';
+import { PointsShopModal } from './components/rewards/PointsShopModal';
+import { VIP_TIERS, getXpForNextLevel, INITIAL_PLAYER_QUESTS } from './services/vipPointsService';
 import { AdminSystemModal } from './components/admin/AdminSystemModal';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
 import { LoginModal } from './components/auth/LoginModal';
@@ -242,6 +244,7 @@ export default function App() {
   const [isAchievementsOpen, setIsAchievementsOpen] = useState<boolean>(false);
   const [isVipOpen, setIsVipOpen] = useState<boolean>(false);
   const [isDailyOpen, setIsDailyOpen] = useState<boolean>(false);
+  const [isPointsShopOpen, setIsPointsShopOpen] = useState<boolean>(false);
   const [isAdminOpen, setIsAdminOpen] = useState<boolean>(false);
   const [isLoginOpen, setIsLoginOpen] = useState<boolean>(false);
   const [isUserPanelOpen, setIsUserPanelOpen] = useState<boolean>(false);
@@ -296,16 +299,22 @@ export default function App() {
 
   const handleGameCompletion = (result: any) => {
     if (!user) return;
-    // Add XP & Coins with VIP bonus multiplier
-    const multiplier = user.isVip ? 2 : 1;
-    const earnedCoins = 100 * multiplier;
-    const earnedXp = 150 * multiplier;
+    // Calculate VIP tier multiplier (Bronze: 1.5x, Silver: 2.0x, Gold: 2.5x, Platinum: 3.0x, Diamond: 4.0x)
+    const vipTier = user.vipTier ?? (user.isVip ? 3 : 0);
+    const tierData = VIP_TIERS.find((t) => t.tier === vipTier);
+    const multiplier = tierData ? tierData.multiplier : (user.isVip ? 2 : 1);
+    
+    const isWin = result?.winner === 'player' || result?.winner === 'draw' || result?.score > 100;
+    const baseCoins = isWin ? 200 : 100;
+    const baseXP = isWin ? 250 : 150;
+    const earnedCoins = Math.round(baseCoins * multiplier);
+    const earnedXp = Math.round(baseXP * multiplier);
 
     const newMatch = {
       id: `m_${Date.now()}`,
       gameId: activeGame?.id || 'game',
       gameTitle: activeGame?.title || 'Spielpartie',
-      result: (result?.winner === 'player' || result?.winner === 'draw' || result?.score > 100 ? 'won' : 'lost') as 'won' | 'lost',
+      result: (isWin ? 'won' : 'lost') as 'won' | 'lost',
       score: result?.score || 350,
       opponentName: 'Familientisch / Bot',
       date: 'Gerade eben',
@@ -315,17 +324,71 @@ export default function App() {
 
     setUser((prev) => {
       if (!prev) return null;
+
+      // Progress quests
+      const currentQuests = prev.quests && prev.quests.length > 0 ? prev.quests : INITIAL_PLAYER_QUESTS;
+      const updatedQuests = currentQuests.map((q) => {
+        let p = q.progress;
+        if (q.id === 'quest_mahjong_1' && activeGame?.id === 'mahjong') {
+          p = Math.min(q.target, p + 1);
+        } else if (q.id === 'quest_diamond_1' && activeGame?.id === 'diamond-blast') {
+          p = Math.min(q.target, p + 1);
+        } else if (q.id === 'quest_table_duel' && ['connect-four', 'chess', 'checkers', 'ludo', 'yatzy'].includes(activeGame?.id || '')) {
+          p = Math.min(q.target, p + 1);
+        } else if (q.id === 'quest_weekly_champion') {
+          p = Math.min(q.target, p + 1);
+        } else if (q.id === 'quest_weekly_mahjong' && activeGame?.id === 'mahjong') {
+          p = Math.min(q.target, p + (result?.score ? Math.round(result.score / 20) : 10));
+        }
+        return {
+          ...q,
+          progress: p,
+          isCompleted: p >= q.target,
+        };
+      });
+
+      // Level up calculation
+      let newLevel = prev.level;
+      let newXp = prev.xp + earnedXp;
+      let bonusLevelCoins = 0;
+      let bonusLevelGems = 0;
+      while (newXp >= getXpForNextLevel(newLevel)) {
+        newXp -= getXpForNextLevel(newLevel);
+        newLevel += 1;
+        bonusLevelCoins += 500;
+        bonusLevelGems += 10;
+      }
+
+      const totalNewCoins = prev.coins + earnedCoins + bonusLevelCoins;
+      const totalNewGems = prev.gems + bonusLevelGems;
+
+      const newTransaction = {
+        id: `tx_${Date.now()}`,
+        type: 'earn' as const,
+        amount: earnedCoins + bonusLevelCoins,
+        currency: 'coins' as const,
+        title: `Match: ${activeGame?.title || 'Spiel'} (${multiplier}x VIP)`,
+        category: 'game' as const,
+        timestamp: 'Gerade eben'
+      };
+
       const updated: UserProfile = {
         ...prev,
-        coins: prev.coins + earnedCoins,
-        xp: prev.xp + earnedXp,
+        coins: totalNewCoins,
+        gems: totalNewGems,
+        xp: newXp,
+        level: newLevel,
+        vipSeasonXp: (prev.vipSeasonXp || prev.xp) + earnedXp,
+        quests: updatedQuests,
         stats: {
           ...prev.stats,
           gamesPlayed: prev.stats.gamesPlayed + 1,
-          gamesWon: prev.stats.gamesWon + (newMatch.result === 'won' ? 1 : 0),
+          gamesWon: prev.stats.gamesWon + (isWin ? 1 : 0),
         },
+        transactions: [newTransaction, ...(prev.transactions || [])],
         matchHistory: [newMatch, ...(prev.matchHistory || [])],
       };
+
       authService.setCurrentUser(updated);
       return updated;
     });
@@ -438,13 +501,13 @@ export default function App() {
             <button
               onClick={() => {
                 sound.playReward();
-                setIsDailyOpen(true);
+                setIsPointsShopOpen(true);
               }}
-              className="flex items-center gap-1 bg-slate-800/90 border border-slate-700/80 px-2.5 py-1.5 rounded-xl text-amber-400 font-bold text-xs shadow-sm"
-              title={t('daily_bonus_coins')}
+              className="flex items-center gap-1 bg-slate-800/90 border border-slate-700/80 px-2.5 py-1.5 rounded-xl text-amber-400 font-bold text-xs shadow-sm cursor-pointer"
+              title="Punkte- & Belohnungs-Shop"
             >
               <Coins className="w-3.5 h-3.5 fill-current" />
-              <span className="font-mono">{user.coins.toLocaleString()}</span>
+              <span className="font-mono tabular-nums">{user.coins.toLocaleString()}</span>
             </button>
 
             {/* Notifications Dropdown */}
@@ -488,14 +551,14 @@ export default function App() {
             <button
               onClick={() => {
                 sound.playReward();
-                setIsDailyOpen(true);
+                setIsPointsShopOpen(true);
               }}
-              className="flex items-center gap-2 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 px-3 py-1.5 rounded-2xl transition shadow-sm"
-              title="Daily Bonus Calendar"
+              className="flex items-center gap-2 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 px-3 py-1.5 rounded-2xl transition shadow-sm cursor-pointer"
+              title="Punkte- & Belohnungs-Shop öffnen"
             >
               <div className="flex items-center gap-1 text-amber-400 font-bold text-xs">
                 <Coins className="w-4 h-4 fill-current" />
-                <span className="font-mono">{user.coins.toLocaleString()}</span>
+                <span className="font-mono tabular-nums">{user.coins.toLocaleString()}</span>
               </div>
               <div className="h-3 w-px bg-slate-700 hidden sm:block" />
               <div className="hidden sm:flex items-center gap-1 text-orange-400 text-xs font-bold">
@@ -510,14 +573,16 @@ export default function App() {
                 sound.playClick();
                 setIsVipOpen(true);
               }}
-              className={`px-3 py-1.5 rounded-2xl font-bold text-xs flex items-center gap-1.5 transition shadow-md ${
+              className={`px-3 py-1.5 rounded-2xl font-bold text-xs flex items-center gap-1.5 transition shadow-md cursor-pointer ${
                 user.isVip
-                  ? 'bg-amber-400 text-slate-950 font-black ring-2 ring-amber-300/60'
+                  ? 'bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black ring-2 ring-amber-300/60 shadow-amber-500/20'
                   : 'bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/40'
               }`}
             >
               <Crown className="w-3.5 h-3.5 fill-current" />
-              <span className="hidden sm:inline">VIP Pass</span>
+              <span className="hidden sm:inline">
+                {user.isVip ? (user.vipTier ? `VIP ${user.vipTier}` : 'VIP Aktiv') : 'VIP Pass'}
+              </span>
             </button>
 
             {/* Sound Toggle */}
@@ -1346,14 +1411,32 @@ export default function App() {
         isOpen={isVipOpen}
         onClose={() => setIsVipOpen(false)}
         currentUser={user}
+        onUpdateUser={(updated) => {
+          setUser(updated);
+          authService.setCurrentUser(updated);
+        }}
         onUpgradeVip={() => {
           setUser((u) => u ? {
             ...u,
             isVip: true,
+            vipTier: Math.max(u.vipTier || 0, 3),
             coins: u.coins + 2500,
             avatar: { ...u.avatar, flair: 'gold-vip' },
           } : null);
         }}
+        onOpenShop={() => setIsPointsShopOpen(true)}
+      />
+
+      {/* Points & Rewards Shop Modal */}
+      <PointsShopModal
+        isOpen={isPointsShopOpen}
+        onClose={() => setIsPointsShopOpen(false)}
+        currentUser={user}
+        onUpdateUser={(updated) => {
+          setUser(updated);
+          authService.setCurrentUser(updated);
+        }}
+        onOpenVipModal={() => setIsVipOpen(true)}
       />
 
       <DailyRewardModal
@@ -1483,6 +1566,9 @@ export default function App() {
             ]);
           }
         }}
+        onOpenPointsShop={() => setIsPointsShopOpen(true)}
+        onOpenVipModal={() => setIsVipOpen(true)}
+        onOpenDailyModal={() => setIsDailyOpen(true)}
       />
 
       {/* Standalone Family & Friends Modal */}

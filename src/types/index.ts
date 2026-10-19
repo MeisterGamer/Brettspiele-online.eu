@@ -104,8 +104,76 @@ export interface FamilyFriend {
 
 export type ThemeId = 'amber' | 'purple' | 'emerald' | 'sky' | 'ruby' | 'orange';
 
+export interface VipTierInfo {
+  tier: number;
+  name: string;
+  badge: string;
+  multiplier: number;
+  dailyBonusCoins: number;
+  dailyBonusGems: number;
+  perks: string[];
+  costCoins: number;
+  costGems: number;
+  color: string;
+}
+
+export interface VipPassMilestone {
+  level: number;
+  requiredXp: number;
+  freeReward: {
+    type: 'coins' | 'gems' | 'item' | 'booster';
+    amount: number;
+    label: string;
+    icon: string;
+    itemId?: string;
+  };
+  vipReward: {
+    type: 'coins' | 'gems' | 'item' | 'booster';
+    amount: number;
+    label: string;
+    icon: string;
+    itemId?: string;
+  };
+}
+
+export interface ShopItem {
+  id: string;
+  name: string;
+  category: 'table' | 'cards' | 'avatar' | 'booster' | 'sound';
+  description: string;
+  costCoins: number;
+  costGems: number;
+  icon: string;
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  vipRequiredTier?: number;
+}
+
+export interface PointTransaction {
+  id: string;
+  type: 'earn' | 'spend';
+  amount: number;
+  currency: 'coins' | 'gems';
+  title: string;
+  category: 'game' | 'quest' | 'daily' | 'vip' | 'shop';
+  timestamp: string;
+}
+
+export interface PlayerQuest {
+  id: string;
+  title: string;
+  description: string;
+  progress: number;
+  target: number;
+  rewardCoins: number;
+  rewardXp: number;
+  rewardGems?: number;
+  category: 'daily' | 'weekly';
+  isCompleted: boolean;
+  isClaimed: boolean;
+  icon: string;
+}
+
 export interface UserProfile {
-  isVerified?: boolean;
   id: string;
   name: string;
   email?: string;
@@ -117,6 +185,14 @@ export interface UserProfile {
   coins: number;
   gems: number;
   isVip: boolean;
+  vipTier?: number; // 0: None, 1: Bronze, 2: Silver, 3: Gold, 4: Platinum, 5: Diamond
+  vipSeasonXp?: number;
+  claimedSeasonRewards?: number[];
+  lastVipDailyClaim?: string;
+  unlockedItems?: string[];
+  activeTableSkin?: string;
+  activeCardBack?: string;
+  activeVoiceFx?: string;
   themeId?: ThemeId;
   isBanned?: boolean;
   banReason?: string;
@@ -126,6 +202,8 @@ export interface UserProfile {
   lastDailyClaim: string; // YYYY-MM-DD
   matchHistory?: MatchHistoryItem[];
   friends?: FamilyFriend[];
+  transactions?: PointTransaction[];
+  quests?: PlayerQuest[];
   stats: {
     gamesPlayed: number;
     gamesWon: number;
@@ -177,8 +255,6 @@ export interface RoomParticipant {
 }
 
 export interface GameRoom {
-  aiDifficulty?: 'easy' | 'normal' | 'hard';
-  roundNumber?: number;
   id: string;
   code: string;
   name: string;
@@ -240,7 +316,6 @@ export interface ModerationReport {
 }
 
 export interface SystemNotification {
-  roomCode?: string;
   id: string;
   title: string;
   message: string;
