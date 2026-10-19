@@ -204,4 +204,140 @@ export const createMahjongEngine = (levelOrLayout: number | MahjongLayoutType = 
   return new MahjongEngine(levelOrLayout);
 };
 
+// -------------------------------------------------------------
+// Functional / Reducer API for server gameSessions & multiplayer
+// -------------------------------------------------------------
+
+export type MahjongState = MahjongEngineState;
+
+/**
+ * Creates the initial state for a Mahjong session
+ */
+export const initialMahjong = (levelOrLayout: number | MahjongLayoutType = 1): MahjongState => {
+  const engine = new MahjongEngine(levelOrLayout);
+  return engine.getState();
+};
+
+/**
+ * Chooses an AI / bot move from the available pairs on the board
+ */
+export const chooseMahjongMove = (
+  state: MahjongState
+): { tileId1: string; tileId2: string; pair: [PlacedMahjongTile, PlacedMahjongTile] } | null => {
+  const pairs = findAvailablePairs(state.tiles);
+  if (pairs.length === 0) return null;
+  const selectedPair = pairs[Math.floor(Math.random() * pairs.length)];
+  return {
+    tileId1: selectedPair[0].id,
+    tileId2: selectedPair[1].id,
+    pair: selectedPair,
+  };
+};
+
+/**
+ * Pure reducer function to update Mahjong state based on game actions
+ */
+export const reduceMahjong = (state: MahjongState, action: any): MahjongState => {
+  if (!state) return initialMahjong();
+  if (!action) return state;
+
+  const actionType = typeof action === 'string' ? action : action.type;
+  const payload = typeof action === 'object' && action.payload !== undefined ? action.payload : action;
+
+  // Clone state
+  const nextTiles = state.tiles.map((t) => ({ ...t }));
+  let nextSelected = state.selectedTileId;
+  let nextScore = state.score;
+  let nextCombo = state.combo;
+  let nextMoves = state.movesCount;
+  const nextHistory = [...state.history];
+
+  if (actionType === 'SELECT_TILE' || actionType === 'CLICK' || actionType === 'MOVE') {
+    const tileId = payload?.tileId || (typeof payload === 'string' ? payload : null);
+    if (!tileId) return state;
+
+    const tile = nextTiles.find((t) => t.id === tileId);
+    if (!tile || tile.matched || !isTileFree(tile, nextTiles)) {
+      return state;
+    }
+
+    if (!nextSelected) {
+      nextSelected = tileId;
+    } else if (nextSelected === tileId) {
+      nextSelected = null;
+    } else {
+      const prev = nextTiles.find((t) => t.id === nextSelected);
+      if (prev && canTilesMatch(prev.definition, tile.definition)) {
+        prev.matched = true;
+        tile.matched = true;
+        nextCombo += 1;
+        nextMoves += 1;
+        const points = 100 + (nextCombo - 1) * 20;
+        nextScore += points;
+        nextHistory.push({ id1: prev.id, id2: tile.id, time: Date.now() });
+        nextSelected = null;
+      } else {
+        nextSelected = tileId;
+        nextCombo = 0;
+      }
+    }
+  } else if (actionType === 'MATCH_PAIR') {
+    const id1 = payload?.tileId1 || payload?.id1 || (Array.isArray(payload) ? payload[0] : null);
+    const id2 = payload?.tileId2 || payload?.id2 || (Array.isArray(payload) ? payload[1] : null);
+    const t1 = nextTiles.find((t) => t.id === id1);
+    const t2 = nextTiles.find((t) => t.id === id2);
+    if (t1 && t2 && !t1.matched && !t2.matched && canTilesMatch(t1.definition, t2.definition)) {
+      t1.matched = true;
+      t2.matched = true;
+      nextCombo += 1;
+      nextMoves += 1;
+      nextScore += 100 + (nextCombo - 1) * 20;
+      nextHistory.push({ id1: t1.id, id2: t2.id, time: Date.now() });
+      nextSelected = null;
+    }
+  } else if (actionType === 'UNDO') {
+    if (nextHistory.length > 0) {
+      const last = nextHistory.pop()!;
+      const t1 = nextTiles.find((t) => t.id === last.id1);
+      const t2 = nextTiles.find((t) => t.id === last.id2);
+      if (t1) t1.matched = false;
+      if (t2) t2.matched = false;
+      nextScore = Math.max(0, nextScore - 50);
+      nextCombo = 0;
+      nextSelected = null;
+    }
+  } else if (actionType === 'SHUFFLE') {
+    const unmatched = nextTiles.filter((t) => !t.matched);
+    const defs = unmatched.map((t) => t.definition);
+    for (let i = defs.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [defs[i], defs[j]] = [defs[j], defs[i]];
+    }
+    unmatched.forEach((t, i) => {
+      t.definition = defs[i];
+    });
+    nextSelected = null;
+    nextCombo = 0;
+  } else if (actionType === 'RESET') {
+    return initialMahjong(state.levelNumber || state.layoutType || 1);
+  }
+
+  const unmatchedCount = nextTiles.filter((t) => !t.matched).length;
+  const isVictory = unmatchedCount === 0;
+  const available = isVictory ? [] : findAvailablePairs(nextTiles);
+  const isStuck = !isVictory && available.length === 0;
+
+  return {
+    ...state,
+    tiles: nextTiles,
+    selectedTileId: nextSelected,
+    score: nextScore,
+    combo: nextCombo,
+    movesCount: nextMoves,
+    history: nextHistory,
+    isVictory,
+    isStuck,
+  };
+};
+
 export default MahjongEngine;
