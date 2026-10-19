@@ -225,6 +225,12 @@ export function createCampaignBoard(levelNumber: number): {
   };
 }
 
+// Aliases and re-exports for mahjongEngine compatibility
+export const mahjongLevelBoard = generateLevelBoard;
+export const mahjongLevelConfig = getCampaignLevel;
+export type { MahjongLevelConfig };
+export { MAHJONG_LEVELS, generateLevelBoard };
+
 // Re-export core functions and types for direct usage
 export {
   generateMahjongBoard,
@@ -235,4 +241,24 @@ export {
   type MahjongLayoutType,
   type PlacedMahjongTile,
   type MahjongTileDefinition
+};
+
+export default {
+  mahjongLevelBoard,
+  mahjongLevelConfig,
+  generateLevelBoard,
+  getCampaignLevel,
+  getAllCampaignLevels,
+  MAHJONG_LEVELS,
+  generateMahjongBoard,
+  dealMahjongPairs,
+  getFreeTiles,
+  canTilesMatch,
+  findAvailablePairs,
+  loadCampaignProgress,
+  saveCampaignProgress,
+  calculateLevelStars,
+  calculateLevelScore,
+  completeCampaignLevel,
+  createCampaignBoard
 };
