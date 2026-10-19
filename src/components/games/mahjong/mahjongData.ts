@@ -239,6 +239,104 @@ export const findAvailablePairs = (tiles: PlacedMahjongTile[]): [PlacedMahjongTi
   return pairs;
 };
 
+// 72 official matching pairs according to authentic Mahjong rules
+export const get72OfficialPairs = (): [MahjongTileDefinition, MahjongTileDefinition][] => {
+  const deck = createOfficial144Tiles();
+  const pairs: [MahjongTileDefinition, MahjongTileDefinition][] = [];
+
+  const standardGroups: Record<string, MahjongTileDefinition[]> = {};
+  const flowerGroup: MahjongTileDefinition[] = [];
+  const seasonGroup: MahjongTileDefinition[] = [];
+
+  for (const tile of deck) {
+    if (tile.category === 'flower') {
+      flowerGroup.push(tile);
+    } else if (tile.category === 'season') {
+      seasonGroup.push(tile);
+    } else {
+      const key = `${tile.category}-${tile.value}`;
+      if (!standardGroups[key]) standardGroups[key] = [];
+      standardGroups[key].push(tile);
+    }
+  }
+
+  // Each standard group has 4 identical tiles -> exactly 2 matching pairs
+  for (const key of Object.keys(standardGroups)) {
+    const list = standardGroups[key];
+    if (list.length >= 2) pairs.push([list[0], list[1]]);
+    if (list.length >= 4) pairs.push([list[2], list[3]]);
+  }
+
+  // Flowers: 4 tiles -> 2 matching pairs (any flower matches any flower)
+  if (flowerGroup.length >= 4) {
+    pairs.push([flowerGroup[0], flowerGroup[1]]);
+    pairs.push([flowerGroup[2], flowerGroup[3]]);
+  }
+
+  // Seasons: 4 tiles -> 2 matching pairs (any season matches any season)
+  if (seasonGroup.length >= 4) {
+    pairs.push([seasonGroup[0], seasonGroup[1]]);
+    pairs.push([seasonGroup[2], seasonGroup[3]]);
+  }
+
+  return pairs; // Exactly 72 pairs (144 tiles)
+};
+
+/**
+ * Deals pairs of matching Mahjong tiles guaranteed to pair up correctly.
+ * Supports taking pairCount, totalTiles, or slot array.
+ * Returns an array of pairs with dual-property support and .tiles helper.
+ */
+export const dealMahjongPairs = (
+  countOrSlots?: number | { x: number; y: number; layer: number }[]
+): ([MahjongTileDefinition, MahjongTileDefinition] & MahjongTileDefinition)[] & {
+  tiles: MahjongTileDefinition[];
+  flatTiles: MahjongTileDefinition[];
+} => {
+  const allPairs = get72OfficialPairs();
+
+  // Fisher-Yates shuffle all pairs
+  for (let i = allPairs.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [allPairs[i], allPairs[j]] = [allPairs[j], allPairs[i]];
+  }
+
+  let pairCount = 72;
+  if (Array.isArray(countOrSlots)) {
+    pairCount = Math.floor(countOrSlots.length / 2);
+  } else if (typeof countOrSlots === 'number') {
+    pairCount = countOrSlots > 72 ? Math.floor(countOrSlots / 2) : countOrSlots;
+  }
+  pairCount = Math.max(1, Math.min(72, pairCount));
+
+  const selectedPairs = allPairs.slice(0, pairCount);
+  const flat: MahjongTileDefinition[] = [];
+
+  for (const pair of selectedPairs) {
+    flat.push(pair[0], pair[1]);
+    Object.assign(pair, {
+      category: pair[0].category,
+      value: pair[0].value,
+      chineseName: pair[0].chineseName,
+      germanName: pair[0].germanName,
+      symbol: pair[0].symbol,
+      color: pair[0].color,
+    });
+  }
+
+  // Shuffle flattened pool
+  for (let i = flat.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [flat[i], flat[j]] = [flat[j], flat[i]];
+  }
+
+  const result = selectedPairs as any;
+  result.tiles = flat;
+  result.flatTiles = flat;
+
+  return result;
+};
+
 // -------------------------------------------------------------
 // Authentic 144-Tile Board Layouts (Coordinates in 2-unit grids)
 // -------------------------------------------------------------
@@ -447,4 +545,23 @@ export const generateMahjongBoard = (layout: MahjongLayoutType = 'turtle'): Plac
   }));
 
   return placedTiles;
+};
+
+export default {
+  createOfficial144Tiles,
+  canTilesMatch,
+  TILE_GRID_WIDTH,
+  TILE_GRID_HEIGHT,
+  isCoveredBy,
+  isBlockedOnLeft,
+  isBlockedOnRight,
+  isTileFree,
+  getFreeTiles,
+  findAvailablePairs,
+  get72OfficialPairs,
+  dealMahjongPairs,
+  generateTurtleSlots,
+  generatePyramidSlots,
+  generateFortressSlots,
+  generateMahjongBoard,
 };
