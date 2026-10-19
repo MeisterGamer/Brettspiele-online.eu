@@ -1,3 +1,4 @@
+import {BoardSurface} from './BoardSurface';
 import {AtelierPiece} from './AtelierPiece';
 import {boardAsset} from '../../services/gameAssets';
 import React,{useEffect,useRef,useState} from 'react';
@@ -55,14 +56,14 @@ export const CheckersGame:React.FC<CheckersGameProps>=({onGameEnd,tableParticipa
   }));
 
   return (
-    <div className="flex flex-col items-center max-w-lg mx-auto w-full select-none text-slate-100">
+    <div className="flex flex-col items-center max-w-6xl mx-auto w-full select-none text-slate-100">
       
       <p className="text-xs text-slate-400 mb-2">Dame 8×8 · Brasilianisch · Lange Damen · Maximale Schlagpflicht</p>
       {game.error&&<p role="alert" className="text-rose-300 mb-2">{game.error}</p>}
       {path.length>1&&<p role="status" className="text-amber-300 mb-2 text-sm">Schlagfolge fortsetzen: dieselbe Figur muss weiterschlagen.</p>}
       <p role="status" className="text-xs text-amber-200 mb-2">{game.pending?'Zug wird bestätigt …':state.reason|| (legal[0]?.captures.length?`Schlagpflicht: ${legal[0].captures.length} Steine schlagen`:'')}</p>
       {/* Header bar with realistic player badges, avatars and piece count */}
-      <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3 sm:p-3.5 rounded-2xl mb-3 text-xs shadow-xl">
+      <div className="w-full mobile-game-header flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 border border-slate-800 p-3 sm:p-3.5 rounded-2xl mb-3 text-xs shadow-xl">
         <div className={`flex items-center gap-2 p-1 rounded-xl transition ${turn === 'red' && !winner ? 'bg-rose-950/40 ring-1 ring-rose-500/50' : ''}`}>
           {p1?.avatar ? (
             <AvatarDisplay avatar={p1.avatar} size="sm" />
@@ -150,7 +151,7 @@ export const CheckersGame:React.FC<CheckersGameProps>=({onGameEnd,tableParticipa
       </div>
 
       {/* 8x8 REALISTIC WOODEN CHECKERBOARD WITH INLAID MAHOGANY & MAPLE */}
-      <div className="relative rounded-3xl p-3 sm:p-5 border-4 border-amber-950 shadow-2xl max-w-sm sm:max-w-md w-full overflow-hidden bg-amber-950">
+      <BoardSurface name="Dame" minBoardWidth={372}><div className="responsive-board relative rounded-3xl p-3 sm:p-5 border-4 border-amber-950 shadow-2xl max-w-sm sm:max-w-md w-full overflow-hidden bg-amber-950">
         
         {/* Real Wood Grain Background Photo Inlay */}
         <img
@@ -193,7 +194,7 @@ export const CheckersGame:React.FC<CheckersGameProps>=({onGameEnd,tableParticipa
             })
           )}
         </div>
-      </div>
+      </div></BoardSurface>
 
       {!state.result&&<div className="flex flex-wrap gap-2 mt-3 text-xs">
         <button className="bg-slate-800 px-3 py-2 rounded-xl" disabled={isOnlineMultiplayer&&!myPlayer} onClick={()=>send({type:'RESIGN',color:myPlayer||turn})}>Aufgeben</button>

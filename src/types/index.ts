@@ -105,6 +105,7 @@ export interface FamilyFriend {
 export type ThemeId = 'amber' | 'purple' | 'emerald' | 'sky' | 'ruby' | 'orange';
 
 export interface UserProfile {
+  isVerified?: boolean;
   id: string;
   name: string;
   email?: string;
@@ -239,6 +240,7 @@ export interface ModerationReport {
 }
 
 export interface SystemNotification {
+  roomCode?: string;
   id: string;
   title: string;
   message: string;

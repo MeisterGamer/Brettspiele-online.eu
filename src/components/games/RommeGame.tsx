@@ -899,7 +899,7 @@ export const RommeGame: React.FC<RommeGameProps> = ({
 
         {/* Player Hand Cards Display */}
         <div className="w-full overflow-x-auto py-2">
-          <div className="flex items-center justify-start sm:justify-center -space-x-3 sm:-space-x-4 min-h-[95px] sm:min-h-[115px] px-2">
+          <div className="mobile-card-hand flex items-center justify-start gap-2 min-h-[95px] sm:min-h-[115px] px-2">
             {currentPlayer.hand.map((card) => {
               const isSelected = selectedHandCardIds.includes(card.id);
               return (

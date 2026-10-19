@@ -1,3 +1,4 @@
+import {BoardSurface} from './BoardSurface';
 import { useAIDifficulty } from './GameArena';
 import { chooseConnectMove } from '../../services/gameAI';
 import { useGameTimers } from './useGameTimers';
@@ -335,10 +336,10 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({
   };
 
   return (
-    <div className="flex flex-col items-center max-w-xl mx-auto w-full select-none text-slate-100">
+    <div className="flex flex-col items-center max-w-6xl mx-auto w-full select-none text-slate-100">
       
       {/* Header bar with realistic player badges, avatars and scores */}
-      <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3 sm:p-4 rounded-2xl mb-4 text-xs font-semibold shadow-xl">
+      <div className="w-full mobile-game-header flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 border border-slate-800 p-3 sm:p-4 rounded-2xl mb-4 text-xs font-semibold shadow-xl">
         <div className={`flex items-center gap-2.5 p-1.5 rounded-xl transition ${currentPlayer === 1 && !winner ? 'bg-rose-950/40 border border-rose-500/40 ring-1 ring-rose-500/50' : ''}`}>
           {p1?.avatar ? (
             <AvatarDisplay avatar={p1.avatar} size="sm" />
@@ -451,11 +452,11 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({
       </div>
 
       {/* Column hover drop indicators */}
-      <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5 w-full max-w-md mb-1.5 px-2 sm:px-4">
+      <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5 w-full max-w-[960px] mb-1.5 px-2 sm:px-4">
         {Array.from({ length: COLS }).map((_, colIdx) => (
           <div
             key={colIdx}
-            className="flex justify-center cursor-pointer h-6 items-center"
+            className="flex justify-center cursor-pointer min-h-11 items-center"
             role="button"
             tabIndex={0}
             aria-label={`Stein in Spalte ${colIdx + 1} einwerfen`}
@@ -478,7 +479,7 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({
       </div>
 
       {/* 7x6 REAL VERTICAL GAME RACK WITH REAL TABLETOP PHOTO MAT */}
-      <div className="relative rounded-2xl sm:rounded-3xl p-2.5 sm:p-6 shadow-2xl border-2 sm:border-4 border-blue-950 max-w-md w-full overflow-hidden bg-slate-950">
+      <BoardSurface name="Vier gewinnt" minBoardWidth={360}><div className="responsive-board relative rounded-2xl sm:rounded-3xl p-2.5 sm:p-6 shadow-2xl border-2 sm:border-4 border-blue-950 max-w-md w-full overflow-hidden bg-slate-950">
         
         {/* Real Tabletop Game Atmosphere Photo Texture */}
         <img
@@ -566,7 +567,7 @@ export const ConnectFour: React.FC<ConnectFourProps> = ({
             <span>QUICK-SLIDE RESET</span>
           </div>
         </div>
-      </div>
+      </div></BoardSurface>
 
       {/* Action Footer */}
       <div className="mt-4 flex items-center gap-3">

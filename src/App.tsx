@@ -1,3 +1,4 @@
+import { friendsService } from './services/friendsService';
 import { GameArena } from './components/games/GameArena';
 import React, { lazy, useState, useEffect } from 'react';
 import { 
@@ -187,6 +188,8 @@ export default function App() {
   const [activeGame, setActiveGame] = useState<GameInfo | null>(null);
   const [currentTurnPlayerId, setCurrentTurnPlayerId] = useState<string | null>(null);
   const [currentRoom, setCurrentRoom] = useState<GameRoom | null>(null);
+  const [platformError, setPlatformError] = useState('');
+  const [roomPending, setRoomPending] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState<boolean>(false);
   const [showMobileTablePanel, setShowMobileTablePanel] = useState<boolean>(false);
 
@@ -214,22 +217,56 @@ export default function App() {
     return () => unsubscribe();
   }, [currentRoom?.id, currentRoom?.code]);
 
-  // URL query parameter ?room=CODE auto-join
+  const joinTable = async (code: string) => {
+    if (!user) return;
+    try {
+      const joined = await multiplayerService.joinRoom(code,user);
+      setCurrentRoom(joined);
+      setActiveGame(gamesCatalog.find(g=>g.id===joined.gameId) || null);
+      setPlatformError('');
+    } catch(error) { setPlatformError(error instanceof Error ? error.message : 'Beitritt fehlgeschlagen.'); }
+  };
   useEffect(() => {
-    if (typeof window !== 'undefined' && user) {
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get('room');
-      if (code) {
-        const found = multiplayerService.getRoomByCode(code);
-        if (found) {
-          const joined = multiplayerService.joinRoom(found.code, user) || found;
-          setCurrentRoom(joined);
-          const matchedGame = gamesCatalog.find((g) => g.id === joined.gameId);
-          if (matchedGame) setActiveGame(matchedGame);
-        }
-      }
-    }
-  }, [user]);
+    const code = new URLSearchParams(window.location.search).get('room');
+    if (user && code) void joinTable(code);
+  },[user?.id]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        await friendsService.fetchFriends(user.id);
+        const invites = await friendsService.invitations();
+        if (!cancelled) setNotifications(previous => {
+          const incoming = invites.filter(i=>!previous.some(n=>n.id===i.id)).map(i=>({
+            id:i.id,title:'Spieleinladung',message:i.senderName + ' lädt dich zu ' + i.gameTitle + ' ein.',
+            type:'invite' as const,timestamp:new Date(i.createdAt).toLocaleString('de-DE'),read:false,roomCode:i.roomCode,
+          }));
+          return [...incoming,...previous];
+        });
+      } catch {}
+    };
+    void refresh(); const timer=setInterval(refresh,15000);
+    return ()=>{cancelled=true;clearInterval(timer);};
+  },[user?.id]);
+  useEffect(()=> {
+    const url=new URL(window.location.href), token=url.searchParams.get('verifyToken');
+    if (!user || !token) return;
+    void apiAuth.verifyEmail(token).then(async result=> {
+      if (!result.success) setPlatformError(result.error || 'Bestätigung fehlgeschlagen.');
+      else { const fresh=await apiAuth.fetchCurrentUser(); if(fresh) setUser(fresh); setGlobalAnnouncement(result.message || 'E-Mail bestätigt.'); }
+      url.searchParams.delete('verifyToken');window.history.replaceState({},'',url);
+    });
+  },[user?.id]);
+  const inviteFriend = async (friend: {id:string;name:string}) => {
+    if (!currentRoom) { setPlatformError('Öffne zuerst einen Spieltisch, um Freunde einzuladen.'); return; }
+    try {
+      await friendsService.invite(friend.id,currentRoom.code);
+      setPlatformError('');
+      setNotifications(previous=>[{id:'sent_'+Date.now(),title:'Spieleinladung gesendet',message:'Einladung an '+friend.name+' gesendet.',type:'system',timestamp:'Gerade eben',read:false},...previous]);
+    } catch(error) { setPlatformError(error instanceof Error ? error.message : 'Einladung fehlgeschlagen.'); }
+  };
 
   const [globalAnnouncement, setGlobalAnnouncement] = useState<string | null>(
     '🎲 Willkommen am virtuellen FamPlay-Spieltisch · Wähle dein Lieblingsspiel oder lade deine Familie per Tisch-Code ein!'
@@ -268,33 +305,26 @@ export default function App() {
     if (next) sound.playClick();
   };
 
-  const handleLaunchGame = (game: GameInfo) => {
-    if (!user) return;
-    // Check parental controls age rating
-    if (parental.enabled && game.minAge > parental.maxAgeRating) {
-      sound.playError();
-      setIsParentalOpen(true);
-      return;
-    }
-    sound.playReward();
-    setActiveGame(game);
-
-    // Ensure current table matches active game and seats user
-    setCurrentRoom((prev) => {
-      const maxSlots = ['chess', 'connect-four', 'checkers', 'tictactoe', 'dots-boxes', 'battleship'].includes(game.engine) ? 2 : 4;
-      if (prev && prev.gameId === game.id) {
-        return prev;
-      }
-      const newRoom = multiplayerService.createRoom(user, {
-        name: t('family_table_of', { name: user.name }),
-        gameId: game.id,
-        gameTitle: game.title,
-        maxPlayers: maxSlots,
-        isPrivate: false,
-        voiceChatActive: false,
+  const handleLaunchGame = async (game: GameInfo) => {
+    if (!user || roomPending) return;
+    if (parental.enabled && game.minAge > parental.maxAgeRating) { setIsParentalOpen(true); return; }
+    if (currentRoom?.gameId===game.id) {setActiveGame(game);return;}
+    setRoomPending(true);setPlatformError('');
+    try {
+      const room = await multiplayerService.createRoom(user,{
+        name:t('family_table_of',{name:user.name}),gameId:game.id,gameTitle:game.title,
+        maxPlayers:['chess','connect-four','checkers','tictactoe','dots-boxes','battleship'].includes(game.engine)?2:4,
+        isPrivate:false,voiceChatActive:false,
       });
-      return newRoom;
-    });
+      setCurrentRoom(room);setActiveGame(game);
+    } catch(error) {setPlatformError(error instanceof Error ? error.message : 'Tisch konnte nicht geöffnet werden.');}
+    finally {setRoomPending(false);}
+  };
+
+  const saveProfile = async (updated: UserProfile) => {
+    const saved = await apiAuth.updateProfile(updated);
+    setUser(saved);authService.setCurrentUser(saved);multiplayerService.identifyUser(saved);
+    if(currentRoom) await multiplayerService.joinRoom(currentRoom.code,saved);
   };
 
   const handleGameCompletion = (result: any) => {
@@ -382,13 +412,15 @@ export default function App() {
   }
 
   // 3. Mandatory Authentication: Must be logged in to enter FamPlay
-  if (!user) {
+  if (!user || new URLSearchParams(window.location.search).has('resetToken')) {
     return <AuthGate onLoginSuccess={(loggedInUser) => setUser(loggedInUser)} />;
   }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       
+      {platformError && <div role="alert" className="bg-rose-950 text-rose-200 p-3 flex justify-between gap-3">{platformError}<button onClick={()=>setPlatformError('')}>Schließen</button></div>}
+      {roomPending && <p role="status" className="p-3 text-amber-300">Tisch wird geöffnet …</p>}
       {/* 1. TOP GLOBAL LIVE ANNOUNCEMENT BANNER */}
       {globalAnnouncement && (
         <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-rose-600 px-4 py-2 text-xs font-bold text-white flex items-center justify-between shadow-md">
@@ -456,6 +488,7 @@ export default function App() {
             {/* Notifications Dropdown */}
             <NotificationCenter
               notifications={notifications}
+              onJoinRoom={code=>void joinTable(code)}
               onMarkAllRead={() => {
                 setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
               }}
@@ -557,6 +590,7 @@ export default function App() {
             {/* Notifications Dropdown */}
             <NotificationCenter
               notifications={notifications}
+              onJoinRoom={code=>void joinTable(code)}
               onMarkAllRead={() => {
                 setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
               }}
@@ -731,7 +765,7 @@ export default function App() {
       )}
 
       {/* 4. ACTIVE GAME ARENA OR BROWSE CATALOG */}
-      <main className="flex-1 max-w-7xl mx-auto w-full p-2.5 sm:p-6 pb-24 md:pb-8">
+      <main className={`flex-1 ${activeGame ? 'max-w-[1600px] p-0.5 sm:p-3' : 'max-w-7xl p-2.5 sm:p-6'} mx-auto w-full pb-24 md:pb-8`}>
         {activeGame ? (
           /* ACTIVE GAME VIEW */
           <div className="space-y-3 sm:space-y-4 animate-in fade-in duration-200">
@@ -1256,27 +1290,7 @@ export default function App() {
         isOpen={isAvatarOpen}
         onClose={() => setIsAvatarOpen(false)}
         currentUser={user}
-        onSave={(newAvatar, newRole) => {
-          setUser((u) => {
-            if (!u) return null;
-            const updated = {
-              ...u,
-              avatar: newAvatar,
-              familyRole: newRole,
-            };
-            authService.setCurrentUser(updated);
-            return updated;
-          });
-          setCurrentRoom((prev) => {
-            if (!prev) return null;
-            const updatedParticipants = prev.participants.map((p) =>
-              p.id === user.id ? { ...p, avatar: newAvatar } : p
-            );
-            const updatedRoom = { ...prev, participants: updatedParticipants };
-            multiplayerService.updateRoomState(updatedRoom);
-            return updatedRoom;
-          });
-        }}
+        onSave={(newAvatar,newRole)=>{void saveProfile({...user,avatar:newAvatar,familyRole:newRole}).catch(error=>setPlatformError(error.message));}}
       />
 
       <RoomManagerModal
@@ -1446,10 +1460,7 @@ export default function App() {
         isOpen={isUserPanelOpen}
         onClose={() => setIsUserPanelOpen(false)}
         user={user}
-        onUpdateUser={(updatedUser) => {
-          setUser(updatedUser);
-          authService.setCurrentUser(updatedUser);
-        }}
+        onUpdateUser={saveProfile}
         onOpenAvatarStudio={() => {
           setIsUserPanelOpen(false);
           setIsAvatarOpen(true);
@@ -1460,7 +1471,9 @@ export default function App() {
         }}
         onLogout={() => {
           sound.playClick();
+          multiplayerService.signOut();
           apiAuth.logout();
+          setNotifications([]);
           setUser(null);
           setActiveGame(null);
           setCurrentRoom(null);
@@ -1474,22 +1487,7 @@ export default function App() {
           setIsUserPanelOpen(false);
           setIsFriendsOpen(true);
         }}
-        onInviteFriendToGame={(friend) => {
-          sound.playReward();
-          if (activeGame) {
-            setNotifications((prev) => [
-              {
-                id: `invite_${Date.now()}`,
-                title: 'Spieleinladung gesendet',
-                message: `Einladung an ${friend.name} für ${activeGame.title} gesendet!`,
-                type: 'invite',
-                timestamp: 'Gerade eben',
-                read: false,
-              },
-              ...prev,
-            ]);
-          }
-        }}
+        onInviteFriendToGame={friend=>void inviteFriend(friend)}
       />
 
       {/* Standalone Family & Friends Modal */}
@@ -1497,20 +1495,7 @@ export default function App() {
         isOpen={isFriendsOpen}
         onClose={() => setIsFriendsOpen(false)}
         currentUser={user}
-        onInviteToGame={(friend) => {
-          sound.playReward();
-          setNotifications((prev) => [
-            {
-              id: `invite_${Date.now()}`,
-              title: 'Spieleinladung gesendet',
-              message: `Einladung an ${friend.name} wurde gesendet!`,
-              type: 'invite',
-              timestamp: 'Gerade eben',
-              read: false,
-            },
-            ...prev,
-          ]);
-        }}
+        onInviteToGame={friend=>void inviteFriend(friend)}
       />
 
       {/* Android App & PWA Hub Modal */}

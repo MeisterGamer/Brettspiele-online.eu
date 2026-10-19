@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { apiAuth } from '../../services/apiAuth';
+import React, { useState, useEffect } from 'react';
 import { UserProfile, GameRoom, ModerationReport, GameInfo, AdminAuditLog } from '../../types';
 import { authService } from '../../services/authService';
 import { sound } from '../../services/sound';
@@ -62,9 +63,6 @@ export const AdminSystemModal: React.FC<AdminSystemModalProps> = ({
 }) => {
   // Authentication gate state
   const isDirectAdmin = currentUser.role === 'admin';
-  const [isUnlocked, setIsUnlocked] = useState<boolean>(isDirectAdmin);
-  const [pinInput, setPinInput] = useState<string>('');
-  const [pinError, setPinError] = useState<string | null>(null);
 
   // Active navigation tab
   const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'games' | 'reports' | 'rooms' | 'broadcast' | 'logs'>('overview');
@@ -74,7 +72,7 @@ export const AdminSystemModal: React.FC<AdminSystemModalProps> = ({
   const [broadcastFeedback, setBroadcastFeedback] = useState<string | null>(null);
 
   // Users management state
-  const [usersList, setUsersList] = useState<UserProfile[]>(authService.getUsers());
+  const [usersList, setUsersList] = useState<UserProfile[]>([]);
   const [userSearch, setUserSearch] = useState<string>('');
   const [userRoleFilter, setUserRoleFilter] = useState<string>('all');
   const [auditLogs, setAuditLogs] = useState<AdminAuditLog[]>(authService.getAuditLogs());
@@ -86,25 +84,14 @@ export const AdminSystemModal: React.FC<AdminSystemModalProps> = ({
   // Feedback notifications
   const [actionNotice, setActionNotice] = useState<string | null>(null);
 
+  useEffect(()=> {
+    if(isOpen && currentUser.role==='admin') void apiAuth.adminUsers().then(setUsersList).catch(error=>setActionNotice(error.message));
+  },[isOpen,currentUser.id,currentUser.role]);
   if (!isOpen) return null;
 
   const showNotice = (msg: string) => {
     setActionNotice(msg);
     setTimeout(() => setActionNotice(null), 3000);
-  };
-
-  const handleUnlockWithPin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (pinInput === '7777' || pinInput === 'admin123' || pinInput.toLowerCase() === 'admin') {
-      sound.playReward();
-      setIsUnlocked(true);
-      setPinError(null);
-      authService.addAuditLog('ADMIN_LOGIN_PIN', currentUser.name, 'Admin-Konsole mit Master-PIN autorisiert.');
-      setAuditLogs(authService.getAuditLogs());
-    } else {
-      sound.playError();
-      setPinError('Ungültiger Administrator-PIN. (Tipp: 7777 oder admin123)');
-    }
   };
 
   // Broadcast
@@ -120,82 +107,18 @@ export const AdminSystemModal: React.FC<AdminSystemModalProps> = ({
   };
 
   // Users management actions
-  const handleToggleBan = (u: UserProfile) => {
-    sound.playClick();
-    const updated = usersList.map((usr) => {
-      if (usr.id === u.id) {
-        const nextBanned = !usr.isBanned;
-        return {
-          ...usr,
-          isBanned: nextBanned,
-          banReason: nextBanned ? 'Verstoß gegen Community-Richtlinien' : undefined,
-        };
-      }
-      return usr;
-    });
-    setUsersList(updated);
-    authService.saveUsers(updated);
-    authService.addAuditLog(
-      u.isBanned ? 'USER_UNBANNED' : 'USER_BANNED',
-      u.name,
-      u.isBanned ? 'Spieler-Sperre aufgehoben' : 'Spieler dauerhaft gesperrt'
-    );
-    setAuditLogs(authService.getAuditLogs());
-    showNotice(u.isBanned ? `${u.name} wurde entsperrt.` : `${u.name} wurde gesperrt.`);
-    onRefreshUsers();
+  const changeUser = async (userId: string, updates: Parameters<typeof apiAuth.adminUpdate>[1], action: string) => {
+    try {
+      const saved=await apiAuth.adminUpdate(userId,updates);
+      setUsersList(list=>list.map(u=>u.id===saved.id?saved:u));
+      authService.addAuditLog(action,saved.name,'Änderung vom Server bestätigt.',currentUser.name);
+      setAuditLogs(authService.getAuditLogs());showNotice('Änderung gespeichert.');onRefreshUsers();
+    }catch(error) {showNotice(error instanceof Error?error.message:'Änderung fehlgeschlagen.');}
   };
-
-  const handleRoleChange = (userId: string, newRole: 'admin' | 'moderator' | 'user') => {
-    sound.playReward();
-    const updated = usersList.map((usr) => {
-      if (usr.id === userId) {
-        return { ...usr, role: newRole };
-      }
-      return usr;
-    });
-    setUsersList(updated);
-    authService.saveUsers(updated);
-    const targetUser = usersList.find((usr) => usr.id === userId);
-    authService.addAuditLog('ROLE_CHANGED', targetUser?.name || userId, `Rolle geändert zu: ${newRole.toUpperCase()}`);
-    setAuditLogs(authService.getAuditLogs());
-    showNotice(`Rolle geändert zu ${newRole.toUpperCase()}.`);
-    onUserRoleChange(userId, newRole);
-    onRefreshUsers();
-  };
-
-  const handleGrantCoins = (userId: string, amount: number) => {
-    sound.playReward();
-    const updated = usersList.map((usr) => {
-      if (usr.id === userId) {
-        return { ...usr, coins: usr.coins + amount };
-      }
-      return usr;
-    });
-    setUsersList(updated);
-    authService.saveUsers(updated);
-    const target = usersList.find((u) => u.id === userId);
-    authService.addAuditLog('GRANT_COINS', target?.name || userId, `+${amount} Münzen gutgeschrieben.`);
-    setAuditLogs(authService.getAuditLogs());
-    showNotice(`+${amount} Münzen an ${target?.name} gutgeschrieben!`);
-    onRefreshUsers();
-  };
-
-  const handleToggleVip = (userId: string) => {
-    sound.playReward();
-    const updated = usersList.map((usr) => {
-      if (usr.id === userId) {
-        return { ...usr, isVip: !usr.isVip };
-      }
-      return usr;
-    });
-    setUsersList(updated);
-    authService.saveUsers(updated);
-    const target = usersList.find((u) => u.id === userId);
-    authService.addAuditLog('TOGGLE_VIP', target?.name || userId, `VIP-Status umgeschaltet.`);
-    setAuditLogs(authService.getAuditLogs());
-    showNotice(`VIP-Status für ${target?.name} aktualisiert.`);
-    onRefreshUsers();
-  };
+  const handleToggleBan=(u: UserProfile)=>{void changeUser(u.id,{isBanned:!u.isBanned},'BAN_CHANGED');};
+  const handleRoleChange=(id: string,role: 'admin'|'moderator'|'user')=>{void changeUser(id,{role},'ROLE_CHANGED');};
+  const handleGrantCoins=(id: string,coinsDelta: number)=>{void changeUser(id,{coinsDelta},'COINS_GRANTED');};
+  const handleToggleVip=(id: string)=>{const u=usersList.find(u=>u.id===id);if(u)void changeUser(id,{isVip:!u.isVip},'VIP_CHANGED');};
 
   // Game catalog toggles
   const handleToggleGameMaintenance = (gameId: string) => {
@@ -287,56 +210,8 @@ export const AdminSystemModal: React.FC<AdminSystemModalProps> = ({
         </div>
 
         {/* PIN SECURITY GATE IF NOT UNLOCKED */}
-        {!isUnlocked ? (
-          <div className="p-8 max-w-md mx-auto text-center space-y-6 my-auto">
-            <div className="w-16 h-16 rounded-3xl bg-rose-500/20 text-rose-400 border border-rose-500/40 flex items-center justify-center mx-auto shadow-lg">
-              <Lock className="w-8 h-8" />
-            </div>
-
-            <div>
-              <h3 className="text-lg font-bold text-white">Administrator-Zugang gesperrt</h3>
-              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                Der Zugriff auf das zentrale Adminsystem erfordert Administrator-Rechte oder den Master-Sicherheits-PIN.
-              </p>
-            </div>
-
-            {pinError && (
-              <div className="p-3 bg-rose-500/20 border border-rose-500/40 rounded-2xl text-xs text-rose-300 font-semibold">
-                {pinError}
-              </div>
-            )}
-
-            <form onSubmit={handleUnlockWithPin} className="space-y-3">
-              <input
-                type="password"
-                value={pinInput}
-                onChange={(e) => setPinInput(e.target.value)}
-                placeholder="Master-PIN eingeben (Tipp: 7777)"
-                className="w-full text-center bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-rose-400 tracking-widest font-mono font-bold"
-                autoFocus
-              />
-              
-              <button
-                type="submit"
-                className="w-full py-3 rounded-2xl bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-400 hover:to-amber-400 text-white font-black text-xs transition shadow-lg flex items-center justify-center gap-2"
-              >
-                <Unlock className="w-4 h-4" /> Admin-System freischalten
-              </button>
-            </form>
-
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  sound.playReward();
-                  setPinInput('7777');
-                }}
-                className="text-xs text-amber-400 hover:underline"
-              >
-                1-Klick Master-PIN einfügen (7777)
-              </button>
-            </div>
-          </div>
+        {!isDirectAdmin ? (
+          <div role="alert" className="p-8 text-center text-rose-300">Bitte mit einem Administratorkonto anmelden. Administratorrechte werden vom Server geprüft.</div>
         ) : (
           /* UNLOCKED FULL ADMIN PANEL */
           <>

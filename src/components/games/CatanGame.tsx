@@ -170,7 +170,7 @@ export const CatanGame:React.FC<CatanGameProps>=({onGameEnd,tableParticipants,cu
       {/* 2. MAIN ARENA GRID: Left Players Sidebar, Center SVG Board, Right Action Console & Log */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
         {/* Left: Players Roster & VP Tracker (3 cols on lg) */}
-        <div className="lg:col-span-3 flex flex-col gap-3">
+        <div className="lg:col-span-2 min-w-0 flex flex-col gap-3">
           <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-3 shadow-lg">
             <h3 className="text-xs font-black tracking-wider uppercase text-slate-400 mb-2 flex items-center gap-1.5">
               <Trophy className="w-3.5 h-3.5 text-amber-400" />
@@ -241,7 +241,7 @@ export const CatanGame:React.FC<CatanGameProps>=({onGameEnd,tableParticipants,cu
         </div>
 
         {/* Center: Interactive 720x640 Authentic Hex Board (6 cols on lg) */}
-        <div className="lg:col-span-6 flex flex-col items-center">
+        <div className="order-first lg:order-none lg:col-span-8 min-w-0 flex flex-col items-center">
           <CatanBoardRenderer
             hexes={board.hexes}
             vertices={board.vertices}
@@ -274,7 +274,7 @@ export const CatanGame:React.FC<CatanGameProps>=({onGameEnd,tableParticipants,cu
         </div>
 
         {/* Right: Action Console & Live Log (3 cols on lg) */}
-        <div className="lg:col-span-3 flex flex-col gap-3">
+        <div className="lg:col-span-2 min-w-0 flex flex-col gap-3">
           {gamePhase==='ROLL'&&isHumanTurn&&<button className="p-3 bg-purple-900 rounded-xl text-sm" onClick={()=>setIsDevCardsOpen(true)}>Entwicklungskarten vor dem Würfeln</button>}
           {/* Active Turn Actions Panel */}
           <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3 shadow-xl">

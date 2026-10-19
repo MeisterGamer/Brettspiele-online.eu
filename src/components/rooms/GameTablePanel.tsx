@@ -46,6 +46,7 @@ export const GameTablePanel: React.FC<GameTablePanelProps> = ({
   activeGameEngine,
 }) => {
   const mayManage = room.participants.some(p => p.id === currentUser.id && p.isHost);
+  const [actionError,setActionError] = useState('');
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
   const [activeEmote, setActiveEmote] = useState<{ emoji: string; senderName: string } | null>(null);
   const [isExpanded, setIsExpanded] = useState<boolean>(() => 
@@ -77,21 +78,18 @@ export const GameTablePanel: React.FC<GameTablePanelProps> = ({
   const handleAddBot = () => {
     if (!mayManage) return;
     sound.playReward();
-    const updated = multiplayerService.addBotToRoom(room.id);
-    if (updated) onUpdateRoom(updated);
+    void multiplayerService.addBotToRoom(room.code).then(onUpdateRoom).catch(error=>setActionError(error.message));
   };
 
   const handleRemoveSeat = (participantId: string) => {
     if (!mayManage) return;
     sound.playClick();
-    const updated = multiplayerService.removeParticipant(room.id, participantId);
-    if (updated) onUpdateRoom(updated);
+    void multiplayerService.removeParticipant(room.code,participantId).then(onUpdateRoom).catch(error=>setActionError(error.message));
   };
 
   const handleSitDown = () => {
     sound.playReward();
-    const updated = multiplayerService.joinRoom(room.code, currentUser);
-    if (updated) onUpdateRoom(updated);
+    void multiplayerService.joinRoom(room.code,currentUser).then(onUpdateRoom).catch(error=>setActionError(error.message));
   };
 
   const handleSendEmote = (emoji: string) => {
@@ -103,8 +101,7 @@ export const GameTablePanel: React.FC<GameTablePanelProps> = ({
 
   const handleAddFamilyPlayer = () => {
     sound.playReward();
-    const updated = multiplayerService.addHumanSimPlayerToRoom(room.id);
-    if (updated) onUpdateRoom(updated);
+    void multiplayerService.addHumanSimPlayerToRoom(room.code).then(onUpdateRoom).catch(error=>setActionError(error.message));
   };
 
   const isUserSeated = room.participants.some((p) => p.id === currentUser.id);
@@ -116,6 +113,7 @@ export const GameTablePanel: React.FC<GameTablePanelProps> = ({
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-950/20 via-slate-950/40 to-slate-950 pointer-events-none" />
       <div className="absolute -top-12 -right-12 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
+      {actionError && <p role="alert" className="text-rose-300 relative z-10">{actionError}</p>}
       {/* Floating Emote Notification */}
       {activeEmote && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-slate-900/95 border-2 border-amber-400 text-white px-4 py-2 rounded-2xl shadow-2xl flex items-center gap-2 animate-bounce">

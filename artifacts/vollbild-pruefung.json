@@ -1,0 +1,105 @@
+{
+  "checks": [
+    {
+      "engine": "ludo",
+      "viewport": "390x844",
+      "fallback": true,
+      "statePreserved": true
+    },
+    {
+      "engine": "chess",
+      "viewport": "390x844",
+      "fallback": true,
+      "statePreserved": true
+    },
+    {
+      "engine": "connect-four",
+      "viewport": "390x844",
+      "fallback": true,
+      "statePreserved": true
+    },
+    {
+      "engine": "fam-cards",
+      "viewport": "390x844",
+      "fallback": true,
+      "statePreserved": true
+    },
+    {
+      "engine": "checkers",
+      "viewport": "390x844",
+      "fallback": true,
+      "statePreserved": true
+    },
+    {
+      "engine": "battleship",
+      "viewport": "390x844",
+      "fallback": true,
+      "statePreserved": true
+    },
+    {
+      "engine": "yatzy",
+      "viewport": "390x844",
+      "fallback": true,
+      "statePreserved": true
+    },
+    {
+      "engine": "memory-match",
+      "viewport": "390x844",
+      "fallback": true,
+      "statePreserved": true
+    },
+    {
+      "engine": "dots-boxes",
+      "viewport": "390x844",
+      "fallback": true,
+      "statePreserved": true
+    },
+    {
+      "engine": "tictactoe",
+      "viewport": "390x844",
+      "fallback": true,
+      "statePreserved": true
+    },
+    {
+      "engine": "diamond-blast",
+      "viewport": "390x844",
+      "fallback": true,
+      "statePreserved": true
+    },
+    {
+      "engine": "monopoly",
+      "viewport": "390x844",
+      "fallback": true,
+      "statePreserved": true
+    },
+    {
+      "engine": "skip-bo",
+      "viewport": "390x844",
+      "fallback": true,
+      "statePreserved": true
+    },
+    {
+      "engine": "romme",
+      "viewport": "390x844",
+      "fallback": true,
+      "statePreserved": true
+    },
+    {
+      "engine": "catan",
+      "viewport": "390x844",
+      "fallback": true,
+      "statePreserved": true
+    },
+    {
+      "engine": "mahjong",
+      "viewport": "390x844",
+      "fallback": true,
+      "statePreserved": true
+    }
+  ],
+  "landscape": "844x390 passed",
+  "rejectedApi": "CSS fallback passed",
+  "escape": "passed",
+  "realChessMovePreserved": true,
+  "focus": "contained within game"
+}

@@ -46,6 +46,8 @@ let DB_SOCKET_PATH = process.env.DB_SOCKET_PATH || '';
 let pool: mysql.Pool | null = null;
 let isMariaDbConnected = false;
 
+export function getDatabasePool() { return isMariaDbConnected ? pool : null; }
+
 const INSTALLED_FILE = path.resolve('.installed');
 
 export function checkIsInstalled(): boolean {
@@ -119,6 +121,17 @@ const memoryStore: MemoryStorage = {
 // Fallback file persistence for non-MariaDB dev environments
 const FALLBACK_DIR = path.resolve(process.env.FAMPLAY_DATA_DIR || '.data');
 const FALLBACK_FILE = path.join(FALLBACK_DIR, 'users_fallback.json');
+const TOKEN_FILE = path.join(FALLBACK_DIR, 'tokens_fallback.json');
+function saveTokens() {
+  fs.mkdirSync(FALLBACK_DIR,{recursive:true});
+  fs.writeFileSync(`${TOKEN_FILE}.tmp`,JSON.stringify({verification:[...memoryStore.verificationTokens],reset:[...memoryStore.resetTokens]}),{mode:0o600});
+  fs.renameSync(`${TOKEN_FILE}.tmp`,TOKEN_FILE);
+}
+if (fs.existsSync(TOKEN_FILE)) {
+  const saved = JSON.parse(fs.readFileSync(TOKEN_FILE,'utf8'));
+  for (const [key,value] of saved.verification || []) memoryStore.verificationTokens.set(key,value);
+  for (const [key,value] of saved.reset || []) memoryStore.resetTokens.set(key,value);
+}
 
 const loadFallback = () => {
   try {
@@ -129,7 +142,7 @@ const loadFallback = () => {
       }
     }
   } catch (err) {
-    // ignore
+    throw new Error('Vorhandene Benutzerdaten konnten nicht gelesen werden. Datei bleibt unverändert.',{cause:err});
   }
 };
 
@@ -139,9 +152,10 @@ const saveFallback = () => {
       fs.mkdirSync(FALLBACK_DIR, { recursive: true });
     }
     const arr = Array.from(memoryStore.users.values());
-    fs.writeFileSync(FALLBACK_FILE, JSON.stringify(arr, null, 2), 'utf-8');
+    fs.writeFileSync(`${FALLBACK_FILE}.tmp`, JSON.stringify(arr, null, 2), {encoding:'utf-8',mode:0o600});
+    fs.renameSync(`${FALLBACK_FILE}.tmp`,FALLBACK_FILE);
   } catch (err) {
-    // ignore
+    throw new Error('Benutzerdaten konnten nicht dauerhaft gespeichert werden.', {cause:err});
   }
 };
 
@@ -208,6 +222,17 @@ export async function initDatabase(customConfig?: {
 }
 
 async function runMigrations(dbPool: mysql.Pool) {
+  await dbPool.query(`CREATE TABLE IF NOT EXISTS friendships (
+    user_id VARCHAR(64) NOT NULL, friend_id VARCHAR(64) NOT NULL,
+    nickname VARCHAR(64) NOT NULL DEFAULT '', family_role VARCHAR(32) NOT NULL DEFAULT '',
+    is_favorite TINYINT(1) NOT NULL DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, friend_id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+  await dbPool.query(`CREATE TABLE IF NOT EXISTS game_invitations (
+    id VARCHAR(64) PRIMARY KEY, sender_id VARCHAR(64) NOT NULL, recipient_id VARCHAR(64) NOT NULL,
+    room_code VARCHAR(32) NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_recipient (recipient_id, created_at)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
   // 1. Users Table
   await dbPool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -353,6 +378,9 @@ export async function createUser(record: DbUserRecord): Promise<DbUserRecord> {
     return record;
   }
 
+  if ([...memoryStore.users.values()].some(u=>[u.email.toLowerCase(),u.username.toLowerCase()].some(value=>value===record.email.toLowerCase() || value===record.username.toLowerCase()))) {
+    throw Object.assign(new Error('Benutzer bereits vorhanden.'),{code:'ER_DUP_ENTRY'});
+  }
   memoryStore.users.set(record.id, record);
   saveFallback();
   return record;
@@ -398,14 +426,15 @@ export async function createVerificationToken(record: VerificationTokenRecord): 
   }
   memoryStore.verificationTokens.set(record.token, record);
   memoryStore.verificationTokens.set(record.code, record);
+  saveTokens();
 }
 
-export async function verifyTokenOrCode(inputTokenOrCode: string): Promise<VerificationTokenRecord | null> {
+export async function verifyTokenOrCode(inputTokenOrCode: string, userId?: string): Promise<VerificationTokenRecord | null> {
   const clean = inputTokenOrCode.trim();
   if (isMariaDbConnected && pool) {
     const [rows]: any = await pool.query(
-      `SELECT * FROM email_verification_tokens WHERE (token = ? OR code = ?) AND expires_at > NOW() LIMIT 1`,
-      [clean, clean]
+      `SELECT * FROM email_verification_tokens WHERE (token = ? OR code = ?) AND expires_at > NOW()${userId ? ' AND user_id = ?' : ''} LIMIT 1`,
+      userId ? [clean, clean, userId] : [clean, clean]
     );
     if (rows && rows.length > 0) {
       return rows[0];
@@ -413,7 +442,7 @@ export async function verifyTokenOrCode(inputTokenOrCode: string): Promise<Verif
     return null;
   }
 
-  const found = memoryStore.verificationTokens.get(clean);
+  const found = [...memoryStore.verificationTokens.values()].find(record => (record.token===clean || record.code===clean) && (!userId || record.user_id===userId));
   if (found && new Date(found.expires_at) > new Date()) {
     return found;
   }
@@ -430,6 +459,7 @@ export async function deleteVerificationTokensForUser(userId: string): Promise<v
       memoryStore.verificationTokens.delete(k);
     }
   }
+  saveTokens();
 }
 
 export async function createPasswordResetToken(userId: string, token: string, expiresAt: Date): Promise<void> {
@@ -442,6 +472,7 @@ export async function createPasswordResetToken(userId: string, token: string, ex
     return;
   }
   memoryStore.resetTokens.set(token, { id, user_id: userId, token, expires_at: expiresAt });
+  saveTokens();
 }
 
 export async function verifyPasswordResetToken(token: string): Promise<{ id: string; user_id: string } | null> {
@@ -473,6 +504,7 @@ export async function deletePasswordResetTokensForUser(userId: string): Promise<
       memoryStore.resetTokens.delete(k);
     }
   }
+  saveTokens();
 }
 
 export async function getAllUsers(): Promise<DbUserRecord[]> {
@@ -503,7 +535,7 @@ export async function deleteUser(id: string): Promise<boolean> {
 export function getDatabaseStatus() {
   return {
     connected: isMariaDbConnected,
-    type: isMariaDbConnected ? 'MariaDB / MySQL' : 'In-Memory Development Fallback',
+    type: isMariaDbConnected ? 'MariaDB / MySQL' : 'Lokale Dateispeicherung',
     host: DB_HOST,
     port: DB_PORT,
     socket: DB_SOCKET_PATH || undefined,

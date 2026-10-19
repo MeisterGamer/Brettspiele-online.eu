@@ -1,3 +1,4 @@
+import {BoardSurface} from '../BoardSurface';
 import React from 'react';
 import { 
   BoardSpace, 
@@ -104,7 +105,7 @@ export const MonopolyBoardRenderer: React.FC<MonopolyBoardRendererProps> = ({
   };
 
   return (
-    <div className="relative w-full max-w-[min(96vw,720px)] aspect-square bg-[#063323] p-1.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] border-4 sm:border-8 border-[#1f2937] select-none touch-manipulation overflow-hidden">
+    <BoardSurface name="Monopoly" minBoardWidth={720} maxWidth={1100}><div className="responsive-board relative w-full max-w-[min(96vw,720px)] aspect-square bg-[#063323] p-1.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] border-4 sm:border-8 border-[#1f2937] select-none touch-manipulation overflow-hidden">
       {/* 11x11 Grid Board */}
       <div 
         className="w-full h-full grid grid-cols-11 grid-rows-11 gap-[1px] sm:gap-[2px] bg-[#031d14] rounded-xl sm:rounded-2xl p-[1px] sm:p-[2px] border border-amber-500/30"
@@ -203,12 +204,12 @@ export const MonopolyBoardRenderer: React.FC<MonopolyBoardRendererProps> = ({
                   </span>
                 )}
                 
-                <span className="text-[7px] sm:text-[9px] font-black tracking-tighter line-clamp-2 text-slate-800">
+                <span className="text-[11px] sm:text-xs font-black tracking-tighter line-clamp-2 text-slate-800">
                   {space.name}
                 </span>
 
                 {space.price && (
-                  <span className="text-[6px] sm:text-[8px] font-bold text-slate-600 mt-auto font-mono">
+                  <span className="text-[10px] sm:text-xs font-bold text-slate-600 mt-auto font-mono">
                     {space.price} €
                   </span>
                 )}
@@ -313,6 +314,6 @@ export const MonopolyBoardRenderer: React.FC<MonopolyBoardRendererProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div></BoardSurface>
   );
 };

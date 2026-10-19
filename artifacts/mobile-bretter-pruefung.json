@@ -1,0 +1,201 @@
+{
+  "checks": [
+    {
+      "viewport": 320,
+      "game": "ludo",
+      "scrollWidth": 306,
+      "width": 306
+    },
+    {
+      "viewport": 320,
+      "game": "chess",
+      "scrollWidth": 306,
+      "width": 306
+    },
+    {
+      "viewport": 320,
+      "game": "connect-four",
+      "scrollWidth": 306,
+      "width": 306
+    },
+    {
+      "viewport": 320,
+      "game": "fam-cards",
+      "scrollWidth": 306,
+      "width": 306
+    },
+    {
+      "viewport": 320,
+      "game": "checkers",
+      "scrollWidth": 306,
+      "width": 306
+    },
+    {
+      "viewport": 320,
+      "game": "battleship",
+      "scrollWidth": 306,
+      "width": 306
+    },
+    {
+      "viewport": 320,
+      "game": "yatzy",
+      "scrollWidth": 306,
+      "width": 306
+    },
+    {
+      "viewport": 320,
+      "game": "memory-match",
+      "scrollWidth": 306,
+      "width": 306
+    },
+    {
+      "viewport": 320,
+      "game": "dots-boxes",
+      "scrollWidth": 306,
+      "width": 306
+    },
+    {
+      "viewport": 320,
+      "game": "tictactoe",
+      "scrollWidth": 306,
+      "width": 306
+    },
+    {
+      "viewport": 320,
+      "game": "diamond-blast",
+      "scrollWidth": 306,
+      "width": 306
+    },
+    {
+      "viewport": 320,
+      "game": "monopoly",
+      "scrollWidth": 306,
+      "width": 306
+    },
+    {
+      "viewport": 320,
+      "game": "skip-bo",
+      "scrollWidth": 306,
+      "width": 306
+    },
+    {
+      "viewport": 320,
+      "game": "romme",
+      "scrollWidth": 306,
+      "width": 306
+    },
+    {
+      "viewport": 320,
+      "game": "catan",
+      "scrollWidth": 306,
+      "width": 306
+    },
+    {
+      "viewport": 320,
+      "game": "mahjong",
+      "scrollWidth": 306,
+      "width": 306
+    },
+    {
+      "viewport": 390,
+      "game": "ludo",
+      "scrollWidth": 376,
+      "width": 376
+    },
+    {
+      "viewport": 390,
+      "game": "chess",
+      "scrollWidth": 376,
+      "width": 376
+    },
+    {
+      "viewport": 390,
+      "game": "connect-four",
+      "scrollWidth": 376,
+      "width": 376
+    },
+    {
+      "viewport": 390,
+      "game": "fam-cards",
+      "scrollWidth": 376,
+      "width": 376
+    },
+    {
+      "viewport": 390,
+      "game": "checkers",
+      "scrollWidth": 376,
+      "width": 376
+    },
+    {
+      "viewport": 390,
+      "game": "battleship",
+      "scrollWidth": 376,
+      "width": 376
+    },
+    {
+      "viewport": 390,
+      "game": "yatzy",
+      "scrollWidth": 376,
+      "width": 376
+    },
+    {
+      "viewport": 390,
+      "game": "memory-match",
+      "scrollWidth": 376,
+      "width": 376
+    },
+    {
+      "viewport": 390,
+      "game": "dots-boxes",
+      "scrollWidth": 376,
+      "width": 376
+    },
+    {
+      "viewport": 390,
+      "game": "tictactoe",
+      "scrollWidth": 376,
+      "width": 376
+    },
+    {
+      "viewport": 390,
+      "game": "diamond-blast",
+      "scrollWidth": 376,
+      "width": 376
+    },
+    {
+      "viewport": 390,
+      "game": "monopoly",
+      "scrollWidth": 376,
+      "width": 376
+    },
+    {
+      "viewport": 390,
+      "game": "skip-bo",
+      "scrollWidth": 376,
+      "width": 376
+    },
+    {
+      "viewport": 390,
+      "game": "romme",
+      "scrollWidth": 376,
+      "width": 376
+    },
+    {
+      "viewport": 390,
+      "game": "catan",
+      "scrollWidth": 376,
+      "width": 376
+    },
+    {
+      "viewport": 390,
+      "game": "mahjong",
+      "scrollWidth": 376,
+      "width": 376
+    }
+  ],
+  "desktopChessBoardWidth": 960,
+  "zoomedChessBoardWidth": 1200,
+  "zoomedPawnPreserved": true,
+  "keyboardPan": 88,
+  "dotsLineTargetsMinimum": 44
+}

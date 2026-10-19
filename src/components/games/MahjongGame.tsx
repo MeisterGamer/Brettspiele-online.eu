@@ -83,7 +83,7 @@ export const MahjongGame:React.FC<MahjongGameProps>=({onGameEnd,tableParticipant
   const [tileTheme,setTileTheme]=useState<'ivory'|'emerald'|'wood'>('ivory');
   const [dimBlocked,setDimBlocked]=useState(true),[isRulesOpen,setIsRulesOpen]=useState(false);
   const [selectedTileId,setSelectedTileId]=useState<string|null>(null),[hintedTileIds,setHintedTileIds]=useState<string[]>([]);
-  const [elapsedSeconds,setElapsedSeconds]=useState(0),[zoom,setZoom]=useState(false),[stageWidth,setStageWidth]=useState(960);
+  const [elapsedSeconds,setElapsedSeconds]=useState(0),[zoom,setZoom]=useState(true),[stageWidth,setStageWidth]=useState(960);
   const stage=useRef<HTMLDivElement>(null),reported=useRef(false);
   const availablePairs=findAvailablePairs(tiles),remainingCount=tiles.filter(t=>!t.matched).length,matchedPairsCount=state.history.length;
   const noMovesAlert=!availablePairs.length&&remainingCount>0,isVictoryOpen=state.finished;
@@ -260,7 +260,7 @@ export const MahjongGame:React.FC<MahjongGameProps>=({onGameEnd,tableParticipant
       {/* 2. SUB-BAR: Layout Selection, Theme Selector, Blocked Dimming Toggle */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs">
         {/* Layout Pills */}
-        <div className="flex items-center gap-1 bg-slate-900/80 border border-slate-800 p-1 rounded-xl">
+        <div className="flex flex-wrap items-center gap-1 max-w-full bg-slate-900/80 border border-slate-800 p-1 rounded-xl">
           <span className="text-[10px] uppercase font-bold text-slate-400 px-2">Aufbau:</span>
           <button
             disabled={Boolean(roomCode&&!isHost)}
@@ -304,7 +304,7 @@ export const MahjongGame:React.FC<MahjongGameProps>=({onGameEnd,tableParticipant
           </button>
 
           {/* Theme Selector */}
-          <div className="flex items-center gap-1 bg-slate-900/80 border border-slate-800 p-1 rounded-xl">
+          <div className="flex flex-wrap items-center gap-1 max-w-full bg-slate-900/80 border border-slate-800 p-1 rounded-xl">
             <Palette className="w-3.5 h-3.5 text-amber-400 ml-1.5 mr-0.5" />
             <button
               onClick={() => setTileTheme('ivory')}

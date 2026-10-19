@@ -188,11 +188,8 @@ export const AuthGate: React.FC<AuthGateProps> = ({ onLoginSuccess }) => {
     if (res.success) {
       sound.playReward();
       setSuccessMsg('E-Mail erfolgreich verifiziert! Du wirst weitergeleitet...');
-      if (res.user) {
-        setTimeout(() => onLoginSuccess(res.user!), 600);
-      } else {
-        setTimeout(() => setTab('login'), 1200);
-      }
+      const url = new URL(window.location.href); url.searchParams.delete('verifyToken'); window.history.replaceState({},'',url);
+      setTimeout(() => setTab('login'), 1200);
     } else {
       sound.playError();
       setErrorMsg(res.error || 'Ungültiger Bestätigungscode.');
@@ -237,6 +234,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ onLoginSuccess }) => {
 
     if (res.success) {
       sound.playReward();
+      const url = new URL(window.location.href); url.searchParams.delete('resetToken'); window.history.replaceState({},'',url);
       setSuccessMsg(res.message || 'Passwort erfolgreich geändert! Bitte anmelden.');
       setTimeout(() => setTab('login'), 1200);
     } else {
@@ -722,7 +720,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ onLoginSuccess }) => {
               <Mail className="w-3.5 h-3.5 text-sky-400 shrink-0" />
               <span>E-Mail Server:</span>
               <span className="font-mono text-slate-300">
-                {systemStatus?.email?.configured ? 'SMTP Aktiv' : 'SMTP Bereit'}
+                {systemStatus?.email?.configured ? 'SMTP Aktiv' : 'Nicht eingerichtet'}
               </span>
             </button>
           </div>

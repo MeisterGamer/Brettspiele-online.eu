@@ -311,6 +311,8 @@ class MultiplayerService {
       this.lastPolledEventId = id;
     }
     if (event.type === 'ROOMS_UPDATED') {
+      const mine=this.cachedRooms.find(r=>r.code===this.currentRoomCode && r.isPrivate);
+      if(mine && !event.rooms.some(r=>r.code===mine.code))event.rooms=[mine,...event.rooms];
       this.cachedRooms = event.rooms;
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(event.rooms));
@@ -375,10 +377,11 @@ class MultiplayerService {
     }
 
     if (!sentViaWs && !['ROOMS_UPDATED', 'ROOM_STATE_SYNC'].includes(event.type)) {
+      const token = apiAuth.getToken();
       this.httpQueue = this.httpQueue.then(async () => {
         const res = await fetch('/api/multiplayer/message', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiAuth.getToken()}` },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify(event),
           signal: AbortSignal.timeout(10000),
         });
@@ -402,7 +405,7 @@ class MultiplayerService {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed: GameRoom[] = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           this.cachedRooms = parsed;
           return parsed;
         }
@@ -434,112 +437,46 @@ class MultiplayerService {
     );
   }
 
-  public createRoom(
-    host: UserProfile,
-    config: {
-      name: string;
-      gameId: string;
-      gameTitle: string;
-      maxPlayers: number;
-      isPrivate: boolean;
-      voiceChatActive: boolean;
-    }
-  ): GameRoom {
-    this.currentUser = host;
-    const code = `FAM-${Array.from(crypto.getRandomValues(new Uint8Array(6)), n => n.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
-    this.currentRoomCode = code;
-
-    const hostParticipant: RoomParticipant = {
-      id: host.id,
-      name: host.name,
-      avatar: host.avatar,
-      isHost: true,
-      isReady: true,
-      score: 0,
-      ping: 15,
-      isBot: false,
-      seatIndex: 0,
-    };
-
-    const newRoom: GameRoom = {
-      id: `room_${Date.now()}`,
-      code,
-      name: config.name,
-      gameId: config.gameId,
-      gameTitle: config.gameTitle,
-      isPrivate: config.isPrivate,
-      hostName: host.name,
-      maxPlayers: config.maxPlayers,
-      currentPlayers: 1,
-      status: 'lobby',
-      voiceChatActive: config.voiceChatActive,
-      createdAt: 'Gerade eröffnet',
-      participants: [hostParticipant],
-    };
-
-    this.sendWsOrPost({
-      type: 'CREATE_ROOM',
-      roomCode: code,
-      host,
-      config,
+  private async enterRoom(user: UserProfile, command: any): Promise<GameRoom> {
+    const token = apiAuth.getToken();
+    if (!token) throw new Error('Bitte zuerst anmelden.');
+    const res = await fetch('/api/multiplayer/message', {
+      method:'POST', headers:{'Content-Type':'application/json',Authorization:'Bearer ' + token},
+      body:JSON.stringify(command),signal:AbortSignal.timeout(15000),
     });
-
-    const updated = [newRoom, ...this.getRooms()];
-    this.saveRooms(updated, false);
-    return newRoom;
+    const data = await res.json();
+    const error = data.messages?.find((m: any)=>m.type==='ROOM_ERROR');
+    if (!res.ok || error) throw new Error(error?.error || data.error || 'Tisch konnte nicht geöffnet werden.');
+    const room = data.messages?.find((m: any)=>m.type==='ROOM_STATE_SYNC')?.room as GameRoom | undefined;
+    if (!room?.participants.some(p=>p.id===user.id)) throw new Error('Der Server hat den Beitritt nicht bestätigt.');
+    this.currentUser = user;
+    this.currentRoomCode = room.code;
+    this.lastPolledEventId = 0;
+    for (const message of data.messages) this.handleIncomingEvent(message,true);
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      this.identifyUser(user);
+      this.socket.send(JSON.stringify({type:'JOIN_ROOM',roomCode:room.code,since:0}));
+    } else this.setConnectionStatus('http');
+    return room;
   }
 
-  public joinRoom(roomCode: string, user: UserProfile): GameRoom | null {
-    this.currentUser = user;
-    if (this.currentRoomCode !== roomCode) this.lastPolledEventId = 0;
-    this.currentRoomCode = roomCode;
+  public async createRoom(host: UserProfile, config: {
+    name:string; gameId:string; gameTitle:string; maxPlayers:number; isPrivate:boolean; voiceChatActive:boolean;
+  }): Promise<GameRoom> {
+    const code = 'FAM-' + Array.from(crypto.getRandomValues(new Uint8Array(6)), n=>n.toString(16).padStart(2,'0')).join('').toUpperCase();
+    return this.enterRoom(host,{type:'CREATE_ROOM',roomCode:code,config});
+  }
 
-    this.sendWsOrPost({
-      type: 'JOIN_ROOM',
-      roomCode,
-      user,
-    });
+  public async joinRoom(roomCode: string, user: UserProfile): Promise<GameRoom> {
+    return this.enterRoom(user,{type:'JOIN_ROOM',roomCode:roomCode.trim().toUpperCase()});
+  }
 
-    const room = this.getRoomByCode(roomCode);
-    if (!room) return null;
-
-    const existingIndex = room.participants.findIndex((p) => p.id === user.id);
-    let updatedRoom: GameRoom;
-
-    if (existingIndex !== -1) {
-      const updatedParticipants = [...room.participants];
-      updatedParticipants[existingIndex] = {
-        ...updatedParticipants[existingIndex],
-        name: user.name,
-        avatar: user.avatar,
-        ping: 18,
-      };
-      updatedRoom = { ...room, participants: updatedParticipants };
-    } else {
-      if (room.participants.length >= room.maxPlayers) {
-        return room;
-      }
-      const newParticipant: RoomParticipant = {
-        id: user.id,
-        name: user.name,
-        avatar: user.avatar,
-        isHost: false,
-        isReady: true,
-        score: 0,
-        ping: 20,
-        isBot: false,
-        seatIndex: room.participants.length,
-      };
-      updatedRoom = {
-        ...room,
-        currentPlayers: room.participants.length + 1,
-        participants: [...room.participants, newParticipant],
-      };
-    }
-
-    const updatedRooms = this.getRooms().map((r) => (r.id === updatedRoom.id ? updatedRoom : r));
-    this.saveRooms(updatedRooms, false);
-    return updatedRoom;
+  public signOut() {
+    if (this.currentRoomCode && this.currentUser) this.leaveRoom(this.currentRoomCode,this.currentUser.id);
+    this.currentUser = null;
+    this.currentRoomCode = null;
+    this.lastPolledEventId = 0;
+    this.socket?.close();
   }
 
   public leaveRoom(roomCode: string, userId: string): void {
@@ -562,77 +499,25 @@ class MultiplayerService {
     });
   }
 
-  public addHumanSimPlayerToRoom(roomIdOrCode: string): GameRoom | null {
-    return this.addBotToRoom(roomIdOrCode);
+  private async mutateRoom(command: any): Promise<GameRoom> {
+    const res=await fetch('/api/multiplayer/message',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+apiAuth.getToken()},body:JSON.stringify(command),signal:AbortSignal.timeout(15000)});
+    const data=await res.json(),error=data.messages?.find((m: any)=>m.type==='ROOM_ERROR');
+    if(!res.ok || error)throw new Error(error?.error || data.error || 'Tischänderung fehlgeschlagen.');
+    for(const message of data.messages || [])this.handleIncomingEvent(message,true);
+    const room=data.messages?.find((m: any)=>m.type==='ROOM_STATE_SYNC')?.room;
+    if(!room)throw new Error('Kein bestätigter Spieltisch empfangen.');
+    return room;
   }
-
-  public addBotToRoom(roomIdOrCode: string): GameRoom | null {
-    const target = this.getRoomByCode(roomIdOrCode) || this.getRooms().find((r) => r.id === roomIdOrCode);
-    if (!target) return null;
-
-    if (target.participants.length >= target.maxPlayers) {
-      return target;
-    }
-
-    const nextSeat = target.participants.length;
-    const botPreset = FAMILY_BOT_PRESETS[nextSeat % FAMILY_BOT_PRESETS.length];
-
-    this.sendWsOrPost({
-      type: 'ADD_BOT',
-      roomCode: target.code,
-      botPreset,
-    });
-
-    const botParticipant: RoomParticipant = {
-      id: `bot_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-      name: botPreset.name,
-      avatar: botPreset.avatar,
-      isHost: false,
-      isReady: true,
-      score: 0,
-      ping: 8,
-      isBot: true,
-      seatIndex: nextSeat,
-    };
-
-    const updatedRoom: GameRoom = {
-      ...target,
-      currentPlayers: target.participants.length + 1,
-      participants: [...target.participants, botParticipant],
-    };
-
-    const updatedRooms = this.getRooms().map((r) => (r.id === updatedRoom.id ? updatedRoom : r));
-    this.saveRooms(updatedRooms, false);
-    return updatedRoom;
+  public addHumanSimPlayerToRoom(code: string): Promise<GameRoom> {return this.addBotToRoom(code);}
+  public async addBotToRoom(code: string): Promise<GameRoom> {
+    const room=this.getRoomByCode(code)||this.getRooms().find(r=>r.id===code);
+    if(!room)throw new Error('Tisch nicht gefunden.');
+    return this.mutateRoom({type:'ADD_BOT',roomCode:room.code,botPreset:FAMILY_BOT_PRESETS[room.participants.length % FAMILY_BOT_PRESETS.length]});
   }
-
-  public removeParticipant(roomIdOrCode: string, participantId: string): GameRoom | null {
-    const target = this.getRoomByCode(roomIdOrCode) || this.getRooms().find((r) => r.id === roomIdOrCode);
-    if (!target) return null;
-
-    this.sendWsOrPost({
-      type: 'REMOVE_PARTICIPANT',
-      roomCode: target.code,
-      participantId,
-    });
-
-    const filtered = target.participants.filter((p) => p.id !== participantId);
-    const reindexed = filtered.map((p, idx) => ({ ...p, seatIndex: idx }));
-
-    const updatedRoom: GameRoom = {
-      ...target,
-      currentPlayers: reindexed.length,
-      participants: reindexed,
-      hostName: reindexed[0]?.name || target.hostName,
-    };
-
-    if (reindexed.length > 0 && !reindexed.some((p) => p.isHost)) {
-      reindexed[0].isHost = true;
-    }
-
-    const updatedRooms = this.getRooms().map((r) => (r.id === updatedRoom.id ? updatedRoom : r));
-    this.saveRooms(updatedRooms, false);
-    return updatedRoom;
+  public async removeParticipant(code: string, participantId: string): Promise<GameRoom> {
+    const room=this.getRoomByCode(code)||this.getRooms().find(r=>r.id===code);
+    if(!room)throw new Error('Tisch nicht gefunden.');
+    return this.mutateRoom({type:'REMOVE_PARTICIPANT',roomCode:room.code,participantId});
   }
 
   public updateRoomState(room: GameRoom): void {

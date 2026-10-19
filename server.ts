@@ -5,6 +5,8 @@ import { fileURLToPath } from 'url';
 import { initDatabase } from './server/db.js';
 import { authRouter } from './server/routes/auth.js';
 import { setupRouter } from './server/routes/setup.js';
+import { multiplayerRouter } from './server/routes/multiplayer.js';
+import { socialRouter } from './server/routes/social.js';
 
 import fs from 'fs';
 
@@ -15,9 +17,10 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-import { requireUser, rateLimit } from './server/security.js';
+
 const app = express();
 app.disable('x-powered-by');
+app.set('trust proxy', process.env.TRUST_PROXY || 'loopback');
 
 // 1. Check command line argument --port (e.g. tsx server.ts --port 5555)
 let argPort: number | null = null;
@@ -78,59 +81,16 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-import {
-  setupWebSocketServer,
-  getRoomsList,
-  getRoom,
-  getRoomEventsSince,
-  handleHttpMessage,
-  touchHttpSession
-} from './server/multiplayer/wsServer.js';
+import { setupWebSocketServer } from './server/multiplayer/wsServer.js';
 
 // Authentication and user management routes
 app.use('/api/auth', authRouter);
 app.use('/api/users', authRouter);
 // Web-Setup Wizard routes
 app.use('/api/setup', setupRouter);
+app.use('/api/social', socialRouter);
 
-// Public rooms API for multiplayer synchronization
-app.get('/api/rooms', (_req, res) => {
-  res.json({ rooms: getRoomsList() });
-});
-
-// Multiplayer HTTP Fallback & Diagnostic APIs
-app.get('/api/multiplayer/status', (_req, res) => {
-  res.json({
-    status: 'ok',
-    wsSupported: true,
-    wsPath: '/ws',
-    nginxSnippet: 'location /ws { proxy_pass http://127.0.0.1:5555; proxy_http_version 1.1; proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade"; proxy_set_header Host $host; }',
-  });
-});
-
-const multiplayerMessageHandler: express.RequestHandler = (req, res) => {
-  try {
-    const messages = handleHttpMessage(res.locals.user, req.body);
-    const error = messages.find((message: any) => message.type === 'ROOM_ERROR') as any;
-    res.status(error ? 409 : 200).json({ success: !error, messages });
-  } catch {
-    res.status(400).json({ success: false, error: 'Ungültige Multiplayer-Nachricht.' });
-  }
-};
-app.post(['/api/multiplayer/action', '/api/multiplayer/message'], rateLimit(240), requireUser, multiplayerMessageHandler);
-
-app.get('/api/multiplayer/events', requireUser, (req, res) => {
-  const roomCode = String(req.query.roomCode || '');
-  const room = getRoom(roomCode);
-  if (!room?.participants.some(p => p.id === res.locals.user.id)) return res.status(403).json({ error: 'Kein Raumzugriff.' });
-  const since = parseInt(String(req.query.since || '0'), 10);
-  if (!roomCode) {
-    return res.status(400).json({ error: 'Missing roomCode' });
-  }
-  touchHttpSession(res.locals.user.id);
-  const events = getRoomEventsSince(roomCode, isNaN(since) ? 0 : since);
-  res.json({ events });
-});
+app.use('/api',multiplayerRouter);
 
 app.use('/api', (_req, res) => { res.status(404).json({ error: 'API-Endpunkt nicht gefunden.' }); });
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

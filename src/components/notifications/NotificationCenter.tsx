@@ -4,6 +4,7 @@ import { sound } from '../../services/sound';
 import { Bell, Check, X, Shield, Gift, Trophy, Users, Megaphone } from 'lucide-react';
 
 interface NotificationCenterProps {
+  onJoinRoom?: (code: string) => void;
   notifications: SystemNotification[];
   onMarkAllRead: () => void;
   onClear: () => void;
@@ -13,6 +14,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   notifications,
   onMarkAllRead,
   onClear,
+  onJoinRoom,
 }) => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [pushEnabled, setPushEnabled] = useState<boolean>(false);
@@ -139,6 +141,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                 <div className="flex-1 min-w-0">
                   <h4 className="text-xs font-bold text-white leading-snug">{notif.title}</h4>
                   <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{notif.message}</p>
+                  {notif.roomCode && onJoinRoom && <button className="text-xs text-indigo-300 underline py-2" onClick={()=>{onJoinRoom(notif.roomCode!);setIsOpen(false);}}>Tisch beitreten</button>}
                   <span className="text-[9px] text-slate-500 font-mono mt-1 block">{notif.timestamp}</span>
                 </div>
               </div>

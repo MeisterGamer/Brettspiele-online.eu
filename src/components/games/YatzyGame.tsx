@@ -194,7 +194,7 @@ export const YatzyGame: React.FC<YatzyGameProps> = ({
   };
 
   return (
-    <div className="flex flex-col items-center max-w-xl mx-auto w-full select-none text-slate-100">
+    <div className="flex flex-col items-center max-w-6xl mx-auto w-full select-none text-slate-100">
       
       <div className="w-full mb-3 rounded-xl bg-slate-800 p-3 text-sm space-y-1" aria-live="polite">
         <p className="font-bold">{gameOver ? 'Partie beendet' : `${activeParticipant?.name || p1Name} ist am Zug`}</p>

@@ -1,3 +1,4 @@
+import {BoardSurface} from './BoardSurface';
 import {AtelierPiece} from './AtelierPiece';
 import {boardAsset} from '../../services/gameAssets';
 import React, { useEffect, useRef, useState } from 'react';
@@ -70,10 +71,10 @@ export const ChessGame:React.FC<ChessGameProps>=({onGameEnd,tableParticipants,cu
   if(!game.ready)return <p role="status">Schachstellung wird geladen …</p>;
   const renderStauntonPiece=(piece:ChessPiece)=><AtelierPiece kind={`chess-${piece.color}-${piece.type}`} label={`${piece.color==='w'?'Weiße':'Schwarze'} Figur: ${{p:'Bauer',r:'Turm',n:'Springer',b:'Läufer',q:'Dame',k:'König'}[piece.type]}`} className="w-[90%] h-[90%] object-contain pointer-events-none drop-shadow-md"/>;
   return (
-    <div className="flex flex-col items-center max-w-xl mx-auto w-full select-none text-slate-100">
+    <div className="flex flex-col items-center max-w-6xl mx-auto w-full select-none text-slate-100">
       
       {/* Header bar with player avatars and turn indicators */}
-      <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3 sm:p-3.5 rounded-2xl mb-3 text-xs shadow-xl">
+      <div className="w-full mobile-game-header board-player-header flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 border border-slate-800 p-3 sm:p-3.5 rounded-2xl mb-3 text-xs shadow-xl">
         <div className={`flex items-center gap-2 p-1 rounded-xl transition ${turn === 'w' && !winner ? 'bg-amber-950/40 ring-1 ring-amber-400/60' : ''}`}>
           {p1?.avatar ? (
             <AvatarDisplay avatar={p1.avatar} size="sm" />
@@ -143,7 +144,7 @@ export const ChessGame:React.FC<ChessGameProps>=({onGameEnd,tableParticipants,cu
       {game.error&&<p role="alert" className="text-rose-300 mb-3">{game.error}</p>}
       {promotion&&<div role="dialog" aria-label="Bauernumwandlung" className="mb-3 p-3 border border-amber-400 rounded-xl"><p>In welche Figur umwandeln?</p><div className="flex flex-wrap gap-2">{(['q','r','b','n'] as const).map((piece,index)=><button key={piece} className="bg-slate-800 p-3 rounded-xl" onClick={()=>{send({type:'MOVE',...promotion,promotion:piece});setPromotion(null);}}>{['Dame','Turm','Läufer','Springer'][index]}</button>)}</div></div>}
       {/* 8x8 REAL INLAID WOODEN CHESSBOARD */}
-      <div className="relative rounded-3xl p-3 sm:p-5 border-4 border-amber-950 shadow-2xl max-w-md w-full overflow-hidden bg-amber-950">
+      <BoardSurface name="Schach" minBoardWidth={372}><div className="responsive-board relative rounded-3xl p-3 sm:p-5 border-4 border-amber-950 shadow-2xl max-w-md w-full overflow-hidden bg-amber-950">
         
         {/* Real Wood Grain Background Photo Inlay */}
         <img
@@ -186,7 +187,7 @@ export const ChessGame:React.FC<ChessGameProps>=({onGameEnd,tableParticipants,cu
             })
           )}
         </div>
-      </div>
+      </div></BoardSurface>
 
       {!state.result&&drawColor&&<div className="flex flex-wrap gap-2 mt-3 text-xs">
         <button className="bg-slate-800 rounded-xl px-3 py-2" onClick={()=>send({type:'RESIGN',color:drawColor})}>Aufgeben</button>

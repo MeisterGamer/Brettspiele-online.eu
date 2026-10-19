@@ -1,3 +1,4 @@
+import {BoardSurface} from './BoardSurface';
 import {AtelierPiece} from './AtelierPiece';
 import { useGameTimers } from './useGameTimers';
 import React, { useState, useEffect } from 'react';
@@ -660,7 +661,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       <div className="w-full flex flex-col lg:flex-row items-center justify-center gap-6">
         
         {/* THE REAL CLASSIC WOODEN GAME BOARD (11x11 Grid) */}
-        <div className="relative p-2 sm:p-5 rounded-2xl sm:rounded-3xl border-2 sm:border-4 border-amber-950 shadow-2xl overflow-hidden bg-amber-950 max-w-[500px] w-full">
+        <BoardSurface name="Mensch ärgere dich nicht" minBoardWidth={520}><div className="responsive-board relative p-2 sm:p-5 rounded-2xl sm:rounded-3xl border-2 sm:border-4 border-amber-950 shadow-2xl overflow-hidden bg-amber-950 max-w-[500px] w-full">
           
           {/* Authentic Polished Walnut Tabletop Inlay */}
           <img
@@ -783,7 +784,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
               )}
             </div>
           </div>
-        </div>
+        </div></BoardSurface>
 
         {/* SIDE PANEL: 3D DICE SHAKER & ACTION LOG */}
         <div className="w-full lg:w-72 flex flex-col items-center justify-between gap-4 bg-slate-900/90 border border-slate-800 p-4 sm:p-5 rounded-3xl shadow-xl">

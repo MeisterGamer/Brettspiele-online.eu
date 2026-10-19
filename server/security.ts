@@ -1,5 +1,7 @@
 import 'dotenv/config';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import jwt from 'jsonwebtoken';
 import type { RequestHandler } from 'express';
 import { findUserById } from './db.js';
@@ -8,7 +10,16 @@ const configured = process.env.JWT_SECRET;
 if (process.env.NODE_ENV === 'production' && (!configured || configured.length < 32 || configured === 'famplay_secret_jwt_key_2026' || configured.startsWith('dein_geheimer_'))) {
   throw new Error('JWT_SECRET muss im Produktivbetrieb ein zufälliger Schlüssel mit mindestens 32 Zeichen sein.');
 }
-export const JWT_SECRET = configured || crypto.randomBytes(48).toString('hex');
+function localSecret() {
+  const file=path.resolve(process.env.FAMPLAY_DATA_DIR || '.data','jwt-secret');
+  fs.mkdirSync(path.dirname(file),{recursive:true});
+  try {fs.writeFileSync(file,crypto.randomBytes(48).toString('hex'),{flag:'wx',mode:0o600});}
+  catch(error: any) {if(error.code!=='EEXIST') throw error;}
+  const value=fs.readFileSync(file,'utf8').trim();
+  if(value.length<32) throw new Error('Lokaler JWT-Schlüssel ist beschädigt.');
+  return value;
+}
+export const JWT_SECRET = configured || localSecret();
 
 export async function authenticate(token: unknown) {
   if (typeof token !== 'string') throw new Error('Missing token');

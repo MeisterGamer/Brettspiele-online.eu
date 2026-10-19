@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import type { GameEngineType, GameRoom } from '../../types';
 import type { Difficulty } from '../../services/gameAI';
 import { multiplayerService } from '../../services/multiplayerService';
+import { useGameFullscreen } from './useGameFullscreen';
 
 const DifficultyContext = createContext<Difficulty>('normal');
 const RoundContext = createContext(0);
@@ -33,9 +34,10 @@ export function GameArena({ engine, title, room, userId, children }: {
 }) {
   const container = useRef<HTMLElement>(null);
   const [help, setHelp] = useState(false);
+  const [optionsOpen,setOptionsOpen] = useState(false);
   const [round, setRound] = useState(0);
   const [message, setMessage] = useState('');
-  const [full, setFull] = useState(false);
+  const {full,toggle:toggleFullscreen} = useGameFullscreen(container);
   const [connection, setConnection] = useState(multiplayerService.getConnectionStatus());
   const [difficulty, setDifficulty] = useState<Difficulty>(() => {
     try { const value = localStorage.getItem('famplay_ai_difficulty'); return value === 'easy' || value === 'hard' ? value : 'normal'; }
@@ -48,19 +50,17 @@ export function GameArena({ engine, title, room, userId, children }: {
   const selected = room?.aiDifficulty || difficulty;
   const host = !room || room.participants.some(p => p.id === userId && p.isHost);
   const activeRound = `${engine}:${room?.code || 'local'}:${room?.roundNumber || 0}:${round}`;
-  useEffect(() => {
-    const update = () => setFull(document.fullscreenElement === container.current);
-    document.addEventListener('fullscreenchange', update);
-    return () => document.removeEventListener('fullscreenchange', update);
-  }, []);
   const changeDifficulty = (value: Difficulty) => {
     setDifficulty(value);
     try { localStorage.setItem('famplay_ai_difficulty', value); } catch {}
     if (room) multiplayerService.setDifficulty(room.code, value);
   };
   return (
-    <section ref={container} aria-label={title} className="bg-slate-900/90 border border-slate-800 rounded-2xl sm:rounded-3xl p-2 sm:p-6 shadow-2xl min-w-0 overflow-auto [&:fullscreen]:bg-slate-950 [&:fullscreen]:rounded-none">
-      <div className="flex flex-wrap items-center gap-2 mb-4 text-xs">
+    <section ref={container} tabIndex={-1} aria-label={title} data-game-engine={engine} data-game-fullscreen={full} className={`game-arena bg-slate-900/90 border border-slate-800 rounded-2xl sm:rounded-3xl p-0.5 sm:p-3 shadow-2xl min-w-0 overflow-auto ${full ? 'game-arena-fullscreen' : ''}`}>
+      <div className="game-arena-toolbar flex flex-wrap items-center gap-2 mb-4 text-xs">
+        <button type="button" aria-pressed={full} className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold text-white shrink-0 min-h-11" onClick={toggleFullscreen}>{full ? 'Vollbild beenden' : 'Vollbild'}</button>
+        <button type="button" className="sm:hidden px-3 py-2 rounded-xl bg-slate-800" aria-expanded={optionsOpen} onClick={()=>setOptionsOpen(value=>!value)}>Optionen</button>
+        <div className={`game-arena-options ${optionsOpen?'is-open':''}`}>
         <button type="button" className="px-3 py-2 rounded-xl bg-slate-800" aria-expanded={help} onClick={() => setHelp(!help)}>Spieltipps</button>
         {adjustable.has(engine) && (
           <label className="flex items-center gap-2">KI-Stärke
@@ -69,16 +69,11 @@ export function GameArena({ engine, title, room, userId, children }: {
             </select>
           </label>
         )}
+        </div>
         <button type="button" disabled={!host} className="px-3 py-2 rounded-xl bg-slate-800 disabled:opacity-50" onClick={() => {
           if (room) multiplayerService.startRound(room.code);
           else setRound(n => n + 1);
         }}>Neue Partie</button>
-        {typeof document !== 'undefined' && document.fullscreenEnabled && (
-          <button type="button" className="px-3 py-2 rounded-xl bg-slate-800" onClick={async () => {
-            try { if (full) await document.exitFullscreen(); else await container.current?.requestFullscreen(); }
-            catch { setMessage('Vollbild ist in diesem Browser nicht verfügbar.'); }
-          }}>{full ? 'Vollbild beenden' : 'Vollbild'}</button>
-        )}
         <span className="text-slate-400 ml-auto">Partie {(room?.roundNumber || 0) + round + 1}</span>
       </div>
       {help && <p className="mb-4 rounded-xl border border-sky-800 bg-sky-950/40 p-3 text-sm text-sky-100">{tips[engine] || 'Beachte die Spielanleitung und die möglichen Züge.'}</p>}
@@ -86,7 +81,7 @@ export function GameArena({ engine, title, room, userId, children }: {
       {room && connection === 'offline' && <p role="status" className="text-amber-300 text-sm mb-3">Offline – bitte warte auf die Verbindung, bevor du weiterspielst.</p>}
       <DifficultyContext.Provider value={selected}>
         <RoundContext.Provider value={room?.roundNumber || 0}>
-        <div key={activeRound} inert={Boolean(room && connection === 'offline')} className="min-h-[420px] sm:min-h-[500px] flex items-center justify-center min-w-0">{children}</div>
+        <div key={activeRound} inert={Boolean(room && connection === 'offline')} className="game-arena-stage min-h-[420px] sm:min-h-[500px] flex items-center justify-center min-w-0">{children}</div>
         </RoundContext.Provider>
       </DifficultyContext.Provider>
     </section>

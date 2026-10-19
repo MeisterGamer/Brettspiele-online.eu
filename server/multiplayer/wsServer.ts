@@ -65,6 +65,8 @@ export function handleHttpMessage(user: DbUserRecord, message: unknown): unknown
     httpSessions.set(user.id, session);
   }
   session.lastSeen = Date.now();
+  // HTTP fallback may resume after the player changed tables via WebSocket.
+  session.connection.roomCode = [...rooms.values()].find(r=>r.participants.some(p=>p.id===user.id))?.code;
   session.connection.userProfile = publicIdentity(user);
   session.connection.ws = { send: (raw: string) => { replies.push(JSON.parse(raw)); } } as unknown as WebSocket;
   handleMessage(session.connection, { ...message });
@@ -89,7 +91,15 @@ export function touchHttpSession(userId: string) {
 }
 
 export function getRoomsList(): GameRoom[] {
-  return Array.from(rooms.values());
+  return Array.from(rooms.values()).filter(room => !room.isPrivate);
+}
+
+export function getPlayerPresence(userId: string) {
+  const connected = [...clients].some(c=>c.userId===userId && c.ws.readyState===WebSocket.OPEN)
+    || Date.now() - (httpSessions.get(userId)?.lastSeen || 0) < 45000;
+  if (!connected) return null;
+  const room = [...rooms.values()].find(r=>r.participants.some(p=>p.id===userId));
+  return {status:room?.status==='in-game' ? 'in-game' : 'online',currentGame:room?.gameTitle || null};
 }
 
 export function getRoom(code: string): GameRoom | undefined {
@@ -222,9 +232,9 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
   // Keep-alive heartbeat interval
   const pingInterval = setInterval(() => {
     for (const [userId, session] of httpSessions) {
-      if (Date.now() - session.lastSeen > 45_000) {
+      if (Date.now() - session.lastSeen > 300_000) {
         httpSessions.delete(userId);
-        if (![...clients].some(c => c.userId === userId && c.ws.readyState === WebSocket.OPEN)) handlePlayerLeave(session.connection.roomCode, userId);
+        if (![...clients].some(c => c.userId === userId && c.ws.readyState === WebSocket.OPEN) && !gameSessions.hasPlayer(session.connection.roomCode || '',userId)) handlePlayerLeave(session.connection.roomCode, userId);
       }
     }
     for (const client of clients) {
@@ -283,7 +293,8 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
           }
           if (msg.type !== 'GET_ROOMS') {
             if (!conn.token) return;
-            jwt.verify(conn.token, JWT_SECRET, { algorithms: ['HS256'] });
+            const account=await authenticate(conn.token);
+            conn.userProfile=publicIdentity(account);
           }
           handleMessage(conn, msg);
         }).catch(() => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ROOM_ERROR', error: 'Bitte erneut anmelden.' })); });
@@ -337,11 +348,11 @@ function handleMessage(client: ClientConnection, msg: any): void {
 
     case 'CREATE_ROOM': {
       const { host, config } = msg;
-      if (!config || typeof config.name !== 'string' || typeof config.gameId !== 'string') return;
+      if (!config || typeof config.name !== 'string' || typeof config.gameId !== 'string') { client.ws.send(JSON.stringify({type:'ROOM_ERROR',error:'Ungültige Raumdaten.'})); return; }
       const game = gamesCatalog.find(g => g.id === config.gameId);
-      if (!game) return;
+      if (!game) { client.ws.send(JSON.stringify({type:'ROOM_ERROR',error:'Spiel nicht gefunden.'})); return; }
       const code = msg.roomCode;
-      if (typeof code !== 'string' || !/^FAM-[A-F0-9]{12}$/.test(code) || getRoom(code)) return;
+      if (typeof code !== 'string' || !/^FAM-[A-F0-9]{12}$/.test(code) || getRoom(code)) { client.ws.send(JSON.stringify({type:'ROOM_ERROR',error:'Ungültiger oder bereits vergebener Raumcode.'})); return; }
       if (client.roomCode) handlePlayerLeave(client.roomCode, client.userId);
       const hostParticipant: RoomParticipant = {
         id: host.id,
@@ -490,8 +501,17 @@ function handleMessage(client: ClientConnection, msg: any): void {
       const room = getRoom(roomCode);
       if (room) {
         if (!gamesCatalog.some(g => g.id === gameId)) return;
+        const selectedGame = gamesCatalog.find(g=>g.id===gameId)!;
+        const capacity = ['chess','checkers','connect-four','fam-cards','battleship','memory-match','dots-boxes','tictactoe'].includes(selectedGame.engine) ? 2 : 4;
+        if (room.participants.length > capacity) {client.ws.send(JSON.stringify({type:'ROOM_ERROR',error:'Dieses Spiel hat nicht genug Plätze für alle Teilnehmer.'}));return;}
         room.gameId = gameId;
-        room.gameTitle = gameTitle;
+        room.gameTitle = selectedGame.title;
+        room.maxPlayers = capacity;
+        room.status = 'lobby';
+        room.roundNumber = 0;
+        gameSessions.reset(room.code);
+        yatzyStates.delete(room.code);
+        roomEventBuffers.delete(room.code.trim().toUpperCase());
         saveOrUpdateRoom(room);
         broadcast({ type: 'ROOMS_UPDATED', rooms: getRoomsList() });
         broadcastToRoom(room.code, { type: 'ROOM_STATE_SYNC', room });
@@ -503,6 +523,7 @@ function handleMessage(client: ClientConnection, msg: any): void {
       const { roomCode, botPreset } = msg;
       if (!botPreset || typeof botPreset.name !== 'string' || !botPreset.avatar) return;
       const room = getRoom(roomCode);
+      if(room?.status==='in-game') {client.ws.send(JSON.stringify({type:'ROOM_ERROR',error:'Mitspieler können vor der nächsten Partie geändert werden.'}));return;}
       if (room && room.participants.length < room.maxPlayers) {
         const nextSeat = room.participants.length;
         const botParticipant: RoomParticipant = {
@@ -527,6 +548,7 @@ function handleMessage(client: ClientConnection, msg: any): void {
 
     case 'REMOVE_PARTICIPANT': {
       const { roomCode, participantId } = msg;
+      if(getRoom(roomCode)?.status==='in-game') {client.ws.send(JSON.stringify({type:'ROOM_ERROR',error:'Mitspieler können vor der nächsten Partie geändert werden.'}));return;}
       handlePlayerLeave(roomCode, participantId);
       break;
     }
@@ -614,6 +636,7 @@ function handleMessage(client: ClientConnection, msg: any): void {
       });
       break;
     }
+    default: client.ws.send(JSON.stringify({type:'ROOM_ERROR',error:'Unbekannte Multiplayer-Aktion.'}));
   }
 }
 
@@ -668,7 +691,7 @@ function handleDisconnect(client: ClientConnection): void {
         if(gameSessions.hasPlayer(roomCode,userId))return;
         handlePlayerLeave(roomCode, userId);
       }
-    }, 30_000);
+    }, 300_000);
     disconnectTimer.unref();
   }
 }

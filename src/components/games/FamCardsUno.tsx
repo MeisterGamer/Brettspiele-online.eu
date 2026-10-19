@@ -383,7 +383,7 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
   const isOppTurn = myRole === 'bot' ? currentTurn === 'player' : currentTurn === 'bot';
 
   return (
-    <div className="flex flex-col items-center max-w-xl mx-auto w-full select-none text-slate-100">
+    <div className="flex flex-col items-center max-w-6xl mx-auto w-full select-none text-slate-100">
       
       {/* Online indicator */}
       {isOnlineMultiplayer && (
@@ -394,7 +394,7 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
       )}
 
       {/* Opponent Hand Area */}
-      <div className={`w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3 rounded-2xl mb-4 text-xs transition ${isOppTurn ? 'ring-2 ring-amber-400/80 bg-amber-950/20' : ''}`}>
+      <div className={`w-full mobile-game-header flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 border border-slate-800 p-3 rounded-2xl mb-4 text-xs transition ${isOppTurn ? 'ring-2 ring-amber-400/80 bg-amber-950/20' : ''}`}>
         <div className="flex items-center gap-2.5">
           {oppParticipant?.avatar ? (
             <AvatarDisplay avatar={oppParticipant.avatar} size="sm" />
@@ -548,7 +548,7 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
       </div>
 
       {/* Player Hand Cards Scroll */}
-      <div className="w-full overflow-x-auto pb-3 pt-1 flex gap-2.5 justify-start sm:justify-center px-1">
+      <div className="mobile-card-hand w-full overflow-x-auto pb-3 pt-1 flex gap-2.5 justify-start sm:justify-center px-1">
         {myHand.map((card) => {
           const playable = canPlayCard(card) && isMyTurn && !winner;
           return (
@@ -556,7 +556,7 @@ export const FamCardsUno: React.FC<FamCardsUnoProps> = ({
               key={card.id}
               onClick={() => handlePlayCard(card)}
               disabled={!playable}
-              className={`w-14 h-22 sm:w-16 sm:h-24 shrink-0 rounded-2xl border-2 flex flex-col items-center justify-between p-0 font-display transition-all relative ${
+              className={`w-18 h-28 sm:w-20 sm:h-30 shrink-0 rounded-2xl border-2 flex flex-col items-center justify-between p-0 font-display transition-all relative ${
                 getColorBg(card.color)
               } ${
                 playable

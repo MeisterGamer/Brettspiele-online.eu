@@ -1,3 +1,4 @@
+import {BoardSurface} from './BoardSurface';
 import { useAIDifficulty } from './GameArena';
 import { chooseBattleshipShot } from '../../services/gameAI';
 import { useGameTimers } from './useGameTimers';
@@ -390,7 +391,7 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
       {/* Tactical Status Banner & Commanders */}
       <div className="w-full bg-slate-900/90 border border-slate-800 p-3 sm:p-4 rounded-2xl mb-4 text-xs shadow-xl space-y-3">
         {/* Commanders Avatar Bar */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
           {/* Commander 1 */}
           <div className="flex items-center gap-2.5">
             {p1?.avatar ? (
@@ -578,7 +579,7 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
       </div>
 
       {/* DUAL RADAR MAT: Enemy Sonar & Friendly Fleet with Real Ocean Photography Background */}
-      <div className="relative rounded-3xl p-4 sm:p-6 border-4 border-slate-900 shadow-2xl w-full overflow-hidden bg-slate-950">
+      <div className="relative rounded-3xl p-1 sm:p-3 border-2 border-slate-900 shadow-2xl w-full overflow-hidden bg-slate-950">
         
         {/* Real Ocean Background Photo Texture */}
         <img
@@ -592,7 +593,7 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
         <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
           
           {/* 1. ENEMY SONAR RADAR (Player fires here) */}
-          <div className="bg-slate-950/85 backdrop-blur-md border-2 border-sky-500/50 rounded-3xl p-4 flex flex-col items-center shadow-2xl">
+          <div className="bg-slate-950/85 backdrop-blur-md border-2 border-sky-500/50 rounded-3xl p-1 sm:p-3 min-w-0 flex flex-col items-center shadow-2xl">
             <div className="flex items-center justify-between w-full mb-3 px-1">
               <div className="flex items-center gap-1.5 text-xs font-black text-sky-400 uppercase tracking-wider">
                 <Target className="w-4 h-4 text-rose-400" /> Hostile Sector Sonar
@@ -603,14 +604,14 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
             </div>
 
             {/* Column Coordinate Labels A-H */}
-            <div className="grid grid-cols-8 gap-1.5 w-full max-w-xs mb-1 px-1 text-center font-mono text-[10px] text-sky-400 font-bold">
+            <BoardSurface name="Gegnerisches Radar" minBoardWidth={400}><div className="grid grid-cols-8 gap-0.5 sm:gap-1.5 w-full max-w-none mb-1 px-1 text-center font-mono text-[10px] text-sky-400 font-bold">
               {['1', '2', '3', '4', '5', '6', '7', '8'].map((col) => (
                 <div key={col}>{col}</div>
               ))}
             </div>
 
             {/* Grid 8x8 */}
-            <div className="grid grid-cols-8 gap-1.5 bg-sky-950/80 p-2.5 rounded-2xl border border-sky-700/60 shadow-inner w-full max-w-xs">
+            <div className="grid grid-cols-8 gap-0.5 sm:gap-1.5 bg-sky-950/80 p-2.5 rounded-2xl border border-sky-700/60 shadow-inner w-full max-w-none">
               {enemyRevealed.map((row, r) =>
                 row.map((cell, c) => (
                   <button
@@ -641,7 +642,7 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
                   </button>
                 ))
               )}
-            </div>
+            </div></BoardSurface>
 
             <div className="flex items-center gap-4 mt-3 text-[11px] text-slate-300">
               <span className="flex items-center gap-1">
@@ -654,7 +655,7 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
           </div>
 
           {/* 2. FRIENDLY FLEET DEFENSE COMMAND */}
-          <div className="bg-slate-950/85 backdrop-blur-md border-2 border-emerald-500/50 rounded-3xl p-4 flex flex-col items-center shadow-2xl">
+          <div className="bg-slate-950/85 backdrop-blur-md border-2 border-emerald-500/50 rounded-3xl p-1 sm:p-3 min-w-0 flex flex-col items-center shadow-2xl">
             <div className="flex items-center justify-between w-full mb-3 px-1">
               <div className="flex items-center gap-1.5 text-xs font-black text-emerald-400 uppercase tracking-wider">
                 <Shield className="w-4 h-4" /> Friendly Fleet Command
@@ -665,14 +666,14 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
             </div>
 
             {/* Column Coordinate Labels 1-8 */}
-            <div className="grid grid-cols-8 gap-1.5 w-full max-w-xs mb-1 px-1 text-center font-mono text-[10px] text-emerald-400 font-bold">
+            <BoardSurface name="Eigene Flotte" minBoardWidth={400}><div className="grid grid-cols-8 gap-0.5 sm:gap-1.5 w-full max-w-none mb-1 px-1 text-center font-mono text-[10px] text-emerald-400 font-bold">
               {['1', '2', '3', '4', '5', '6', '7', '8'].map((col) => (
                 <div key={col}>{col}</div>
               ))}
             </div>
 
             {/* Grid 8x8 */}
-            <div className="grid grid-cols-8 gap-1.5 bg-emerald-950/70 p-2.5 rounded-2xl border border-emerald-700/60 shadow-inner w-full max-w-xs">
+            <div className="grid grid-cols-8 gap-0.5 sm:gap-1.5 bg-emerald-950/70 p-2.5 rounded-2xl border border-emerald-700/60 shadow-inner w-full max-w-none">
               {playerGrid.map((row, r) =>
                 row.map((cell, c) => {
                   const damage = playerDamage[r][c];
@@ -705,7 +706,7 @@ export const BattleshipGame: React.FC<BattleshipGameProps> = ({
                   );
                 })
               )}
-            </div>
+            </div></BoardSurface>
 
             <div className="flex items-center gap-4 mt-3 text-[11px] text-slate-300">
               <span className="flex items-center gap-1">

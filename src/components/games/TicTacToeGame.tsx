@@ -1,3 +1,4 @@
+import {BoardSurface} from './BoardSurface';
 import { useAIDifficulty } from './GameArena';
 import { chooseTicMove } from '../../services/gameAI';
 import { useGameTimers } from './useGameTimers';
@@ -237,10 +238,10 @@ export const TicTacToeGame: React.FC<TicTacToeProps> = ({
   };
 
   return (
-    <div className="flex flex-col items-center max-w-md mx-auto w-full select-none text-slate-100">
+    <div className="flex flex-col items-center max-w-6xl mx-auto w-full select-none text-slate-100">
       
       {/* Score Header with Avatars */}
-      <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3 sm:p-3.5 rounded-2xl mb-4 text-xs font-semibold shadow-xl">
+      <div className="w-full mobile-game-header flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 border border-slate-800 p-3 sm:p-3.5 rounded-2xl mb-4 text-xs font-semibold shadow-xl">
         <div className={`flex items-center gap-2 p-1 rounded-xl transition ${turn === 'X' && !winner ? 'bg-sky-950/40 ring-1 ring-sky-500/50' : ''}`}>
           {p1?.avatar ? (
             <AvatarDisplay avatar={p1.avatar} size="sm" />
@@ -339,14 +340,14 @@ export const TicTacToeGame: React.FC<TicTacToeProps> = ({
       </div>
 
       {/* Board */}
-      <div 
-        className="relative p-4 rounded-3xl border border-slate-700/80 shadow-2xl overflow-hidden"
+      <BoardSurface name="Tic Tac Toe"><div
+        className="responsive-board relative p-4 rounded-3xl border border-slate-700/80 shadow-2xl overflow-hidden"
         style={{
           backgroundImage: `url(${TABLE_BACKGROUNDS.slateZen})`,
           backgroundSize: 'cover',
         }}
       >
-        <div className="grid grid-cols-3 gap-3 w-64 h-64 sm:w-72 sm:h-72">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full aspect-square">
           {board.map((cell, idx) => {
             const isClickable = !cell && !winner && (mode !== 'bot' || turn === 'X') && (!isOnlineMultiplayer || turn === mySymbol);
 
@@ -396,7 +397,7 @@ export const TicTacToeGame: React.FC<TicTacToeProps> = ({
             );
           })}
         </div>
-      </div>
+      </div></BoardSurface>
 
       {/* Restart Button */}
       <div className="mt-4 flex items-center gap-3">

@@ -515,7 +515,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
 
       {/* --- MAIN GAMEPLAY VIEW --- */}
       {screen === 'playing' && (
-        <div className={`relative flex-1 flex flex-col items-center justify-between p-4 sm:p-6 transition-transform duration-75 ${screenShakeActive ? 'translate-x-1.5 -translate-y-1' : ''}`}>
+        <div className={`relative flex-1 flex flex-col items-center justify-between p-1 sm:p-3 transition-transform duration-75 ${screenShakeActive ? 'translate-x-1.5 -translate-y-1' : ''}`}>
           
           {/* Top HUD Card: Score, Moves/Timer, Star Bar */}
           <div className="w-full max-w-xl bg-slate-900/80 backdrop-blur border border-indigo-800/40 rounded-2xl p-4 shadow-xl mb-3 flex flex-col gap-3">
@@ -605,7 +605,7 @@ export const DiamondBlastGame: React.FC<DiamondBlastGameProps> = ({ onGameEnd })
 
           {gameMode==='levels'&&<section aria-label="Levelbeschreibung" className="w-full max-w-lg rounded-xl border border-violet-500/30 bg-slate-950/90 p-3 text-xs"><div className="flex items-center justify-between gap-2"><strong>{levelConfig.chapter}</strong><span>Level {currentLevelNum}/50</span></div><p className="text-slate-300 my-2">{levelConfig.briefing}</p><div role="progressbar" aria-label="Schwierigkeit" aria-valuemin={1} aria-valuemax={50} aria-valuenow={currentLevelNum} className="h-1.5 bg-slate-700 rounded-full"><div className="h-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 rounded-full" style={{width:`${currentLevelNum*2}%`}}/></div></section>}
           {/* 8x8 MATCH-3 BOARD & CANVAS CONTAINER */}
-          <div style={{backgroundImage:`url(${DIAMOND_ART.vault})`,backgroundSize:'100% 100%'}} className="relative flex items-center justify-center w-full max-w-[min(94vw,480px)] aspect-square p-6 sm:p-8 bg-slate-900/90 rounded-2xl sm:rounded-3xl border-2 border-indigo-700/50 shadow-[0_0_40px_rgba(30,27,75,0.7)] backdrop-blur touch-none select-none">
+          <div style={{backgroundImage:`url(${DIAMOND_ART.vault})`,backgroundSize:'100% 100%'}} className="relative flex items-center justify-center w-full max-w-[900px] aspect-square p-1 sm:p-3 bg-slate-900/90 rounded-2xl sm:rounded-3xl border-2 border-indigo-700/50 shadow-[0_0_40px_rgba(30,27,75,0.7)] backdrop-blur touch-none select-none">
             
             {/* HTML5 Particle FX Canvas Overlay */}
             <canvas

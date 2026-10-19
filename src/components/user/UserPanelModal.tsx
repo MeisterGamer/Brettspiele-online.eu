@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, MatchHistoryItem, FamilyFriend, ThemeId, SupportedLanguage } from '../../types';
 import { sound } from '../../services/sound';
+import { apiAuth } from '../../services/apiAuth';
 import { AvatarDisplay } from '../avatar/AvatarDisplay';
-import { friendsService, STARTER_FAMILY_MEMBERS } from '../../services/friendsService';
+import { friendsService } from '../../services/friendsService';
 import { FriendsListModal } from '../friends/FriendsListModal';
 import { themeService, THEME_LIST, APP_THEMES } from '../../services/themeService';
 import { getStoredLanguage, setStoredLanguage } from '../../services/i18n';
@@ -45,7 +46,7 @@ interface UserPanelModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: UserProfile;
-  onUpdateUser: (updatedUser: UserProfile) => void;
+  onUpdateUser: (updatedUser: UserProfile) => Promise<void>;
   onOpenAvatarStudio: () => void;
   onOpenLoginSwitcher: () => void;
   onLogout: () => void;
@@ -84,10 +85,14 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
   const [selectedThemeId, setSelectedThemeId] = useState<ThemeId>(() => user.themeId || themeService.getStoredTheme());
   const [selectedLang, setSelectedLang] = useState<SupportedLanguage>(() => getStoredLanguage());
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
+  const [verificationCode,setVerificationCode] = useState('');
+  const [verificationNotice,setVerificationNotice] = useState('');
+  const [verificationPending,setVerificationPending] = useState(false);
 
   useEffect(() => {
     if (isOpen && user) {
       setFriends(friendsService.getFriends(user.id));
+      void friendsService.fetchFriends(user.id).then(setFriends).catch(error=>setQuickAddError(error.message));
       setSelectedThemeId(user.themeId || themeService.getStoredTheme());
       setSelectedLang(getStoredLanguage());
       setNameInput(user.name);
@@ -109,18 +114,15 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
     sound.playReward();
     setSelectedThemeId(themeId);
     themeService.applyTheme(themeId);
-    onUpdateUser({
-      ...user,
-      themeId,
-    });
+    void onUpdateUser({...user,themeId}).catch(error=>setQuickAddError(error.message));
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     sound.playReward();
     themeService.applyTheme(selectedThemeId);
     setStoredLanguage(selectedLang);
-    onUpdateUser({
+    try { await onUpdateUser({
       ...user,
       name: nameInput.trim() || user.name,
       clanName: clanInput.trim() || user.clanName,
@@ -129,6 +131,7 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
     });
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
+    } catch(error) { setQuickAddError(error instanceof Error ? error.message : 'Profil konnte nicht gespeichert werden.'); }
   };
 
   const onlineFriendsCount = friends.filter((f) => f.status === 'online' || f.status === 'in-game').length;
@@ -270,6 +273,28 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
         </div>
 
         {/* Tab Navigation */}
+        {!user.isVerified && <form className="px-4 py-3 bg-amber-950/40 text-xs space-y-2" onSubmit={async event=>{
+          event.preventDefault();setVerificationPending(true);
+          try {
+            const result=await apiAuth.verifyEmail(verificationCode);
+            setVerificationNotice(result.message || result.error || 'Bestätigung fehlgeschlagen.');
+            if(result.success) await onUpdateUser({...user,isVerified:true});
+          }catch(error){setVerificationNotice(error instanceof Error?error.message:'Bestätigung fehlgeschlagen.');}
+          finally{setVerificationPending(false);}
+        }}>
+          <p>E-Mail-Adresse bestätigen: Gib den Code aus deiner Bestätigungs-E-Mail ein.</p>
+          <div className="flex flex-wrap gap-2">
+            <input aria-label="E-Mail-Bestätigungscode" inputMode="numeric" maxLength={6} pattern="[0-9]{6}" value={verificationCode} onChange={e=>setVerificationCode(e.target.value)} className="bg-slate-800 p-2 rounded-lg w-32" required />
+            <button disabled={verificationPending} className="p-2 rounded-lg bg-indigo-600">Bestätigen</button>
+            <button type="button" disabled={verificationPending} className="p-2 underline" onClick={async ()=>{
+              setVerificationPending(true);
+              try {const result=await apiAuth.resendVerification();setVerificationNotice(result.message || result.error || 'Versand fehlgeschlagen.');}
+              catch(error){setVerificationNotice(error instanceof Error?error.message:'Versand fehlgeschlagen.');}
+              finally{setVerificationPending(false);}
+            }}>Code erneut senden</button>
+          </div>
+          {verificationNotice && <p role="status">{verificationNotice}</p>}
+        </form>}
         <div className="flex border-b border-slate-800 bg-slate-900/60 px-6 gap-2 overflow-x-auto">
           <button
             onClick={() => { sound.playClick(); setActiveTab('overview'); }}
@@ -625,12 +650,11 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
                     <button
                       onClick={() => {
                         sound.playReward();
-                        friendsService.saveFriends(user.id, STARTER_FAMILY_MEMBERS);
-                        setFriends(STARTER_FAMILY_MEMBERS);
+                        setIsFriendsModalOpen(true);
                       }}
                       className="px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition inline-flex items-center gap-1.5"
                     >
-                      <Sparkles className="w-3 h-3" /> Muster-Familie laden
+                      <Sparkles className="w-3 h-3" /> Freunde hinzufügen
                     </button>
                   </div>
                 ) : (
@@ -694,8 +718,7 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
 
                           <button
                             onClick={() => {
-                              const updated = friendsService.toggleFavorite(user.id, friend.id);
-                              setFriends(updated);
+                              void friendsService.toggleFavorite(user.id,friend.id).then(setFriends).catch(error=>setQuickAddError(error.message));
                             }}
                             className={`p-1.5 rounded-xl border transition ${
                               friend.isFavorite
@@ -710,8 +733,7 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
                           <button
                             onClick={() => {
                               if (window.confirm(`"${friend.name}" aus Freundesliste entfernen?`)) {
-                                const updated = friendsService.removeFriend(user.id, friend.id);
-                                setFriends(updated);
+                                void friendsService.removeFriend(user.id,friend.id).then(setFriends).catch(error=>setQuickAddError(error.message));
                               }
                             }}
                             className="p-1.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 transition"
@@ -828,6 +850,7 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
           {/* TAB 4: EINSTELLUNGEN & SICHERHEIT */}
           {activeTab === 'settings' && (
             <form onSubmit={handleSaveProfile} className="space-y-4">
+              {quickAddError && <p role="alert" className="text-rose-300">{quickAddError}</p>}
               
               {savedSuccess && (
                 <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 rounded-2xl text-emerald-300 text-xs font-bold flex items-center gap-2">

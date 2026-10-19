@@ -23,7 +23,7 @@ import { sendVerificationEmail, sendPasswordResetEmail, sendTestEmail, getEmailS
 export const authRouter = Router();
 authRouter.use(rateLimit(40));
 
-import { JWT_SECRET, requireAdmin, rateLimit } from '../security.js';
+import { JWT_SECRET, requireAdmin, requireUser, rateLimit } from '../security.js';
 const JWT_EXPIRES_IN = '7d';
 
 const DEFAULT_AVATAR = {
@@ -53,7 +53,7 @@ function formatUserResponse(u: DbUserRecord) {
     if (u.avatar_json) avatar = JSON.parse(u.avatar_json);
   } catch (e) {}
   try {
-    if (u.stats_json) stats = JSON.parse(u.stats_json);
+    if (u.stats_json) stats = {...DEFAULT_STATS,...JSON.parse(u.stats_json)};
   } catch (e) {}
 
   return {
@@ -65,14 +65,17 @@ function formatUserResponse(u: DbUserRecord) {
     clanName: u.clan_name || '',
     level: u.level || 1,
     xp: u.xp || 0,
-    coins: u.coins || 500,
-    gems: u.gems || 10,
+    coins: u.coins ?? 500,
+    gems: u.gems ?? 10,
     isVip: Boolean(u.is_vip),
     isBanned: Boolean(u.is_banned),
     isVerified: Boolean(u.is_verified),
+    streakDays: (stats as any).streakDays ?? 0,
+    lastDailyClaim: (stats as any).lastDailyClaim ?? '',
     avatar,
     stats,
     matchHistory: [],
+    themeId: (stats as any).themeId,
     joinedDate: u.created_at ? new Date(u.created_at).toLocaleDateString('de-DE') : 'Heute',
   };
 }
@@ -85,10 +88,10 @@ authRouter.post('/register', async (req: Request, res: Response) => {
   try {
     const { username, email, password, familyRole, clanName } = req.body;
 
-    if (!username || typeof username !== 'string' || username.trim().length < 3 || username.length > 80) {
-      return res.status(400).json({ success: false, error: 'Der Benutzername muss mindestens 3 Zeichen lang sein.' });
+    if (!username || typeof username !== 'string' || username.trim().length < 3 || username.trim().length > 64) {
+      return res.status(400).json({ success: false, error: 'Der Benutzername muss 3 bis 64 Zeichen lang sein.' });
     }
-    if (!email || typeof email !== 'string' || !email.includes('@') || email.length > 254) {
+    if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) || email.trim().length > 191) {
       return res.status(400).json({ success: false, error: 'Bitte gib eine gültige E-Mail-Adresse ein.' });
     }
     if (!password || typeof password !== 'string' || password.length < 6 || Buffer.byteLength(password, 'utf8') > 72) {
@@ -97,6 +100,9 @@ authRouter.post('/register', async (req: Request, res: Response) => {
 
     const cleanUsername = username.trim();
     const cleanEmail = email.trim().toLowerCase();
+    if ((familyRole !== undefined && (typeof familyRole !== 'string' || familyRole.length > 32)) || (clanName !== undefined && (typeof clanName !== 'string' || clanName.length > 64))) {
+      return res.status(400).json({success:false,error:'Familienrolle oder Familienname ist ungültig bzw. zu lang.'});
+    }
 
     // Check if user already exists in MariaDB
     const existing = await findUserByEmailOrUsername(cleanUsername) || await findUserByEmailOrUsername(cleanEmail);
@@ -148,7 +154,8 @@ authRouter.post('/register', async (req: Request, res: Response) => {
     });
 
     // Send email via SMTP Server
-    await sendVerificationEmail(cleanEmail, cleanUsername, tokenStr, sixDigitCode);
+    // Account creation must not wait for an unreachable mail server.
+    void sendVerificationEmail(cleanEmail, cleanUsername, tokenStr, sixDigitCode).catch(error => console.error('[Verification delivery]',error));
 
     // Generate JWT
     const jwtToken = jwt.sign(
@@ -159,15 +166,51 @@ authRouter.post('/register', async (req: Request, res: Response) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Konto erfolgreich registriert! Bitte prüfe deine E-Mails zur Bestätigung.',
+      message: getEmailServiceStatus().configured ? 'Konto erfolgreich registriert! Die Bestätigungs-E-Mail wird versendet.' : 'Konto erfolgreich registriert! Der E-Mail-Versand ist derzeit nicht eingerichtet.',
       user: formatUserResponse(newRecord),
       token: jwtToken,
       verificationCode: process.env.NODE_ENV !== 'production' ? sixDigitCode : undefined,
     });
   } catch (error: any) {
-    console.error('[Auth Register Error]:', error);
+    if (error?.code === 'ER_DUP_ENTRY') return res.status(409).json({success:false,error:'Benutzername oder E-Mail-Adresse ist bereits registriert.'});
+    console.error('[Auth Register Error]:', error?.code || error?.message);
     return res.status(500).json({ success: false, error: 'Registrierungsfehler. Bitte versuche es später erneut.' });
   }
+});
+
+authRouter.patch('/profile', requireUser, async (req: Request,res: Response) => {
+  try {
+    const {name,clanName,familyRole,avatar,themeId} = req.body;
+    if (typeof name !== 'string' || name.trim().length<3 || name.trim().length>64 || typeof clanName !== 'string' || clanName.length>64 || typeof familyRole !== 'string' || familyRole.length>32) return res.status(400).json({success:false,error:'Ungültige Profildaten (Name: 3–64 Zeichen, Familie: maximal 64 Zeichen).'});
+    const owner = await findUserByEmailOrUsername(name.trim());
+    if (owner && owner.id!==res.locals.user.id) return res.status(409).json({success:false,error:'Dieser Benutzername ist bereits vergeben.'});
+    const updates: Partial<DbUserRecord> = {username:name.trim(),clan_name:clanName.trim(),family_role:familyRole};
+    if (avatar!==undefined) {
+      const keys=['skinTone','hairStyle','hairColor','eyes','mouth','outfit','outfitColor','accessory','flair'];
+      if (!avatar || typeof avatar!=='object' || keys.some(key=>typeof avatar[key]!=='string' || avatar[key].length>64)) return res.status(400).json({success:false,error:'Ungültiger Avatar.'});
+      updates.avatar_json=JSON.stringify(Object.fromEntries(keys.map(key=>[key,avatar[key]])));
+    }
+    if (themeId!==undefined) {
+      if(typeof themeId!=='string' || themeId.length>64) return res.status(400).json({success:false,error:'Ungültiges Design.'});
+      let stats = {}; try {stats=JSON.parse(res.locals.user.stats_json);}catch{}
+      updates.stats_json=JSON.stringify({...stats,themeId});
+    }
+    const updated = await updateUser(res.locals.user.id,updates);
+    res.json({success:true,user:formatUserResponse(updated!)});
+  } catch(error: any) {res.status(error?.code==='ER_DUP_ENTRY'?409:500).json({success:false,error:'Profil konnte nicht gespeichert werden.'});}
+});
+
+authRouter.post('/resend-verification', rateLimit(3), requireUser, async (_req,res)=> {
+  try {
+    const user = res.locals.user as DbUserRecord;
+    if(user.is_verified) return res.json({success:true,message:'Deine E-Mail ist bereits bestätigt.'});
+    if(!getEmailServiceStatus().configured) return res.status(503).json({success:false,error:'Der E-Mail-Versand ist nicht eingerichtet. Bitte den Betreiber informieren.'});
+    const token=crypto.randomBytes(32).toString('hex'),code=crypto.randomInt(100000,1000000).toString();
+    await deleteVerificationTokensForUser(user.id);
+    await createVerificationToken({id:crypto.randomUUID(),user_id:user.id,token,code,expires_at:new Date(Date.now()+86400000)});
+    const delivered=await sendVerificationEmail(user.email,user.username,token,code);
+    res.status(delivered?200:503).json({success:delivered,...(delivered?{message:'Bestätigungs-E-Mail gesendet.'}:{error:'E-Mail konnte nicht versendet werden. Bitte später erneut versuchen.'})});
+  } catch {res.status(500).json({success:false,error:'Bestätigung konnte nicht versendet werden.'});}
 });
 
 /**
@@ -262,11 +305,17 @@ authRouter.get('/me', async (req: Request, res: Response) => {
 authRouter.post('/verify-email', async (req: Request, res: Response) => {
   try {
     const { codeOrToken } = req.body;
-    if (!codeOrToken) {
+    if (typeof codeOrToken !== 'string' || !codeOrToken.trim() || codeOrToken.length > 128) {
       return res.status(400).json({ success: false, error: 'Bestätigungscode erforderlich.' });
     }
 
-    const record = await verifyTokenOrCode(String(codeOrToken));
+    // Short codes are scoped to the authenticated account, preventing collisions.
+    let userId: string | undefined;
+    if (/^\d{6}$/.test(codeOrToken.trim())) {
+      try { const claims = jwt.verify(req.headers.authorization?.replace(/^Bearer /,'') || '',JWT_SECRET) as any; userId=claims.userId; }
+      catch { return res.status(401).json({success:false,error:'Bitte anmelden, um einen sechsstelligen Code zu bestätigen, oder den Link aus der E-Mail öffnen.'}); }
+    }
+    const record = await verifyTokenOrCode(codeOrToken,userId);
     if (!record) {
       return res.status(400).json({ success: false, error: 'Ungültiger oder abgelaufener Bestätigungscode.' });
     }
@@ -278,7 +327,8 @@ authRouter.post('/verify-email', async (req: Request, res: Response) => {
     return res.json({
       success: true,
       message: 'E-Mail erfolgreich verifiziert! Dein Konto ist nun vollständig freigeschaltet.',
-      user: updated ? formatUserResponse(updated) : undefined,
+      // Verification proves mailbox ownership, but does not create a login session.
+      user: undefined,
     });
   } catch (error: any) {
     console.error('[Verify Email Error]:', error);
@@ -312,7 +362,8 @@ authRouter.post('/forgot-password', async (req: Request, res: Response) => {
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
     await createPasswordResetToken(user.id, token, expiresAt);
-    await sendPasswordResetEmail(user.email, user.username, token);
+    const delivered=await sendPasswordResetEmail(user.email, user.username, token);
+    if(!delivered) return res.status(503).json({success:false,error:'Die E-Mail konnte nicht versendet werden. Bitte später erneut versuchen oder den Betreiber informieren.'});
 
     return res.json({
       success: true,
@@ -462,13 +513,36 @@ authRouter.get('/users', async (req: Request, res: Response) => {
   }
 });
 
+authRouter.patch('/users/:id',requireAdmin,async (req,res)=> {
+  try {
+    const target=await findUserById(String(req.params.id));
+    if(!target) return res.status(404).json({success:false,error:'Benutzer nicht gefunden.'});
+    const {role,isBanned,isVip,coinsDelta}=req.body;
+    const updates: Partial<DbUserRecord>={};
+    if(role!==undefined) {
+      if(!['admin','moderator','user'].includes(role)) return res.status(400).json({success:false,error:'Ungültige Rolle.'});
+      updates.role=role;
+    }
+    for(const [key,value] of [['is_banned',isBanned],['is_vip',isVip]] as const) {
+      if(value!==undefined) {if(typeof value!=='boolean')return res.status(400).json({success:false,error:'Ungültiger Status.'}); (updates as any)[key]=value;}
+    }
+    if(target.id===res.locals.user.id && (updates.is_banned || (updates.role && updates.role!=='admin'))) return res.status(409).json({success:false,error:'Du kannst dein eigenes Administratorkonto nicht sperren oder herabstufen.'});
+    if(coinsDelta!==undefined) {
+      if(!Number.isSafeInteger(coinsDelta) || coinsDelta<1 || coinsDelta>10000) return res.status(400).json({success:false,error:'Ungültige Münzgutschrift.'});
+      updates.coins=target.coins+coinsDelta;
+    }
+    const updated=await updateUser(target.id,updates);
+    res.json({success:true,user:formatUserResponse(updated!)});
+  }catch {res.status(500).json({success:false,error:'Benutzer konnte nicht aktualisiert werden.'});}
+});
+
 /**
  * GET /api/users/lookup/:id
  * Lookup a user by ID or Username to add as a family friend
  */
-authRouter.get('/lookup/:id', async (req: Request, res: Response) => {
+authRouter.get('/lookup/:id', requireUser, async (req: Request, res: Response) => {
   try {
-    const rawId = req.params.id ? decodeURIComponent(req.params.id).trim() : '';
+    const rawId = req.params.id ? String(req.params.id).trim() : '';
     if (!rawId) {
       return res.status(400).json({ success: false, error: 'Keine Spieler-ID angegeben.' });
     }
@@ -480,7 +554,7 @@ authRouter.get('/lookup/:id', async (req: Request, res: Response) => {
       user = await findUserByEmailOrUsername(rawId);
     }
 
-    if (!user) {
+    if (!user || user.is_banned) {
       return res.status(404).json({ success: false, error: `Kein Spieler mit der ID "${rawId}" gefunden.` });
     }
 

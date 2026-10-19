@@ -956,7 +956,7 @@ export const MonopolyGame: React.FC<MonopolyGameProps> = ({
       {/* 3. MAIN GAMEPLAY AREA */}
       <div className="w-full flex flex-col lg:flex-row items-center lg:items-start justify-center gap-4">
         {/* Left / Center: Authentic 40-Spaces Board */}
-        <div className={`w-full lg:w-auto flex flex-col items-center ${mobileTab !== 'board' ? 'hidden sm:flex' : 'flex'}`}>
+        <div className={`w-full lg:flex-1 min-w-0 flex flex-col items-center ${mobileTab !== 'board' ? 'hidden sm:flex' : 'flex'}`}>
           <MonopolyBoardRenderer
             players={players}
             currentTurnPlayerId={currentPlayer.id}
@@ -971,7 +971,7 @@ export const MonopolyGame: React.FC<MonopolyGameProps> = ({
         </div>
 
         {/* Right Column: Player Controls & Management Panels */}
-        <div className="w-full lg:w-80 flex flex-col gap-3">
+        <div className="w-full lg:w-72 shrink-0 flex flex-col gap-3">
           {/* Turn Action Strip */}
           <div className="p-4 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-slate-800">

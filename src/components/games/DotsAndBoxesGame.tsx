@@ -1,3 +1,4 @@
+import {BoardSurface} from './BoardSurface';
 import { useAIDifficulty } from './GameArena';
 import { chooseBoxLine } from '../../services/gameAI';
 import { useGameTimers } from './useGameTimers';
@@ -289,10 +290,10 @@ export const DotsAndBoxesGame: React.FC<DotsAndBoxesProps> = ({
   };
 
   return (
-    <div className="flex flex-col items-center max-w-md mx-auto w-full select-none text-slate-100">
+    <div className="flex flex-col items-center max-w-6xl mx-auto w-full select-none text-slate-100">
       
       {/* Score Header with Avatars */}
-      <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3 sm:p-3.5 rounded-2xl mb-4 text-xs font-semibold shadow-xl">
+      <div className="w-full mobile-game-header flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 border border-slate-800 p-3 sm:p-3.5 rounded-2xl mb-4 text-xs font-semibold shadow-xl">
         <div className={`flex items-center gap-2 p-1 rounded-xl transition ${turn === 'p1' && !winner ? 'bg-sky-950/40 ring-1 ring-sky-500/50' : ''}`}>
           {p1?.avatar ? (
             <AvatarDisplay avatar={p1.avatar} size="sm" />
@@ -344,7 +345,7 @@ export const DotsAndBoxesGame: React.FC<DotsAndBoxesProps> = ({
       )}
 
       {/* VINTAGE ARCHITECTURAL DRAFTING BLUEPRINT WITH 3D BRASS PINS */}
-      <div className="relative rounded-3xl p-6 sm:p-7 border-4 border-slate-800 shadow-2xl flex flex-col items-center overflow-hidden bg-slate-950">
+      <BoardSurface name="Käsekästchen" ><div className="responsive-board relative rounded-3xl p-6 sm:p-7 border-4 border-slate-800 shadow-2xl flex flex-col items-center overflow-hidden bg-slate-950">
         
         {/* Real Drafting Blueprint / Leather Desk Background Photo */}
         <img
@@ -355,88 +356,15 @@ export const DotsAndBoxesGame: React.FC<DotsAndBoxesProps> = ({
         />
         <div className="absolute inset-0 bg-blue-950/20 pointer-events-none" />
 
-        <div className="relative z-10 flex flex-col items-center">
-          {Array.from({ length: GRID_SIZE }).map((_, r) => (
-            <React.Fragment key={r}>
-              {/* Horizontal Line Row */}
-              <div className="flex items-center">
-                {Array.from({ length: GRID_SIZE }).map((_, c) => (
-                  <React.Fragment key={c}>
-                    {/* 3D Solid Brass Pin Dot with Reflection */}
-                    <div
-                      className="w-4 h-4 sm:w-5 sm:h-5 rounded-full shadow-lg relative flex items-center justify-center shrink-0 z-20"
-                      style={{
-                        background: 'radial-gradient(circle at 35% 35%, #fef08a, #ca8a04 60%, #713f12 100%)',
-                        boxShadow: '0 3px 6px rgba(0,0,0,0.7), inset 0 1px 2px rgba(255,255,255,0.8)'
-                      }}
-                    >
-                      <div className="w-1.5 h-1.5 rounded-full bg-yellow-100/70" />
-                    </div>
-
-                    {/* Horizontal Line Segment */}
-                    {c < GRID_SIZE - 1 && (
-                      <button
-                        onClick={() => handleHLineClick(r, c)}
-                        disabled={Boolean(hLines[r][c] || winner || (isOnlineMultiplayer && myPlayer && turn !== myPlayer))}
-                        className={`h-2.5 w-16 sm:w-20 rounded-full transition-all cursor-pointer ${
-                          hLines[r][c]
-                            ? 'bg-gradient-to-r from-amber-300 via-white to-amber-300 shadow-md ring-1 ring-amber-400'
-                            : 'bg-slate-800 hover:bg-slate-600'
-                        }`}
-                      />
-                    )}
-                  </React.Fragment>
-                ))}
-              </div>
-
-              {/* Vertical Line & Box Row */}
-              {r < GRID_SIZE - 1 && (
-                <div className="flex items-center">
-                  {Array.from({ length: GRID_SIZE }).map((_, c) => (
-                    <React.Fragment key={c}>
-                      {/* Vertical Line Segment */}
-                      <button
-                        onClick={() => handleVLineClick(r, c)}
-                        disabled={Boolean(vLines[r][c] || winner || (isOnlineMultiplayer && myPlayer && turn !== myPlayer))}
-                        className={`w-2.5 h-16 sm:h-20 rounded-full transition-all cursor-pointer ${
-                          vLines[r][c]
-                            ? 'bg-gradient-to-b from-amber-300 via-white to-amber-300 shadow-md ring-1 ring-amber-400'
-                            : 'bg-slate-800 hover:bg-slate-600'
-                        }`}
-                      />
-
-                      {/* Box Interior with Stamped Wax Seals */}
-                      {c < GRID_SIZE - 1 && (
-                        <div
-                          className={`w-16 sm:w-20 h-16 sm:h-20 flex items-center justify-center font-display text-sm font-black transition-all rounded-xl ${
-                            boxes[r][c] === 'p1'
-                              ? 'bg-gradient-to-br from-sky-500/40 to-blue-700/50 text-sky-200 border-2 border-sky-400/60 shadow-inner'
-                              : boxes[r][c] === 'p2'
-                              ? 'bg-gradient-to-br from-amber-500/40 to-orange-700/50 text-amber-200 border-2 border-amber-400/60 shadow-inner'
-                              : 'bg-slate-900/40'
-                          }`}
-                        >
-                          {boxes[r][c] === 'p1' ? (
-                            <div className="flex flex-col items-center">
-                              <Shield className="w-5 h-5 text-sky-300 fill-sky-400/40" />
-                              <span className="text-[10px] font-mono mt-0.5 font-bold">BLAU</span>
-                            </div>
-                          ) : boxes[r][c] === 'p2' ? (
-                            <div className="flex flex-col items-center">
-                              <Crown className="w-5 h-5 text-amber-300 fill-amber-400/40" />
-                              <span className="text-[10px] font-mono mt-0.5 font-bold">GELB</span>
-                            </div>
-                          ) : null}
-                        </div>
-                      )}
-                    </React.Fragment>
-                  ))}
-                </div>
-              )}
-            </React.Fragment>
-          ))}
+        <div className="dots-board-grid relative z-10" role="group" aria-label="Käsekästchen-Spielbrett">
+          {Array.from({length:GRID_SIZE*2-1},(_,row)=>Array.from({length:GRID_SIZE*2-1},(_,col)=>{
+            if(row%2===0&&col%2===0)return <div key={row+':'+col} className="flex items-center justify-center"><span className="w-3 h-3 rounded-full bg-amber-300 shadow-lg"/></div>;
+            if(row%2===0){const r=row/2,c=(col-1)/2,owner=hLines[r][c];return <button key={row+':'+col} aria-label={'Waagerechte Linie '+(r+1)+', '+(c+1)} onClick={()=>handleHLineClick(r,c)} disabled={Boolean(owner||winner||(isOnlineMultiplayer&&myPlayer&&turn!==myPlayer))} className="dots-line flex items-center justify-center"><span className={'h-2 w-full rounded-full '+(owner?'bg-amber-300':'bg-slate-700')}/></button>;}
+            if(col%2===0){const r=(row-1)/2,c=col/2,owner=vLines[r][c];return <button key={row+':'+col} aria-label={'Senkrechte Linie '+(r+1)+', '+(c+1)} onClick={()=>handleVLineClick(r,c)} disabled={Boolean(owner||winner||(isOnlineMultiplayer&&myPlayer&&turn!==myPlayer))} className="dots-line flex items-center justify-center"><span className={'w-2 h-full rounded-full '+(owner?'bg-amber-300':'bg-slate-700')}/></button>;}
+            const owner=boxes[(row-1)/2][(col-1)/2];return <div key={row+':'+col} className={'flex items-center justify-center rounded-xl font-bold '+(owner==='p1'?'bg-sky-700/40 text-sky-200':owner==='p2'?'bg-amber-700/40 text-amber-200':'bg-slate-900/40')}>{owner==='p1'?'1':owner==='p2'?'2':''}</div>;
+          }))}
         </div>
-      </div>
+      </div></BoardSurface>
 
       <div className="mt-4">
         <button

@@ -6,7 +6,7 @@ interface Props {
   portrait?:CardPortrait;
 }
 export function AtelierCard({src,label,onClick,disabled=false,isSelected=false,isPlayable=false,size='md',className='',stackCount=0,annotation,portrait}:Props) {
-  const dimensions={sm:'w-11 h-16 sm:w-12 sm:h-18',md:'w-14 h-21 sm:w-16 sm:h-24',lg:'w-16 h-24 sm:w-20 sm:h-30'}[size];
+  const dimensions={sm:'w-12 h-18 sm:w-14 sm:h-21',md:'w-18 h-27 sm:w-20 sm:h-30',lg:'w-20 h-30 sm:w-24 sm:h-36'}[size];
   return <div role={onClick?'button':'img'} aria-label={label} aria-disabled={onClick?disabled:undefined} tabIndex={onClick&&!disabled?0:undefined}
     onClick={!disabled?onClick:undefined} onKeyDown={event=>{if(onClick&&!disabled&&(event.key==='Enter'||event.key===' ')){event.preventDefault();onClick();}}}
     className={`relative shrink-0 rounded-lg transition-transform select-none ${dimensions} ${onClick&&!disabled?'cursor-pointer hover:-translate-y-1 active:scale-95':''} ${disabled?'opacity-60':''} ${isSelected?'ring-4 ring-amber-400 -translate-y-2 z-20':isPlayable?'ring-2 ring-emerald-400':''} ${className}`}

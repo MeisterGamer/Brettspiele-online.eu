@@ -1,3 +1,4 @@
+import {BoardSurface} from '../BoardSurface';
 import React from 'react';
 import {
   CatanHex,
@@ -75,7 +76,7 @@ export const CatanBoardRenderer: React.FC<CatanBoardRendererProps> = ({
   };
 
   return (
-    <div className="relative w-full max-w-3xl mx-auto flex items-center justify-center select-none overflow-hidden rounded-3xl bg-slate-950/60 p-2 sm:p-4 shadow-2xl border border-slate-800">
+    <BoardSurface name="Catan" minBoardWidth={640} maxWidth={1280}><div className="responsive-board relative w-full max-w-3xl mx-auto flex items-center justify-center select-none overflow-hidden rounded-3xl bg-slate-950/60 p-2 sm:p-4 shadow-2xl border border-slate-800">
       <svg
         viewBox="0 0 720 640"
         className="w-full h-auto max-h-[72vh] drop-shadow-2xl"
@@ -440,6 +441,6 @@ export const CatanBoardRenderer: React.FC<CatanBoardRendererProps> = ({
             );
           })}
       </svg>
-    </div>
+    </div></BoardSurface>
   );
 };

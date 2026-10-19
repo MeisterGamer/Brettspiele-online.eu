@@ -1,3 +1,4 @@
+import {BoardSurface} from './BoardSurface';
 import { useAIDifficulty } from './GameArena';
 import { shuffle, pick } from '../../services/gameAI';
 import { useGameTimers } from './useGameTimers';
@@ -274,10 +275,10 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   };
 
   return (
-    <div className="flex flex-col items-center max-w-lg mx-auto w-full select-none text-slate-100">
+    <div className="flex flex-col items-center max-w-6xl mx-auto w-full select-none text-slate-100">
       
       {/* Header bar with Player 1, Mode switcher, and Player 2 */}
-      <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3 sm:p-3.5 rounded-2xl mb-4 text-xs shadow-xl">
+      <div className="w-full mobile-game-header flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 border border-slate-800 p-3 sm:p-3.5 rounded-2xl mb-4 text-xs shadow-xl">
         <div className={`flex items-center gap-2 p-1 rounded-xl transition ${currentTurn === 1 && !gameOver ? 'bg-indigo-950/40 ring-1 ring-indigo-500/60' : ''}`}>
           {p1?.avatar ? (
             <AvatarDisplay avatar={p1.avatar} size="sm" />
@@ -348,7 +349,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
       )}
 
       {/* 4x4 CARD GRID */}
-      <div className="relative rounded-3xl p-4 sm:p-6 border-4 border-slate-800 shadow-2xl flex flex-col items-center overflow-hidden bg-slate-950 w-full">
+      <div className="relative rounded-3xl p-1 sm:p-3 border-2 border-slate-800 shadow-2xl flex flex-col items-center overflow-hidden bg-slate-950 w-full">
         <img
           src={TABLE_BACKGROUNDS.slateZen}
           alt="Card Table Surface"
@@ -356,7 +357,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
           className="absolute inset-0 w-full h-full object-cover filter brightness-[0.25] contrast-125"
         />
 
-        <div className="relative z-10 grid grid-cols-4 gap-2.5 sm:gap-3.5 w-full aspect-square max-w-sm">
+        <BoardSurface name="Memory" ><div className="responsive-board relative z-10 grid grid-cols-4 gap-2.5 sm:gap-3.5 w-full aspect-square max-w-sm">
           {cards.map((card, idx) => (
             <button
               key={card.id}
@@ -386,7 +387,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
               )}
             </button>
           ))}
-        </div>
+        </div></BoardSurface>
       </div>
 
       <div className="mt-4">

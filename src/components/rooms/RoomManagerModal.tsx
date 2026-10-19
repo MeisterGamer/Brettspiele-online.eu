@@ -46,45 +46,33 @@ export const RoomManagerModal: React.FC<RoomManagerModalProps> = ({
   const [roomName, setRoomName] = useState<string>(`${currentUser.name}’s Game Night`);
   const [selectedGameId, setSelectedGameId] = useState<string>('fam-cards');
   const [isPrivate, setIsPrivate] = useState<boolean>(false);
-  const [enableVoice, setEnableVoice] = useState<boolean>(true);
+  const [enableVoice, setEnableVoice] = useState<boolean>(false);
+  const [pending, setPending] = useState(false);
   const [maxPlayers, setMaxPlayers] = useState<number>(4);
 
   if (!isOpen) return null;
 
-  const handleCreateSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    sound.playReward();
-    const game = availableGames.find((g) => g.id === selectedGameId) || availableGames[0];
-
-    const newRoom = multiplayerService.createRoom(currentUser, {
-      name: roomName,
-      gameId: game.id,
-      gameTitle: game.title,
-      maxPlayers,
-      isPrivate,
-      voiceChatActive: enableVoice,
-    });
-
-    onCreateRoom(newRoom);
-    onClose();
+  const handleJoin = async (code: string) => {
+    if (pending) return;
+    setPending(true); setJoinCodeError('');
+    try { const room = await multiplayerService.joinRoom(code,currentUser); onJoinRoom(room); onClose(); }
+    catch(error) { setJoinCodeError(error instanceof Error ? error.message : 'Beitritt fehlgeschlagen.'); }
+    finally { setPending(false); }
   };
-
-  const handleJoinByCode = (e: React.FormEvent) => {
-    e.preventDefault();
-    const formatted = inputCode.trim().toUpperCase();
-    const found = publicRooms.find((r) => r.code === formatted || r.code.replace('-', '') === formatted);
-    if (found) {
-      sound.playReward();
-      const updated = multiplayerService.joinRoom(found.code, currentUser) || found;
-      onJoinRoom(updated);
-      onClose();
-    } else {
-      sound.playError();
-      setJoinCodeError(`Tisch mit Code "${formatted}" nicht gefunden. Versuche FAM-101 oder FAM-777.`);
-    }
+  const handleCreateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); if (pending) return;
+    setPending(true); setJoinCodeError('');
+    try {
+      const game = availableGames.find(g=>g.id===selectedGameId) || availableGames[0];
+      if (!game) throw new Error('Kein Spiel verfügbar.');
+      const room = await multiplayerService.createRoom(currentUser,{name:roomName,gameId:game.id,gameTitle:game.title,maxPlayers,isPrivate,voiceChatActive:enableVoice});
+      onCreateRoom(room); onClose();
+    } catch(error) { setJoinCodeError(error instanceof Error ? error.message : 'Erstellen fehlgeschlagen.'); }
+    finally { setPending(false); }
   };
+  const handleJoinByCode = (e: React.FormEvent) => { e.preventDefault(); void handleJoin(inputCode); };
 
-  const filteredRooms = publicRooms.filter((r) =>
+  const filteredRooms = publicRooms.filter(r=>!r.isPrivate).filter((r) =>
     r.name.toLowerCase().includes(roomFilter.toLowerCase()) ||
     r.gameTitle.toLowerCase().includes(roomFilter.toLowerCase()) ||
     r.code.toLowerCase().includes(roomFilter.toLowerCase())
@@ -149,6 +137,8 @@ export const RoomManagerModal: React.FC<RoomManagerModalProps> = ({
 
         {/* Body content */}
         <div className="p-6 overflow-y-auto flex-1">
+          {joinCodeError && <p role="alert" className="text-rose-300 mb-3">{joinCodeError}</p>}
+          {pending && <p role="status">Tisch wird verbunden …</p>}
           
           {/* TAB 1: Browse Public Rooms */}
           {activeTab === 'browse' && (
@@ -203,15 +193,12 @@ export const RoomManagerModal: React.FC<RoomManagerModalProps> = ({
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      {room.participants.length < room.maxPlayers && (
+                      {room.participants.length < room.maxPlayers && room.participants.some(p=>p.id===currentUser.id && p.isHost) && (
                         <button
                           type="button"
                           onClick={() => {
                             sound.playClick();
-                            const updated = multiplayerService.addBotToRoom(room.id);
-                            if (updated) {
-                              onJoinRoom(updated);
-                            }
+                            void multiplayerService.addBotToRoom(room.code).then(onJoinRoom).catch(error=>setJoinCodeError(error.message));
                           }}
                           className="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 font-semibold text-xs border border-slate-700 transition flex items-center gap-1"
                           title="Fügt dem Tisch einen KI-Mitspieler hinzu"
@@ -220,12 +207,8 @@ export const RoomManagerModal: React.FC<RoomManagerModalProps> = ({
                         </button>
                       )}
                       <button
-                        onClick={() => {
-                          sound.playReward();
-                          const updated = multiplayerService.joinRoom(room.code, currentUser) || room;
-                          onJoinRoom(updated);
-                          onClose();
-                        }}
+                        onClick={() => void handleJoin(room.code)}
+                        disabled={pending}
                         className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition flex items-center justify-center gap-1.5"
                       >
                         <Play className="w-3.5 h-3.5 fill-current" /> Platz nehmen
@@ -349,7 +332,7 @@ export const RoomManagerModal: React.FC<RoomManagerModalProps> = ({
               </div>
 
               <button
-                type="submit"
+                type="submit" disabled={pending}
                 className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 text-white font-bold text-sm shadow-lg shadow-indigo-600/20 transition flex items-center justify-center gap-2"
               >
                 <Plus className="w-4 h-4" /> Create & Launch Table

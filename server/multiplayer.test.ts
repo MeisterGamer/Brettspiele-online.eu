@@ -12,7 +12,7 @@ import { gamesCatalog } from '../src/data/gamesCatalog';
 import { initialUserProfile } from '../src/data/mockData';
 const testDir=mkdtempSync(path.join(tmpdir(),'famplay-multiplayer-'));
 process.env.FAMPLAY_DATA_DIR=testDir;
-const { createUser }=await import('./db');
+const { createUser, updateUser }=await import('./db');
 const { JWT_SECRET }=await import('./security');
 const { getRoom, getRoomEventsSince, handleHttpMessage, setupWebSocketServer }=await import('./multiplayer/wsServer');
 after(() => {
@@ -125,6 +125,12 @@ test('authenticated WebSocket room commands and reconnect replay work across two
     b.off('message',record);
     assert.ok(order.indexOf('ROOM_EVENTS')>=0);
     assert.ok(order.indexOf('ROOM_EVENTS')<order.indexOf('ROOM_STATE_SYNC'));
+    await updateUser(guest.id,{is_banned:true});
+    const rejected=until(b,m=>m.type==='ROOM_ERROR');
+    const eventCount=getRoomEventsSince(code,0).length;
+    b.send(JSON.stringify({type:'ROOM_CHAT',roomCode:code,text:'Banned message'}));
+    await rejected;
+    assert.equal(getRoomEventsSince(code,0).length,eventCount,'existing sockets must also enforce account bans');
   } finally {
     handleHttpMessage(guest,{type:'LEAVE_ROOM',roomCode:code});
     handleHttpMessage(host,{type:'LEAVE_ROOM',roomCode:code});

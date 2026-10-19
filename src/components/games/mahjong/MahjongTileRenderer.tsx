@@ -88,7 +88,7 @@ export const MahjongTileRenderer: React.FC<MahjongTileRendererProps> = ({
 
       {/* Front Face Porcelain/Ivory Tile */}
       <div
-        className={`relative w-10 sm:w-12 h-14 sm:h-16 rounded-lg border flex flex-col items-center justify-between p-1 shadow-inner overflow-hidden ${
+        className={`relative w-12 h-16 rounded-lg border flex flex-col items-center justify-between p-1 shadow-inner overflow-hidden ${
           themeStyles.face
         } ${isSelected ? 'ring-2 sm:ring-4 ring-amber-400 border-amber-300 shadow-amber-400/50' : ''} ${
           isHinted ? 'ring-2 ring-emerald-400 animate-pulse border-emerald-300' : ''

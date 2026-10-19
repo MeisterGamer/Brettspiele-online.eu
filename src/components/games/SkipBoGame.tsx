@@ -818,7 +818,7 @@ export const SkipBoGame: React.FC<SkipBoGameProps> = ({
               </span>
             </div>
 
-            <div className="flex items-center justify-center gap-1.5 sm:gap-2.5 py-1 min-h-[90px] sm:min-h-[115px]">
+            <div className="mobile-card-hand flex w-full min-w-0 max-w-full overflow-x-auto items-center justify-start gap-1.5 sm:gap-2.5 py-1 min-h-[120px] sm:min-h-[130px]">
               {myPlayer.hand.map((card, idx) => (
                 <SkipBoCardRenderer
                   key={card.id}

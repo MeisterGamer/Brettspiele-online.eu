@@ -1,5 +1,12 @@
 import { UserProfile } from '../types';
 
+async function authFetch(url: string, init: RequestInit = {}) {
+  const res = await fetch(url,{...init,signal:AbortSignal.timeout(15000)});
+  if (!res.headers.get('content-type')?.includes('application/json')) throw new Error('Der Anmeldeserver ist nicht erreichbar. Bitte den FamPlay-Server starten und die API-Weiterleitung prüfen.');
+  return res;
+}
+const connectionError = (error: unknown) => error instanceof Error && error.message.includes('Anmeldeserver') ? error.message : 'Die Verbindung zum Server ist fehlgeschlagen. Bitte erneut versuchen.';
+
 const TOKEN_KEY = 'famplay_auth_jwt_token';
 const USER_KEY = 'famplay_auth_cached_user';
 
@@ -13,6 +20,28 @@ export interface AuthResponse {
 }
 
 export const apiAuth = {
+  async resendVerification(): Promise<AuthResponse> {
+    const res=await authFetch('/api/auth/resend-verification',{method:'POST',headers:{Authorization:'Bearer '+this.getToken()}});
+    return res.json();
+  },
+  async adminUsers(): Promise<UserProfile[]> {
+    const response=await authFetch('/api/auth/users',{headers:{Authorization:'Bearer '+this.getToken()}});
+    const data=await response.json();
+    if(!response.ok) throw new Error(data.error || 'Benutzer konnten nicht geladen werden.');
+    return data.users;
+  },
+  async adminUpdate(userId: string, updates: {role?:string;isVip?:boolean;isBanned?:boolean;coinsDelta?:number}): Promise<UserProfile> {
+    const response=await authFetch('/api/auth/users/'+encodeURIComponent(userId),{method:'PATCH',headers:{'Content-Type':'application/json',Authorization:'Bearer '+this.getToken()},body:JSON.stringify(updates)});
+    const data=await response.json();
+    if(!response.ok) throw new Error(data.error || 'Benutzer konnte nicht gespeichert werden.');
+    return data.user;
+  },
+  async updateProfile(user: UserProfile): Promise<UserProfile> {
+    const res = await authFetch('/api/auth/profile',{method:'PATCH',headers:{'Content-Type':'application/json',Authorization:'Bearer '+this.getToken()},body:JSON.stringify({name:user.name,clanName:user.clanName,familyRole:user.familyRole,avatar:user.avatar,themeId:user.themeId})});
+    const data = await res.json();
+    if (!res.ok || !data.user) throw new Error(data.error || 'Profil konnte nicht gespeichert werden.');
+    this.setCachedUser(data.user); return data.user;
+  },
   getToken(): string | null {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem(TOKEN_KEY);
@@ -52,7 +81,7 @@ export const apiAuth = {
 
   async login(usernameOrEmail: string, password: string): Promise<AuthResponse> {
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await authFetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ usernameOrEmail, password }),
@@ -64,7 +93,7 @@ export const apiAuth = {
       }
       return data;
     } catch (err: any) {
-      return { success: false, error: 'Verbindungsfehler zum MariaDB Server. Bitte Serververbindung prüfen.' };
+      return { success: false, error: connectionError(err) };
     }
   },
 
@@ -76,7 +105,7 @@ export const apiAuth = {
     clanName?: string;
   }): Promise<AuthResponse> {
     try {
-      const res = await fetch('/api/auth/register', {
+      const res = await authFetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params),
@@ -88,7 +117,7 @@ export const apiAuth = {
       }
       return data;
     } catch (err: any) {
-      return { success: false, error: 'Verbindungsfehler bei der Registrierung in MariaDB.' };
+      return { success: false, error: connectionError(err) };
     }
   },
 
@@ -97,7 +126,7 @@ export const apiAuth = {
     if (!token) return null;
 
     try {
-      const res = await fetch('/api/auth/me', {
+      const res = await authFetch('/api/auth/me', {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -107,9 +136,9 @@ export const apiAuth = {
           return data.user;
         }
       }
-      // If unauthorized, clear cached tokens
-      this.logout();
-      return null;
+      // A temporary server failure must not destroy a valid local session.
+      if ([401,403,404].includes(res.status)) {this.logout();return null;}
+      return this.getCachedUser();
     } catch (err) {
       // In case of temporary network error, only return if token exists
       return this.getCachedUser();
@@ -118,13 +147,13 @@ export const apiAuth = {
 
   async verifyEmail(codeOrToken: string): Promise<AuthResponse> {
     try {
-      const res = await fetch('/api/auth/verify-email', {
+      const res = await authFetch('/api/auth/verify-email', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + this.getToken() },
         body: JSON.stringify({ codeOrToken }),
       });
       const data = await res.json();
-      if (data.success && data.user) {
+      if (data.success && data.user && this.getCachedUser()?.id===data.user.id) {
         this.setCachedUser(data.user);
       }
       return data;
@@ -135,7 +164,7 @@ export const apiAuth = {
 
   async forgotPassword(email: string): Promise<{ success: boolean; message?: string; error?: string }> {
     try {
-      const res = await fetch('/api/auth/forgot-password', {
+      const res = await authFetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -148,7 +177,7 @@ export const apiAuth = {
 
   async resetPassword(token: string, newPassword: string): Promise<{ success: boolean; message?: string; error?: string }> {
     try {
-      const res = await fetch('/api/auth/reset-password', {
+      const res = await authFetch('/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, newPassword }),
@@ -161,7 +190,7 @@ export const apiAuth = {
 
   async getStatus(): Promise<any> {
     try {
-      const res = await fetch('/api/auth/status');
+      const res = await authFetch('/api/auth/status');
       if (res.ok) return await res.json();
       return null;
     } catch {
@@ -175,7 +204,7 @@ export const apiAuth = {
       localStorage.removeItem(USER_KEY);
       localStorage.removeItem('famplay_current_user_v2');
       localStorage.removeItem('famplay_current_user_v1');
-      sessionStorage.clear();
+
     }
   },
 };

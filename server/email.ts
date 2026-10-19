@@ -35,6 +35,9 @@ export function configureEmail(config: {
       host: SMTP_HOST,
       port: SMTP_PORT,
       secure: SMTP_SECURE,
+      connectionTimeout: 5000,
+      greetingTimeout: 5000,
+      socketTimeout: 10000,
       auth: SMTP_USER ? { user: SMTP_USER, pass: SMTP_PASS } : undefined,
       tls: {
         rejectUnauthorized: process.env.NODE_ENV === 'production',
@@ -101,6 +104,7 @@ if (SMTP_HOST) {
 }
 
 export async function sendVerificationEmail(toEmail: string, username: string, token: string, code: string): Promise<boolean> {
+  username = username.replace(/[&<>"']/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]!));
   const verifyLink = `${APP_URL}/?verifyToken=${encodeURIComponent(token)}`;
 
   const subject = '🎲 Bestätige deine Registrierung bei FamPlay Brettspiele';
@@ -146,13 +150,14 @@ export async function sendVerificationEmail(toEmail: string, username: string, t
         subject,
         html: htmlContent,
       });
-      console.log(`[E-Mail] ✅ Verification email sent to ${toEmail} (Code: ${code})`);
+      console.log('[E-Mail] Bestätigungs-E-Mail versendet.');
       return true;
     } catch (error: any) {
       console.error(`[E-Mail] ❌ Failed to send via SMTP:`, error?.message || error);
     }
   }
 
+  if (process.env.NODE_ENV === 'production') return false;
   // Fallback logging for local / unconfigured SMTP
   console.log(`[E-Mail Simulation] Bestätigungscode für ${toEmail} (${username}):`);
   console.log(`>> CODE: [ ${code} ] | LINK: ${verifyLink}`);
@@ -160,6 +165,7 @@ export async function sendVerificationEmail(toEmail: string, username: string, t
 }
 
 export async function sendPasswordResetEmail(toEmail: string, username: string, token: string): Promise<boolean> {
+  username = username.replace(/[&<>"']/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]!));
   const resetLink = `${APP_URL}/?resetToken=${encodeURIComponent(token)}`;
 
   const subject = '🔒 Passwort zurücksetzen für FamPlay Brettspiele';
@@ -195,6 +201,7 @@ export async function sendPasswordResetEmail(toEmail: string, username: string, 
     }
   }
 
+  if (process.env.NODE_ENV === 'production') return false;
   console.log(`[E-Mail Simulation] Password reset link for ${toEmail}: ${resetLink}`);
   return true;
 }
