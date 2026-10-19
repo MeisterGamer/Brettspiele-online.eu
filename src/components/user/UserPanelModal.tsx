@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile, MatchHistoryItem, FamilyFriend, ThemeId, SupportedLanguage } from '../../types';
 import { sound } from '../../services/sound';
 import { AvatarDisplay } from '../avatar/AvatarDisplay';
-import { friendsService, STARTER_FAMILY_MEMBERS } from '../../services/friendsService';
+import { friendsService } from '../../services/friendsService';
 import { FriendsListModal } from '../friends/FriendsListModal';
 import { themeService, THEME_LIST, APP_THEMES } from '../../services/themeService';
 import { getStoredLanguage, setStoredLanguage } from '../../services/i18n';
@@ -663,8 +663,9 @@ export const UserPanelModal: React.FC<UserPanelModalProps> = ({
                     <button
                       onClick={() => {
                         sound.playReward();
-                        friendsService.saveFriends(user.id, STARTER_FAMILY_MEMBERS);
-                        setFriends(STARTER_FAMILY_MEMBERS);
+                        const starters = friendsService.getStarterFriends();
+                        friendsService.saveFriends(user.id, starters);
+                        setFriends(starters);
                       }}
                       className="px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition inline-flex items-center gap-1.5"
                     >

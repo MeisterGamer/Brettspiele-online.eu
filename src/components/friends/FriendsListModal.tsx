@@ -56,13 +56,8 @@ export const FriendsListModal: React.FC<FriendsListModalProps> = ({
     if (isOpen && currentUser) {
       const loaded = friendsService.getFriends(currentUser.id);
       setFriends(loaded);
-      let cancelled = false;
-      const refresh = () => friendsService.fetchFriends(currentUser.id).then(items => { if (!cancelled) setFriends(items); }).catch(error => { if (!cancelled) setErrorMessage(error.message); });
-      void refresh();
-      const timer = setInterval(refresh, 15000);
       setErrorMessage(null);
       setSuccessMessage(null);
-      return () => { cancelled = true; clearInterval(timer); };
     }
   }, [isOpen, currentUser]);
 
@@ -122,21 +117,25 @@ export const FriendsListModal: React.FC<FriendsListModalProps> = ({
     }
   };
 
-  const handleRemoveFriend = async (friendId: string, friendName: string) => {
+  const handleRemoveFriend = (friendId: string, friendName: string) => {
     if (window.confirm(`Möchtest du "${friendName}" wirklich aus deiner Familien-Freundesliste entfernen?`)) {
-      try {setFriends(await friendsService.removeFriend(currentUser.id,friendId));}
-      catch(error){setErrorMessage(error instanceof Error?error.message:'Entfernen fehlgeschlagen.');}
+      const updated = friendsService.removeFriend(currentUser.id, friendId);
+      setFriends(updated);
     }
   };
 
-  const handleToggleFavorite = async (friendId: string) => {
-    try {setFriends(await friendsService.toggleFavorite(currentUser.id,friendId));}
-    catch(error){setErrorMessage(error instanceof Error?error.message:'Speichern fehlgeschlagen.');}
+  const handleToggleFavorite = (friendId: string) => {
+    const updated = friendsService.toggleFavorite(currentUser.id, friendId);
+    setFriends(updated);
   };
 
-  const handleResetToStarter = async () => {
-    try { setFriends(await friendsService.fetchFriends(currentUser.id)); setErrorMessage(null); }
-    catch(error) { setErrorMessage(error instanceof Error ? error.message : 'Laden fehlgeschlagen.'); }
+  const handleResetToStarter = () => {
+    sound.playReward();
+    const starters = friendsService.getStarterFriends();
+    friendsService.saveFriends(currentUser.id, starters);
+    setFriends(starters);
+    setSuccessMessage('Muster-Familienmitglieder (Papa, Mama, Opa, etc.) geladen!');
+    setTimeout(() => setSuccessMessage(null), 3000);
   };
 
   // Filtered list
@@ -412,7 +411,7 @@ export const FriendsListModal: React.FC<FriendsListModalProps> = ({
                     className="px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition inline-flex items-center gap-1.5"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Freundesliste aktualisieren</span>
+                    <span>Muster-Familienmitglieder laden</span>
                   </button>
                 )}
               </div>
