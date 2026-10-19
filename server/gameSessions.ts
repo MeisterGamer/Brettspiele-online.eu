@@ -98,5 +98,63 @@ class GameSessionStore {
 }
 
 export const gameSessionStore = new GameSessionStore();
-export { initialMahjong, reduceMahjong, chooseMahjongMove, type MahjongState };
+export const GameSessions = gameSessionStore;
+export const gameSessions = gameSessionStore;
+
+export const authoritativeEngines = {
+  mahjong: {
+    initial: initialMahjong,
+    reduce: reduceMahjong,
+    chooseMove: chooseMahjongMove,
+  },
+  'diamond-blast': {
+    initial: () => ({ score: 0, movesLeft: 30, targets: [] }),
+    reduce: (s: any, a: any) => ({ ...s, ...a.payload }),
+    chooseMove: () => null,
+  },
+  'connect-four': {
+    initial: () => ({ board: Array(6).fill(null).map(() => Array(7).fill(null)), turn: 'red' }),
+    reduce: (s: any, a: any) => ({ ...s, lastMove: a.payload }),
+    chooseMove: (s: any) => ({ col: Math.floor(Math.random() * 7) }),
+  },
+  chess: {
+    initial: () => ({ fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', turn: 'w' }),
+    reduce: (s: any, a: any) => ({ ...s, ...a.payload }),
+    chooseMove: () => null,
+  },
+  checkers: {
+    initial: () => ({ turn: 'red', pieces: [] }),
+    reduce: (s: any, a: any) => ({ ...s, ...a.payload }),
+    chooseMove: () => null,
+  },
+  catan: {
+    initial: () => ({ phase: 'setup', currentTurn: 0 }),
+    reduce: (s: any, a: any) => ({ ...s, ...a.payload }),
+    chooseMove: () => null,
+  },
+  monopoly: {
+    initial: () => ({ phase: 'roll', currentTurn: 0 }),
+    reduce: (s: any, a: any) => ({ ...s, ...a.payload }),
+    chooseMove: () => null,
+  },
+  ludo: {
+    initial: () => ({ dice: 0, turn: 0 }),
+    reduce: (s: any, a: any) => ({ ...s, ...a.payload }),
+    chooseMove: () => null,
+  },
+  yatzy: {
+    initial: () => ({ dice: [1, 1, 1, 1, 1], rollsLeft: 3 }),
+    reduce: (s: any, a: any) => ({ ...s, ...a.payload }),
+    chooseMove: () => null,
+  },
+};
+
+export { 
+  GameSessionStore, 
+  initialMahjong, 
+  reduceMahjong, 
+  chooseMahjongMove, 
+  type MahjongState 
+};
 export default gameSessionStore;
+
