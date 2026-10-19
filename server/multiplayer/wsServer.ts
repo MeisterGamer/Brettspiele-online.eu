@@ -469,3 +469,79 @@ function handleDisconnect(client: ClientConnection): void {
     }, 4000);
   }
 }
+
+/**
+ * Dispatches an HTTP-based multiplayer message (used by REST fallback routes)
+ */
+export function handleHttpMessage(msg: any): { success: boolean; event?: RoomEvent; error?: string; room?: GameRoom } {
+  if (!msg || typeof msg !== 'object') {
+    return { success: false, error: 'Invalid message payload' };
+  }
+
+  // Create virtual WebSocket client connection
+  const mockWs: any = {
+    readyState: WebSocket.OPEN,
+    send: (_data: string) => {},
+  };
+
+  const virtualConn: ClientConnection = {
+    ws: mockWs,
+    userId: msg.senderId || msg.userId || msg.user?.id,
+    roomCode: msg.roomCode,
+    userProfile: msg.user,
+    isAlive: true,
+  };
+
+  try {
+    handleMessage(virtualConn, msg);
+    let event: RoomEvent | undefined;
+    if (msg.roomCode) {
+      event = recordRoomEvent(msg.roomCode, msg);
+    }
+    const currentRoom = msg.roomCode ? getRoom(msg.roomCode) : undefined;
+    return { success: true, event, room: currentRoom };
+  } catch (err: any) {
+    console.error('[WS/HTTP] Error processing message:', err);
+    return { success: false, error: err?.message || 'Failed to process HTTP message' };
+  }
+}
+
+/**
+ * Refreshes an HTTP client participant session in the room
+ */
+export function touchHttpSession(roomCode: string, userId: string, userName?: string): GameRoom | undefined {
+  if (!roomCode || !userId) return undefined;
+  const room = getRoom(roomCode);
+  if (!room) return undefined;
+
+  const existing = room.participants.find((p: RoomParticipant) => p.id === userId);
+  if (!existing && userName) {
+    const newParticipant: RoomParticipant = {
+      id: userId,
+      name: userName,
+      avatar: {
+        skinTone: '#FCD34D',
+        hairStyle: 'spiky',
+        hairColor: '#1E293B',
+        eyes: 'happy',
+        mouth: 'smile',
+        outfit: 'tshirt',
+        outfitColor: '#3B82F6',
+        accessory: 'none',
+        flair: 'none',
+      },
+      isHost: room.participants.length === 0,
+      isReady: true,
+      score: 0,
+      ping: 25,
+      isBot: false,
+      seatIndex: room.participants.length,
+    };
+    room.participants.push(newParticipant);
+    room.currentPlayers = room.participants.length;
+    saveOrUpdateRoom(room);
+    broadcastToRoom(room.code, { type: 'ROOM_STATE_SYNC', room });
+  }
+
+  return room;
+}

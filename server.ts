@@ -6,7 +6,6 @@ import { initDatabase } from './server/db.js';
 import { authRouter } from './server/routes/auth.js';
 import { setupRouter } from './server/routes/setup.js';
 import { multiplayerRouter } from './server/routes/multiplayer.js';
-import { socialRouter } from './server/routes/social.js';
 
 import fs from 'fs';
 
@@ -17,10 +16,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-
 const app = express();
-app.disable('x-powered-by');
-app.set('trust proxy', process.env.TRUST_PROXY || 'loopback');
 
 // 1. Check command line argument --port (e.g. tsx server.ts --port 5555)
 let argPort: number | null = null;
@@ -46,7 +42,7 @@ app.use((_req, res, next) => {
     'Content-Security-Policy',
     [
       "default-src 'self'",
-      process.env.NODE_ENV === 'production' ? "script-src 'self' 'unsafe-inline'" : "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",
       "worker-src 'self' blob:",
       "child-src 'self' blob:",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
@@ -56,8 +52,6 @@ app.use((_req, res, next) => {
       "media-src 'self' blob: data:",
       "object-src 'none'",
       "base-uri 'self'",
-      "frame-ancestors 'self'",
-      "form-action 'self'",
     ].join('; ')
   );
 
@@ -73,29 +67,66 @@ app.use((_req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '128kb' }));
-app.use(express.urlencoded({ extended: true, limit: '128kb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Healthcheck endpoint
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-import { setupWebSocketServer } from './server/multiplayer/wsServer.js';
+import { 
+  setupWebSocketServer, 
+  getRoomsList, 
+  getRoomEventsSince, 
+  handleExternalGameAction 
+} from './server/multiplayer/wsServer.js';
 
 // Authentication and user management routes
 app.use('/api/auth', authRouter);
 app.use('/api/users', authRouter);
 // Web-Setup Wizard routes
 app.use('/api/setup', setupRouter);
-app.use('/api/social', socialRouter);
+// Multiplayer REST & fallback routes
+app.use('/api/multiplayer', multiplayerRouter);
 
-app.use('/api',multiplayerRouter);
+// Public rooms API for multiplayer synchronization
+app.get('/api/rooms', (_req, res) => {
+  res.json({ rooms: getRoomsList() });
+});
 
-app.use('/api', (_req, res) => { res.status(404).json({ error: 'API-Endpunkt nicht gefunden.' }); });
-app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  const status = err.status === 413 ? 413 : err.type === 'entity.parse.failed' ? 400 : 500;
-  res.status(status).json({ error: status === 500 ? 'Interner Serverfehler.' : 'Ungültige Anfrage.' });
+// Multiplayer HTTP Fallback & Diagnostic APIs
+app.get('/api/multiplayer/status', (_req, res) => {
+  res.json({
+    status: 'ok',
+    wsSupported: true,
+    wsPath: '/ws',
+    nginxSnippet: 'location /ws { proxy_pass http://127.0.0.1:5555; proxy_http_version 1.1; proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade"; proxy_set_header Host $host; }',
+  });
+});
+
+app.post('/api/multiplayer/action', (req, res) => {
+  const roomCode = req.body.roomCode;
+  const action = req.body.action || req.body.type;
+  const gameType = req.body.gameType || 'general';
+  const payload = req.body.payload !== undefined ? req.body.payload : req.body;
+  const senderId = req.body.senderId || 'anonymous';
+
+  if (!roomCode || !action) {
+    return res.status(400).json({ error: 'Missing roomCode or action' });
+  }
+  const event = handleExternalGameAction(roomCode, gameType, action, payload, senderId);
+  res.json({ success: true, event });
+});
+
+app.get('/api/multiplayer/events', (req, res) => {
+  const roomCode = String(req.query.roomCode || '');
+  const since = parseInt(String(req.query.since || '0'), 10);
+  if (!roomCode) {
+    return res.status(400).json({ error: 'Missing roomCode' });
+  }
+  const events = getRoomEventsSince(roomCode, isNaN(since) ? 0 : since);
+  res.json({ events });
 });
 
 // Initialize MariaDB
