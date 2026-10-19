@@ -1,26 +1,22 @@
-import {BoardSurface} from './BoardSurface';
-import { useAIDifficulty } from './GameArena';
-import { shuffle, pick } from '../../services/gameAI';
-import { useGameTimers } from './useGameTimers';
 import React, { useState, useEffect, useRef } from 'react';
 import { sound } from '../../services/sound';
 import confetti from '../../services/confetti';
-import { RefreshCw, Trophy, Brain, Sparkles, Users, Bot, Wifi } from 'lucide-react';
+import { RefreshCw, Trophy, Brain, Sparkles, Users, Bot, Star, Clock, Flame, Palette, Layers, Award } from 'lucide-react';
 import { RoomParticipant } from '../../types';
 import { AvatarDisplay } from '../avatar/AvatarDisplay';
-import { TABLE_BACKGROUNDS, svgToDataUri } from '../../services/gameImages';
-import { multiplayerService } from '../../services/multiplayerService';
+import { svgToDataUri } from '../../services/gameImages';
 
-interface AnimalCard {
+interface MemoryCard {
   id: number;
-  animalId: string;
+  itemKey: string;
   name: string;
   photoUrl: string;
   isFlipped: boolean;
   isMatched: boolean;
 }
 
-const makeAnimalSvg = (emoji: string, bg: string, label: string) => svgToDataUri(`
+const makeSvgCard = (emoji: string, bg: string, label: string) =>
+  svgToDataUri(`
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
     <rect width="100%" height="100%" rx="32" fill="${bg}"/>
     <circle cx="100" cy="85" r="55" fill="#ffffff" opacity="0.2"/>
@@ -29,16 +25,105 @@ const makeAnimalSvg = (emoji: string, bg: string, label: string) => svgToDataUri
   </svg>
 `);
 
-const ANIMALS = [
-  { id: 'dog', name: 'Golden Puppy', photoUrl: makeAnimalSvg('🐶', '#f59e0b', 'Welpe') },
-  { id: 'cat', name: 'Ginger Cat', photoUrl: makeAnimalSvg('🐱', '#fb923c', 'Kätzchen') },
-  { id: 'panda', name: 'Giant Panda', photoUrl: makeAnimalSvg('🐼', '#334155', 'Panda') },
-  { id: 'lion', name: 'Lion Cub', photoUrl: makeAnimalSvg('🦁', '#eab308', 'Löwe') },
-  { id: 'fox', name: 'Red Fox', photoUrl: makeAnimalSvg('🦊', '#ea580c', 'Fuchs') },
-  { id: 'penguin', name: 'Baby Penguin', photoUrl: makeAnimalSvg('🐧', '#0284c7', 'Pinguin') },
-  { id: 'rabbit', name: 'Fluffy Bunny', photoUrl: makeAnimalSvg('🐰', '#ec4899', 'Häschen') },
-  { id: 'koala', name: 'Koala Bear', photoUrl: makeAnimalSvg('🐨', '#64748b', 'Koala') },
-];
+// 18 distinct items per theme (enables up to 36-card boards)
+const THEMES: Record<string, { name: string; icon: string; items: { id: string; name: string; emoji: string; bg: string }[] }> = {
+  animals: {
+    name: 'Tiere',
+    icon: '🐾',
+    items: [
+      { id: 'dog', name: 'Welpe', emoji: '🐶', bg: '#f59e0b' },
+      { id: 'cat', name: 'Kätzchen', emoji: '🐱', bg: '#fb923c' },
+      { id: 'panda', name: 'Panda', emoji: '🐼', bg: '#334155' },
+      { id: 'lion', name: 'Löwe', emoji: '🦁', bg: '#eab308' },
+      { id: 'fox', name: 'Fuchs', emoji: '🦊', bg: '#ea580c' },
+      { id: 'penguin', name: 'Pinguin', emoji: '🐧', bg: '#0284c7' },
+      { id: 'rabbit', name: 'Häschen', emoji: '🐰', bg: '#ec4899' },
+      { id: 'koala', name: 'Koala', emoji: '🐨', bg: '#64748b' },
+      { id: 'owl', name: 'Eule', emoji: '🦉', bg: '#78350f' },
+      { id: 'wolf', name: 'Wolf', emoji: '🐺', bg: '#475569' },
+      { id: 'frog', name: 'Frosch', emoji: '🐸', bg: '#16a34a' },
+      { id: 'tiger', name: 'Tiger', emoji: '🐯', bg: '#d97706' },
+      { id: 'bear', name: 'Bär', emoji: '🐻', bg: '#92400e' },
+      { id: 'dolphin', name: 'Delfin', emoji: '🐬', bg: '#06b6d4' },
+      { id: 'unicorn', name: 'Einhorn', emoji: '🦄', bg: '#a855f7' },
+      { id: 'elephant', name: 'Elefant', emoji: '🐘', bg: '#64748b' },
+      { id: 'monkey', name: 'Affe', emoji: '🐵', bg: '#b45309' },
+      { id: 'giraffe', name: 'Giraffe', emoji: '🦒', bg: '#ca8a04' },
+    ],
+  },
+  sweets: {
+    name: 'Früchte & Sweets',
+    icon: '🍓',
+    items: [
+      { id: 'strawberry', name: 'Erdbeere', emoji: '🍓', bg: '#e11d48' },
+      { id: 'banana', name: 'Banane', emoji: '🍌', bg: '#eab308' },
+      { id: 'cherry', name: 'Kirschen', emoji: '🍒', bg: '#be123c' },
+      { id: 'apple', name: 'Apfel', emoji: '🍎', bg: '#dc2626' },
+      { id: 'grape', name: 'Traube', emoji: '🍇', bg: '#7e22ce' },
+      { id: 'watermelon', name: 'Melone', emoji: '🍉', bg: '#15803d' },
+      { id: 'donut', name: 'Donut', emoji: '🍩', bg: '#d97706' },
+      { id: 'icecream', name: 'Eiscreme', emoji: '🍦', bg: '#ec4899' },
+      { id: 'cake', name: 'Torte', emoji: '🎂', bg: '#f43f5e' },
+      { id: 'candy', name: 'Bonbon', emoji: '🍬', bg: '#8b5cf6' },
+      { id: 'chocolate', name: 'Schoko', emoji: '🍫', bg: '#78350f' },
+      { id: 'cookie', name: 'Keks', emoji: '🍪', bg: '#b45309' },
+      { id: 'pizza', name: 'Pizza', emoji: '🍕', bg: '#ea580c' },
+      { id: 'burger', name: 'Burger', emoji: '🍔', bg: '#ca8a04' },
+      { id: 'popcorn', name: 'Popcorn', emoji: '🍿', bg: '#eab308' },
+      { id: 'lollipop', name: 'Lutscher', emoji: '🍭', bg: '#06b6d4' },
+      { id: 'croissant', name: 'Croissant', emoji: '🥐', bg: '#d97706' },
+      { id: 'pretzel', name: 'Brezel', emoji: '🥨', bg: '#92400e' },
+    ],
+  },
+  space: {
+    name: 'Weltall',
+    icon: '🚀',
+    items: [
+      { id: 'rocket', name: 'Rakete', emoji: '🚀', bg: '#dc2626' },
+      { id: 'earth', name: 'Erde', emoji: '🌍', bg: '#2563eb' },
+      { id: 'saturn', name: 'Saturn', emoji: '🪐', bg: '#d97706' },
+      { id: 'moon', name: 'Mond', emoji: '🌙', bg: '#eab308' },
+      { id: 'sun', name: 'Sonne', emoji: '☀️', bg: '#f59e0b' },
+      { id: 'star', name: 'Stern', emoji: '⭐', bg: '#fbbf24' },
+      { id: 'astronaut', name: 'Astronaut', emoji: '👨‍🚀', bg: '#475569' },
+      { id: 'satellite', name: 'Satellit', emoji: '🛰️', bg: '#64748b' },
+      { id: 'meteor', name: 'Meteorit', emoji: '☄️', bg: '#ea580c' },
+      { id: 'ufo', name: 'UFO', emoji: '🛸', bg: '#10b981' },
+      { id: 'telescope', name: 'Teleskop', emoji: '🔭', bg: '#6366f1' },
+      { id: 'galaxy', name: 'Galaxie', emoji: '🌌', bg: '#8b5cf6' },
+      { id: 'crystal', name: 'Kristall', emoji: '💎', bg: '#06b6d4' },
+      { id: 'alien', name: 'Alien', emoji: '👽', bg: '#22c55e' },
+      { id: 'robot', name: 'Roboter', emoji: '🤖', bg: '#3b82f6' },
+      { id: 'radar', name: 'Radar', emoji: '📡', bg: '#64748b' },
+      { id: 'fire', name: 'Schweif', emoji: '🔥', bg: '#f97316' },
+      { id: 'laser', name: 'Laser', emoji: '⚡', bg: '#eab308' },
+    ],
+  },
+  gaming: {
+    name: 'Gaming & Fantasy',
+    icon: '🎮',
+    items: [
+      { id: 'controller', name: 'Gamepad', emoji: '🎮', bg: '#6366f1' },
+      { id: 'diamond', name: 'Diamant', emoji: '💎', bg: '#06b6d4' },
+      { id: 'sword', name: 'Schwert', emoji: '⚔️', bg: '#dc2626' },
+      { id: 'shield', name: 'Schild', emoji: '🛡️', bg: '#3b82f6' },
+      { id: 'potion', name: 'Heiltrank', emoji: '🧪', bg: '#10b981' },
+      { id: 'coin', name: 'Goldmünze', emoji: '🪙', bg: '#eab308' },
+      { id: 'heart', name: 'Leben', emoji: '❤️', bg: '#ef4444' },
+      { id: 'trophy', name: 'Pokal', emoji: '🏆', bg: '#f59e0b' },
+      { id: 'crown', name: 'Krone', emoji: '👑', bg: '#eab308' },
+      { id: 'key', name: 'Schlüssel', emoji: '🔑', bg: '#f97316' },
+      { id: 'chest', name: 'Truhe', emoji: '📦', bg: '#854d0e' },
+      { id: 'magic', name: 'Zauberstab', emoji: '🪄', bg: '#8b5cf6' },
+      { id: 'gem', name: 'Rubin', emoji: '🔮', bg: '#a855f7' },
+      { id: 'dice', name: 'Glückswürfel', emoji: '🎲', bg: '#ec4899' },
+      { id: 'skull', name: 'Boss', emoji: '💀', bg: '#334155' },
+      { id: 'bomb', name: 'Bombe', emoji: '💣', bg: '#1e293b' },
+      { id: 'scroll', name: 'Schriftrolle', emoji: '📜', bg: '#b45309' },
+      { id: 'ring', name: 'Ring der Macht', emoji: '💍', bg: '#0284c7' },
+    ],
+  },
+};
 
 interface MemoryMatchGameProps {
   onGameEnd?: (movesOrWinner: any) => void;
@@ -54,87 +139,64 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
   tableParticipants,
   currentUserId,
   onActiveTurnChange,
-  roomCode,
-  isHost,
 }) => {
-  const { schedule, cancelAll } = useGameTimers();
-  const difficulty = useAIDifficulty();
-  const remembered = useRef(new Map<number, string>());
   const p1 = tableParticipants?.[0];
   const p2 = tableParticipants?.[1];
   const p1Name = p1?.name || 'Spieler 1';
   const p2Name = p2?.name || (p2?.isBot ? 'Gedächtnis-KI' : 'Spieler 2');
   const isP2Bot = p2 ? !!p2.isBot : true;
 
-  const isOnlineMultiplayer = Boolean(roomCode && p1 && p2 && !p2.isBot);
-  const myPlayerNumber: 1 | 2 | null = isOnlineMultiplayer
-    ? currentUserId === p1?.id
-      ? 1
-      : currentUserId === p2?.id
-      ? 2
-      : null
-    : null;
+  // Settings
+  const [themeKey, setThemeKey] = useState<string>('animals');
+  const [totalCardsCount, setTotalCardsCount] = useState<number>(16); // 12, 16, 24, 36
+  const [mode, setMode] = useState<'solo' | 'duel'>('solo');
 
-  const [cards, setCards] = useState<AnimalCard[]>([]);
+  // Game state
+  const [cards, setCards] = useState<MemoryCard[]>([]);
   const [flippedIndices, setFlippedIndices] = useState<number[]>([]);
   const [moves, setMoves] = useState<number>(0);
   const [matchedPairs, setMatchedPairs] = useState<number>(0);
   const [isLocked, setIsLocked] = useState<boolean>(false);
   const [gameOver, setGameOver] = useState<boolean>(false);
-  const [mode, setMode] = useState<'solo' | 'duel'>(() => isOnlineMultiplayer ? 'duel' : (isP2Bot ? 'solo' : 'duel'));
   const [currentTurn, setCurrentTurn] = useState<1 | 2>(1);
   const [scores, setScores] = useState({ p1: 0, p2: 0 });
 
-  const cardsRef = useRef(cards);
-  const flippedRef = useRef<number[]>([]);
-  const lockedRef = useRef(false);
-  const turnRef = useRef(currentTurn);
-  const scoreRef = useRef(scores);
-  cardsRef.current = cards;
-  turnRef.current = currentTurn;
-  scoreRef.current = scores;
+  // Combo & Timer
+  const [combo, setCombo] = useState<number>(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
+  const [isTimerActive, setIsTimerActive] = useState<boolean>(true);
+  const [earnedStars, setEarnedStars] = useState<number>(3);
 
-  const isMyTurn = isOnlineMultiplayer
-    ? myPlayerNumber === currentTurn
-    : true;
+  const totalPairs = totalCardsCount / 2;
 
-  useEffect(() => {
-    if (onActiveTurnChange && mode === 'duel') {
-      const activeId = currentTurn === 1 ? (p1?.id || 'p1') : (p2?.id || 'p2');
-      onActiveTurnChange(activeId);
-    }
-  }, [currentTurn, p1?.id, p2?.id, mode, onActiveTurnChange]);
+  // Deck generator
+  const createDeck = (theme: string, count: number) => {
+    const themeDef = THEMES[theme] || THEMES.animals;
+    const requiredPairs = count / 2;
+    const chosenItems = themeDef.items.slice(0, requiredPairs);
 
-  const generateDeck = (customOrder?: number[]) => {
-    const rawPairs = [...ANIMALS, ...ANIMALS];
-    let ordered = rawPairs;
-    if (customOrder && customOrder.length === 16 && customOrder.every(i => Number.isInteger(i) && i >= 0 && i < ANIMALS.length)) {
-      ordered = customOrder.map((idx) => ANIMALS[idx]);
-    } else {
-      ordered = shuffle(rawPairs);
-    }
-
-    return ordered.map((item, index) => ({
-      id: index,
-      animalId: item.id,
+    const paired = [...chosenItems, ...chosenItems].map((item, idx) => ({
+      id: idx,
+      itemKey: item.id,
       name: item.name,
-      photoUrl: item.photoUrl,
+      photoUrl: makeSvgCard(item.emoji, item.bg, item.name),
       isFlipped: false,
       isMatched: false,
     }));
+
+    // Fisher-Yates shuffle
+    for (let i = paired.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [paired[i], paired[j]] = [paired[j], paired[i]];
+    }
+
+    return paired;
   };
 
-  const initGame = (customDeck?: AnimalCard[]) => {
-    cancelAll();
-    remembered.current.clear();
+  // Initialize or reset game
+  const initGame = (t = themeKey, cnt = totalCardsCount) => {
     sound.playCardDeal();
-    const deck = customDeck || generateDeck();
-    cardsRef.current = deck;
-    flippedRef.current = [];
-    lockedRef.current = false;
-    turnRef.current = 1;
-    scoreRef.current = { p1:0,p2:0 };
-    setCards(deck);
+    setCards(createDeck(t, cnt));
     setFlippedIndices([]);
     setMoves(0);
     setMatchedPairs(0);
@@ -142,262 +204,443 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     setGameOver(false);
     setCurrentTurn(1);
     setScores({ p1: 0, p2: 0 });
-
-    if (isOnlineMultiplayer && isHost && roomCode && !customDeck) {
-      const order = deck.map((c) => ANIMALS.findIndex((a) => a.id === c.animalId));
-      multiplayerService.sendGameAction(roomCode, 'memory', 'SYNC_DECK', {
-        deckOrder: order,
-      }, currentUserId || 'p1');
-    }
+    setCombo(0);
+    setElapsedSeconds(0);
+    setIsTimerActive(true);
+    setEarnedStars(3);
   };
 
   useEffect(() => {
-    initGame();
-  }, []);
+    initGame(themeKey, totalCardsCount);
+  }, [themeKey, totalCardsCount]);
 
-  // WebSocket Multiplayer Synchronization
+  // Timer interval
   useEffect(() => {
-    if (!roomCode) return;
+    if (!isTimerActive || gameOver) return;
+    const timer = setInterval(() => {
+      setElapsedSeconds((s) => s + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isTimerActive, gameOver]);
 
-    const unsubscribe = multiplayerService.subscribeToGameActions((event) => {
-      if (event.gameType !== 'memory' || event.roomCode !== roomCode) return;
-      if (event.senderId === currentUserId) return;
+  // Sync turn in duel
+  useEffect(() => {
+    if (onActiveTurnChange && mode === 'duel') {
+      const activeId = currentTurn === 1 ? (p1?.id || 'p1') : (p2?.id || 'p2');
+      onActiveTurnChange(activeId);
+    }
+  }, [currentTurn, p1?.id, p2?.id, mode, onActiveTurnChange]);
 
-      if (event.action === 'SYNC_DECK') {
-        const { deckOrder } = event.payload;
-        const syncedDeck = generateDeck(deckOrder);
-        initGame(syncedDeck);
-      } else if (event.action === 'FLIP_CARD') {
-        const { index } = event.payload;
-        applyCardFlip(index);
-      } else if (event.action === 'RESET') {
-        cancelAll();
-        initGame();
-      }
-    });
+  // Handle card click
+  const handleCardClick = (idx: number) => {
+    if (isLocked || cards[idx].isFlipped || cards[idx].isMatched || gameOver) return;
+    if (mode === 'duel' && currentTurn === 2 && isP2Bot) return; // AI is playing
 
-    return () => unsubscribe();
-  }, [roomCode, currentUserId, isHost]);
+    flipCard(idx);
+  };
 
-  const applyCardFlip = (index: number) => {
-    const current = cardsRef.current;
-    if (lockedRef.current || !Number.isInteger(index) || !current[index] || current[index].isFlipped || current[index].isMatched) return;
-    remembered.current.set(index, current[index].animalId);
-    const limit = difficulty === 'easy' ? 2 : difficulty === 'normal' ? 6 : 16;
-    while (remembered.current.size > limit) remembered.current.delete(remembered.current.keys().next().value!);
+  const flipCard = (idx: number) => {
     sound.playClick();
-    const next = current.map((card,i)=>i===index ? {...card,isFlipped:true} : card);
-    cardsRef.current = next;
-    setCards(next);
-    const flipped = [...flippedRef.current,index];
-    flippedRef.current = flipped;
-    setFlippedIndices(flipped);
-    if (flipped.length !== 2) return;
-    lockedRef.current = true;
-    setIsLocked(true);
-    setMoves(m=>m+1);
-    const [first,second] = flipped;
-    const matched = next[first].animalId === next[second].animalId;
-    const actor = turnRef.current;
-    schedule(() => {
-      const updated = cardsRef.current.map((card,i)=>i===first||i===second ? {...card,isMatched:matched,isFlipped:matched} : card);
-      cardsRef.current = updated;
-      setCards(updated);
-      flippedRef.current = [];
-      lockedRef.current = false;
-      setFlippedIndices([]);
-      setIsLocked(false);
-      if (matched) {
-        sound.playReward();
-        const nextScores = {...scoreRef.current,[actor===1?'p1':'p2']:scoreRef.current[actor===1?'p1':'p2']+1};
-        scoreRef.current = nextScores;
-        setScores(nextScores);
-        const pairs = updated.filter(card=>card.isMatched).length/2;
-        setMatchedPairs(pairs);
-        if (pairs === ANIMALS.length) {
-          setGameOver(true);
-          sound.playVictory();
-          onGameEnd?.(mode === 'solo' ? 'player' : nextScores.p1 === nextScores.p2 ? 'draw' : nextScores.p1>nextScores.p2 ? p1Name : p2Name);
-        }
-      } else if (mode === 'duel') {
-        const nextTurn = actor===1 ? 2 : 1;
-        turnRef.current = nextTurn;
-        setCurrentTurn(nextTurn);
-      }
-    }, matched ? 400 : 900);
-  };
+    const newCards = [...cards];
+    newCards[idx].isFlipped = true;
+    setCards(newCards);
 
-  const handleCardClick = (index: number) => {
-    if (mode === 'duel' && isP2Bot && !isOnlineMultiplayer && currentTurn === 2) return;
-    if (isLocked || cards[index].isFlipped || cards[index].isMatched) return;
-    if (isOnlineMultiplayer && !isMyTurn) {
-      sound.playError();
-      return;
-    }
+    const nextFlipped = [...flippedIndices, idx];
+    setFlippedIndices(nextFlipped);
 
-    if (roomCode) {
-      multiplayerService.sendGameAction(roomCode, 'memory', 'FLIP_CARD', {
-        index,
-      }, currentUserId || 'p1');
-    }
+    if (nextFlipped.length === 2) {
+      setIsLocked(true);
+      setMoves((m) => m + 1);
 
-    applyCardFlip(index);
-  };
+      const [firstIdx, secondIdx] = nextFlipped;
+      const firstCard = newCards[firstIdx];
+      const secondCard = newCards[secondIdx];
 
-  // Bot Turn Automation in Duel mode against Bot
-  useEffect(() => {
-    if (mode !== 'duel' || currentTurn !== 2 || isOnlineMultiplayer || !isP2Bot || gameOver || isLocked) return;
+      if (firstCard.itemKey === secondCard.itemKey) {
+        // MATCH!
+        setTimeout(() => {
+          sound.playPieceDrop();
+          setCards((prev) =>
+            prev.map((c, i) =>
+              i === firstIdx || i === secondIdx ? { ...c, isMatched: true } : c
+            )
+          );
+          setFlippedIndices([]);
+          setIsLocked(false);
+          const newMatched = matchedPairs + 1;
+          setMatchedPairs(newMatched);
 
-    const timer = schedule(() => {
-      const available = cards.map((c,i) => !c.isFlipped && !c.isMatched ? i : -1).filter(i => i >= 0);
-      if (!available.length || flippedIndices.length >= 2) return;
-      const first = flippedIndices[0];
-      let chosen: number | undefined;
-      if (first !== undefined) {
-        chosen = available.find(i => remembered.current.get(i) === remembered.current.get(first));
+          const newCombo = combo + 1;
+          setCombo(newCombo);
+          if (newCombo >= 2) {
+            sound.playReward();
+          }
+
+          if (mode === 'duel') {
+            setScores((s) => ({
+              ...s,
+              [currentTurn === 1 ? 'p1' : 'p2']: s[currentTurn === 1 ? 'p1' : 'p2'] + 1,
+            }));
+            // Same player gets another turn upon matching in duel!
+          }
+
+          if (newMatched === totalPairs) {
+            handleVictory();
+          }
+        }, 500);
       } else {
-        chosen = available.find(i => remembered.current.has(i) && available.some(j => j !== i && remembered.current.get(j) === remembered.current.get(i)));
+        // MISMATCH
+        setCombo(0);
+        setTimeout(() => {
+          sound.playCardDeal();
+          setCards((prev) =>
+            prev.map((c, i) =>
+              i === firstIdx || i === secondIdx ? { ...c, isFlipped: false } : c
+            )
+          );
+          setFlippedIndices([]);
+          setIsLocked(false);
+
+          if (mode === 'duel') {
+            setCurrentTurn((t) => (t === 1 ? 2 : 1));
+          }
+        }, 1100);
       }
-      const unknown = available.filter(i => !remembered.current.has(i));
-      applyCardFlip(chosen ?? pick(unknown.length ? unknown : available)!);
-    }, 650);
-    return () => clearTimeout(timer);
-  }, [mode, currentTurn, isP2Bot, isOnlineMultiplayer, gameOver, isLocked, cards, flippedIndices, difficulty]);
-
-  const resetGame = () => {
-    cancelAll();
-    sound.playClick();
-    initGame();
-
-    if (roomCode) {
-      multiplayerService.sendGameAction(roomCode, 'memory', 'RESET', {}, currentUserId || 'p1');
     }
   };
+
+  // AI turn logic
+  useEffect(() => {
+    if (mode !== 'duel' || currentTurn !== 2 || !isP2Bot || gameOver || isLocked) return;
+
+    const availableIndices = cards
+      .map((c, i) => (!c.isFlipped && !c.isMatched ? i : -1))
+      .filter((i) => i !== -1);
+
+    if (availableIndices.length === 0) return;
+
+    const timeout = setTimeout(() => {
+      // Pick first card
+      const first = availableIndices[Math.floor(Math.random() * availableIndices.length)];
+      flipCard(first);
+
+      // Pick second card
+      setTimeout(() => {
+        const remaining = cards
+          .map((c, i) => (i !== first && !c.isFlipped && !c.isMatched ? i : -1))
+          .filter((i) => i !== -1);
+        if (remaining.length > 0) {
+          const second = remaining[Math.floor(Math.random() * remaining.length)];
+          flipCard(second);
+        }
+      }, 700);
+    }, 900);
+
+    return () => clearTimeout(timeout);
+  }, [currentTurn, mode, isP2Bot, isLocked, gameOver]);
+
+  // Victory
+  const handleVictory = () => {
+    setGameOver(true);
+    setIsTimerActive(false);
+    sound.playVictory();
+    try {
+      confetti({ particleCount: 160, spread: 80 });
+    } catch (e) {}
+
+    // Calculate stars
+    const perfectMoves = totalPairs;
+    const movesTaken = moves + 1;
+    let stars = 1;
+    if (movesTaken <= Math.round(perfectMoves * 1.4)) stars = 3;
+    else if (movesTaken <= Math.round(perfectMoves * 1.9)) stars = 2;
+    setEarnedStars(stars);
+
+    if (onGameEnd) {
+      if (mode === 'duel') {
+        const winner = scores.p1 >= scores.p2 ? p1Name : p2Name;
+        onGameEnd(winner);
+      } else {
+        onGameEnd(movesTaken);
+      }
+    }
+  };
+
+  const formatTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  // Grid columns class based on count
+  const gridClass =
+    totalCardsCount === 12
+      ? 'grid-cols-4 max-w-lg'
+      : totalCardsCount === 16
+      ? 'grid-cols-4 max-w-xl'
+      : totalCardsCount === 24
+      ? 'grid-cols-6 max-w-3xl'
+      : 'grid-cols-6 max-w-4xl';
 
   return (
-    <div className="flex flex-col items-center max-w-6xl mx-auto w-full select-none text-slate-100">
-      
-      {/* Header bar with Player 1, Mode switcher, and Player 2 */}
-      <div className="w-full mobile-game-header flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 border border-slate-800 p-3 sm:p-3.5 rounded-2xl mb-4 text-xs shadow-xl">
-        <div className={`flex items-center gap-2 p-1 rounded-xl transition ${currentTurn === 1 && !gameOver ? 'bg-indigo-950/40 ring-1 ring-indigo-500/60' : ''}`}>
-          {p1?.avatar ? (
-            <AvatarDisplay avatar={p1.avatar} size="sm" />
-          ) : (
-            <div className="w-6 h-6 rounded-full bg-indigo-500/30 border border-indigo-400 flex items-center justify-center font-bold text-xs text-indigo-300">
-              1
+    <div className="flex flex-col items-center max-w-4xl mx-auto w-full select-none text-slate-100">
+      {/* Header Bar: Themes, Card Count Selector, Mode */}
+      <div className="w-full bg-slate-900/90 border border-slate-800 p-3 sm:p-4 rounded-2xl mb-3 shadow-xl backdrop-blur-md space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-2.5">
+          {/* Title */}
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-xl shadow">
+              🧠
             </div>
-          )}
-          <div>
-            <div className="font-bold text-slate-200">{p1Name}</div>
-            <div className="text-[11px] text-amber-400 font-mono font-bold">
-              {mode === 'duel' ? `${scores.p1} Paare` : `${moves} Züge`}
+            <div>
+              <h3 className="font-black text-sm sm:text-base text-white flex items-center gap-2">
+                <span>Tier- & Bild-Memory</span>
+                <span className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full font-mono border border-purple-500/30">
+                  {totalCardsCount} Karten ({totalPairs} Paare)
+                </span>
+              </h3>
+              <p className="text-[11px] text-slate-400">Merke dir die Positionen und decke identische Paare auf</p>
             </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setMode(mode === 'solo' ? 'duel' : 'solo')}
+              className="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs border border-slate-700 flex items-center gap-1.5 transition"
+            >
+              {mode === 'duel' ? <Users className="w-3.5 h-3.5 text-amber-400" /> : <Brain className="w-3.5 h-3.5 text-cyan-400" />}
+              <span>{mode === 'duel' ? 'Tisch-Duell' : 'Solo-Training'}</span>
+            </button>
+            <button
+              onClick={() => initGame()}
+              className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition"
+              title="Neu mischen & starten"
+            >
+              <RefreshCw className="w-4 h-4 text-emerald-400" />
+            </button>
           </div>
         </div>
 
-        {/* Online Indicator / Mode Switch */}
-        {isOnlineMultiplayer ? (
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-black">
-            <Wifi className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-            <span>ONLINE DUEL</span>
+        {/* Sub-bar: Theme Selector & Board Size Pills */}
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+          {/* Themes */}
+          <div className="flex items-center gap-1 bg-slate-950/60 p-1 rounded-xl border border-slate-800">
+            <span className="text-[10px] uppercase font-bold text-slate-400 px-1.5 flex items-center gap-1">
+              <Palette className="w-3 h-3 text-amber-400" />
+              Motiv:
+            </span>
+            {Object.entries(THEMES).map(([k, t]) => (
+              <button
+                key={k}
+                onClick={() => setThemeKey(k)}
+                className={`px-2 py-0.5 rounded-lg font-bold text-[11px] transition ${
+                  themeKey === k ? 'bg-purple-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {t.icon} {t.name}
+              </button>
+            ))}
           </div>
-        ) : (
-          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
-            <button
-              onClick={() => { setMode('duel'); initGame(); }}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
-                mode === 'duel' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" /> 2P Duell
-            </button>
-            <button
-              onClick={() => { setMode('solo'); initGame(); }}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
-                mode === 'solo' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400'
-              }`}
-            >
-              <Brain className="w-3.5 h-3.5" /> Solo
-            </button>
-          </div>
-        )}
 
-        <div className={`flex items-center gap-2 p-1 rounded-xl transition ${currentTurn === 2 && !gameOver ? 'bg-rose-950/40 ring-1 ring-rose-500/60' : ''}`}>
-          <div className="text-right">
-            <div className="font-bold text-slate-200">{p2Name}</div>
-            <div className="text-[11px] text-rose-400 font-mono font-bold">{scores.p2} Paare</div>
+          {/* Board Size (12, 16, 24, 36) */}
+          <div className="flex items-center gap-1 bg-slate-950/60 p-1 rounded-xl border border-slate-800">
+            <span className="text-[10px] uppercase font-bold text-slate-400 px-1.5 flex items-center gap-1">
+              <Layers className="w-3 h-3 text-cyan-400" />
+              Größe:
+            </span>
+            {[
+              { cnt: 12, label: '12 (Leicht)' },
+              { cnt: 16, label: '16 (Klassik)' },
+              { cnt: 24, label: '24 (Meister)' },
+              { cnt: 36, label: '36 (Profi)' },
+            ].map(({ cnt, label }) => (
+              <button
+                key={cnt}
+                onClick={() => setTotalCardsCount(cnt)}
+                className={`px-2 py-0.5 rounded-lg font-bold text-[11px] transition ${
+                  totalCardsCount === cnt ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-          {p2?.avatar ? (
-            <AvatarDisplay avatar={p2.avatar} size="sm" />
-          ) : (
-            <div className="w-6 h-6 rounded-full bg-rose-500/30 border border-rose-400 flex items-center justify-center font-bold text-xs text-rose-300">
-              2
-            </div>
-          )}
+        </div>
+
+        {/* Live HUD: Moves, Pairs Found, Time, Combo */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-center">
+          <div className="bg-slate-950/50 p-2 rounded-xl border border-slate-800">
+            <span className="text-[10px] uppercase font-bold text-slate-400 block">Züge</span>
+            <span className="font-mono text-base font-black text-white">{moves}</span>
+          </div>
+
+          <div className="bg-slate-950/50 p-2 rounded-xl border border-slate-800">
+            <span className="text-[10px] uppercase font-bold text-slate-400 block">Paare gefunden</span>
+            <span className="font-mono text-base font-black text-amber-400">
+              {matchedPairs} / {totalPairs}
+            </span>
+          </div>
+
+          <div className="bg-slate-950/50 p-2 rounded-xl border border-slate-800">
+            <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center justify-center gap-1">
+              <Clock className="w-3 h-3" />
+              Zeit
+            </span>
+            <span className="font-mono text-base font-black text-sky-400">{formatTime(elapsedSeconds)}</span>
+          </div>
+
+          <div className="bg-slate-950/50 p-2 rounded-xl border border-slate-800">
+            <span className="text-[10px] uppercase font-bold text-slate-400 block">
+              {mode === 'duel' ? 'Punkte-Duell' : 'Combo'}
+            </span>
+            {mode === 'duel' ? (
+              <span className="font-mono text-xs font-black text-emerald-400">
+                {p1Name.split(' ')[0]}: {scores.p1} | {p2Name.split(' ')[0]}: {scores.p2}
+              </span>
+            ) : (
+              <span className={`font-mono text-base font-black flex items-center justify-center gap-1 ${combo > 1 ? 'text-orange-400 animate-pulse' : 'text-slate-500'}`}>
+                {combo > 1 && <Flame className="w-3.5 h-3.5 fill-current" />}
+                x{Math.max(1, combo)}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
-      {gameOver && (
-        <div className="mb-4 text-sm font-bold text-amber-300 flex items-center gap-2 animate-bounce bg-amber-500/10 px-4 py-2 rounded-2xl border border-amber-400/30">
-          <Trophy className="w-4 h-4 text-amber-400" />
-          <span>
-            {mode === 'duel'
-              ? `${scores.p1 > scores.p2 ? p1Name : scores.p2 > scores.p1 ? p2Name : 'Unentschieden'} hat gewonnen!`
-              : `Glückwunsch! In ${moves} Zügen alle Paare gefunden!`}
-          </span>
+      {/* Duel Player Turn Notification */}
+      {mode === 'duel' && (
+        <div className="w-full bg-slate-900/60 border border-slate-800 p-2 rounded-xl mb-3 flex items-center justify-between text-xs px-4">
+          <span className="text-slate-400">Aktiver Zug:</span>
+          <div className="flex items-center gap-2 font-bold">
+            <span className={currentTurn === 1 ? 'text-amber-400 font-extrabold' : 'text-slate-500'}>
+              {p1Name} ({scores.p1} Paare)
+            </span>
+            <span className="text-slate-600">vs</span>
+            <span className={currentTurn === 2 ? 'text-indigo-400 font-extrabold flex items-center gap-1' : 'text-slate-500 flex items-center gap-1'}>
+              {isP2Bot && <Bot className="w-3 h-3" />}
+              {p2Name} ({scores.p2} Paare)
+            </span>
+          </div>
         </div>
       )}
 
-      {/* 4x4 CARD GRID */}
-      <div className="relative rounded-3xl p-1 sm:p-3 border-2 border-slate-800 shadow-2xl flex flex-col items-center overflow-hidden bg-slate-950 w-full">
-        <img
-          src={TABLE_BACKGROUNDS.slateZen}
-          alt="Card Table Surface"
-          referrerPolicy="no-referrer"
-          className="absolute inset-0 w-full h-full object-cover filter brightness-[0.25] contrast-125"
-        />
+      {/* 3D Interactive Card Grid */}
+      <div className="w-full rounded-3xl bg-slate-950/80 border border-slate-800 p-4 sm:p-6 shadow-2xl flex items-center justify-center min-h-[420px]">
+        <div className={`grid ${gridClass} gap-3 sm:gap-4 w-full mx-auto`}>
+          {cards.map((card, idx) => {
+            const isFlipped = card.isFlipped || card.isMatched;
 
-        <BoardSurface name="Memory" ><div className="responsive-board relative z-10 grid grid-cols-4 gap-2.5 sm:gap-3.5 w-full aspect-square max-w-sm">
-          {cards.map((card, idx) => (
-            <button
-              key={card.id}
-              onClick={() => handleCardClick(idx)}
-              disabled={isLocked || card.isFlipped || card.isMatched || (isOnlineMultiplayer && !isMyTurn)}
-              className={`relative rounded-2xl transition-all duration-300 transform preserve-3d overflow-hidden ${
-                card.isFlipped || card.isMatched
-                  ? 'rotate-y-180 ring-2 ring-amber-400/80 shadow-lg'
-                  : 'bg-gradient-to-br from-indigo-700 via-indigo-800 to-slate-900 border border-indigo-500/40 hover:-translate-y-1 shadow-md hover:shadow-indigo-500/30 cursor-pointer'
-              }`}
-            >
-              {card.isFlipped || card.isMatched ? (
-                <div className="w-full h-full p-1 bg-slate-900 flex items-center justify-center">
-                  <img
-                    src={card.photoUrl}
-                    alt={card.name}
-                    className="w-full h-full object-cover rounded-xl"
+            return (
+              <div
+                key={card.id}
+                onClick={() => handleCardClick(idx)}
+                className={`aspect-square rounded-2xl cursor-pointer transition-all duration-300 transform perspective-1000 ${
+                  card.isMatched
+                    ? 'opacity-80 scale-95 shadow-none'
+                    : 'hover:scale-[1.03] active:scale-95 shadow-lg hover:shadow-purple-500/20'
+                }`}
+              >
+                <div
+                  className={`relative w-full h-full rounded-2xl border-2 transition-transform duration-300 flex items-center justify-center ${
+                    isFlipped
+                      ? 'border-purple-400/80 bg-slate-900'
+                      : 'border-slate-700 bg-gradient-to-br from-indigo-900 via-slate-900 to-purple-950 hover:border-purple-500'
+                  }`}
+                >
+                  {isFlipped ? (
+                    <img
+                      src={card.photoUrl}
+                      alt={card.name}
+                      className="w-full h-full object-cover rounded-2xl select-none"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-slate-500 group-hover:text-purple-300 transition-colors">
+                      <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-slate-800/80 border border-slate-700 flex items-center justify-center font-black text-base text-purple-400">
+                        ?
+                      </div>
+                    </div>
+                  )}
+
+                  {card.isMatched && (
+                    <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-xs font-black shadow border border-white">
+                      ✓
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Victory Celebration Modal */}
+      {gameOver && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="bg-gradient-to-b from-slate-900 to-slate-950 border-2 border-purple-400 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center relative overflow-hidden">
+            <div className="w-20 h-20 mx-auto rounded-3xl bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-4xl mb-3 shadow-inner">
+              🏆
+            </div>
+
+            <h2 className="text-2xl font-black text-purple-300 mb-1">
+              {mode === 'duel'
+                ? scores.p1 > scores.p2
+                  ? `${p1Name} gewinnt!`
+                  : scores.p2 > scores.p1
+                  ? `${p2Name} gewinnt!`
+                  : 'Unentschieden!'
+                : 'Fantastisch gelöst!'}
+            </h2>
+
+            {mode === 'solo' && (
+              <div className="flex justify-center gap-1 my-3">
+                {[1, 2, 3].map((starIdx) => (
+                  <Star
+                    key={starIdx}
+                    className={`w-7 h-7 ${
+                      starIdx <= earnedStars
+                        ? 'text-amber-400 fill-amber-400 scale-110 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]'
+                        : 'text-slate-700'
+                    }`}
                   />
-                </div>
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center p-2">
-                  <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center mb-1">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                  </div>
-                  <span className="text-[10px] font-black text-indigo-200/80 tracking-wider">FAM</span>
-                </div>
-              )}
-            </button>
-          ))}
-        </div></BoardSurface>
-      </div>
+                ))}
+              </div>
+            )}
 
-      <div className="mt-4">
-        <button
-          onClick={resetGame}
-          className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition flex items-center gap-1.5 border border-slate-700 shadow"
-        >
-          <RefreshCw className="w-3.5 h-3.5" /> Neu mischen
-        </button>
-      </div>
+            <p className="text-xs text-slate-300 mb-5">
+              {mode === 'duel'
+                ? `Endstand: ${p1Name} ${scores.p1} : ${scores.p2} ${p2Name}`
+                : `Du hast alle ${totalPairs} Paare in ${moves} Zügen und ${formatTime(elapsedSeconds)} aufgedeckt!`}
+            </p>
+
+            <div className="bg-slate-950/80 rounded-2xl p-4 border border-slate-800 mb-6 text-xs grid grid-cols-2 gap-3 text-left">
+              <div>
+                <span className="text-slate-400">Benötigte Züge:</span>{' '}
+                <span className="font-bold text-amber-300 font-mono text-sm">{moves}</span>
+              </div>
+              <div>
+                <span className="text-slate-400">Benötigte Zeit:</span>{' '}
+                <span className="font-bold text-white font-mono text-sm">{formatTime(elapsedSeconds)}</span>
+              </div>
+              <div>
+                <span className="text-slate-400">Gewähltes Motiv:</span>{' '}
+                <span className="font-bold text-white capitalize">{THEMES[themeKey].name}</span>
+              </div>
+              <div>
+                <span className="text-slate-400">Kartengröße:</span>{' '}
+                <span className="font-bold text-white">{totalCardsCount} Karten</span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => initGame()}
+              className="w-full py-3 rounded-2xl bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-black text-sm shadow-xl transition active:scale-95"
+            >
+              Neue Runde spielen
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

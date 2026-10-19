@@ -1,11 +1,7 @@
-import {BoardSurface} from './BoardSurface';
-import { useAIDifficulty } from './GameArena';
-import { chooseTicMove } from '../../services/gameAI';
-import { useGameTimers } from './useGameTimers';
 import React, { useState, useEffect } from 'react';
 import { sound } from '../../services/sound';
 import confetti from '../../services/confetti';
-import { RefreshCw, Trophy, Bot, Users, Sparkles, Wifi } from 'lucide-react';
+import { RefreshCw, Trophy, Bot, Users, Sparkles, Wifi, Undo2, Palette, Grid } from 'lucide-react';
 import { TABLE_BACKGROUNDS } from '../../services/gameImages';
 import { multiplayerService } from '../../services/multiplayerService';
 import { RoomParticipant } from '../../types';
@@ -27,34 +23,34 @@ export const TicTacToeGame: React.FC<TicTacToeProps> = ({
   onActiveTurnChange,
   roomCode,
 }) => {
-  const { schedule, cancelAll } = useGameTimers();
-  const difficulty = useAIDifficulty();
   const p1 = tableParticipants?.[0];
   const p2 = tableParticipants?.[1];
-  const p1Name = p1?.name || 'X (Du)';
-  const p2Name = p2?.name || (p2?.isBot ? 'KI-Gegner' : 'O (Spieler 2)');
+  const p1Name = p1?.name || 'Spieler 1 (X)';
+  const p2Name = p2?.name || (p2?.isBot ? 'KI-Meister' : 'Spieler 2 (O)');
   const isP2Bot = p2 ? !!p2.isBot : true;
 
-  // Real online multiplayer mode detection
   const isOnlineMultiplayer = Boolean(roomCode && p1 && p2 && !p2.isBot);
-
-  // My symbol: Host / P1 is X, P2 is O. In local mode, user controls both or X vs Bot
   const mySymbol: 'X' | 'O' | null = isOnlineMultiplayer
     ? currentUserId === p1?.id
       ? 'X'
       : currentUserId === p2?.id
       ? 'O'
-      : null // spectator
+      : null
     : null;
 
-  const [board, setBoard] = useState<(string | null)[]>(Array(9).fill(null));
+  // Board Size: 3 (3x3 standard, 3 in a row) or 5 (5x5, 4 in a row to win)
+  const [boardSize, setBoardSize] = useState<3 | 5>(3);
+  const [board, setBoard] = useState<(string | null)[]>(() => Array(9).fill(null));
   const [turn, setTurn] = useState<'X' | 'O'>('X');
   const [winner, setWinner] = useState<string | null>(null);
+  const [winningLine, setWinningLine] = useState<number[]>([]);
   const [mode, setMode] = useState<'bot' | 'local2p' | 'online'>(() => 
     isOnlineMultiplayer ? 'online' : (isP2Bot ? 'bot' : 'local2p')
   );
-  const [theme, setTheme] = useState<'pebbles' | 'wood'>('pebbles');
+  const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'master'>('medium');
+  const [theme, setTheme] = useState<'classic' | 'gems' | 'pebbles'>('classic');
   const [scores, setScores] = useState({ x: 0, o: 0, draw: 0 });
+  const [moveHistory, setMoveHistory] = useState<number[]>([]);
 
   useEffect(() => {
     if (isOnlineMultiplayer) {
@@ -71,45 +67,83 @@ export const TicTacToeGame: React.FC<TicTacToeProps> = ({
     }
   }, [turn, p1?.id, p2?.id, onActiveTurnChange]);
 
-  const winningCombos = [
+  // Win combinations for 3x3 (3 in a row)
+  const WINNING_COMBOS_3X3 = [
     [0, 1, 2], [3, 4, 5], [6, 7, 8],
     [0, 3, 6], [1, 4, 7], [2, 5, 8],
-    [0, 4, 8], [2, 4, 6]
+    [0, 4, 8], [2, 4, 6],
   ];
 
-  const checkWin = (grid: (string | null)[]) => {
-    for (const [a, b, c] of winningCombos) {
-      if (grid[a] && grid[a] === grid[b] && grid[a] === grid[c]) {
-        return grid[a];
+  // Win combinations for 5x5 (4 in a row)
+  const generate5x5Combos = () => {
+    const combos: number[][] = [];
+    const N = 5;
+    const K = 4; // 4 in a row
+
+    // Horizontal
+    for (let r = 0; r < N; r++) {
+      for (let c = 0; c <= N - K; c++) {
+        combos.push([r * N + c, r * N + c + 1, r * N + c + 2, r * N + c + 3]);
       }
     }
-    if (grid.every((c) => c !== null)) return 'draw';
+    // Vertical
+    for (let c = 0; c < N; c++) {
+      for (let r = 0; r <= N - K; r++) {
+        combos.push([r * N + c, (r + 1) * N + c, (r + 2) * N + c, (r + 3) * N + c]);
+      }
+    }
+    // Diagonal Down-Right
+    for (let r = 0; r <= N - K; r++) {
+      for (let c = 0; c <= N - K; c++) {
+        combos.push([r * N + c, (r + 1) * N + c + 1, (r + 2) * N + c + 2, (r + 3) * N + c + 3]);
+      }
+    }
+    // Diagonal Down-Left
+    for (let r = 0; r <= N - K; r++) {
+      for (let c = K - 1; c < N; c++) {
+        combos.push([r * N + c, (r + 1) * N + c - 1, (r + 2) * N + c - 2, (r + 3) * N + c - 3]);
+      }
+    }
+    return combos;
+  };
+
+  const currentCombos = boardSize === 3 ? WINNING_COMBOS_3X3 : generate5x5Combos();
+
+  const checkWin = (grid: (string | null)[]) => {
+    for (const combo of currentCombos) {
+      const first = grid[combo[0]];
+      if (first && combo.every((idx) => grid[idx] === first)) {
+        return { winner: first, line: combo };
+      }
+    }
+    if (grid.every((c) => c !== null)) return { winner: 'draw', line: [] };
     return null;
   };
 
-  // Real-time WebSocket game actions listener
+  // WebSocket Multiplayer listener
   useEffect(() => {
     if (!roomCode) return;
 
     const unsubscribe = multiplayerService.subscribeToGameActions((event) => {
       if (event.gameType !== 'tictactoe' || event.roomCode !== roomCode) return;
-      if (event.senderId === currentUserId) return; // ignore our own action
+      if (event.senderId === currentUserId) return;
 
       if (event.action === 'MOVE') {
         const { idx, turnPlayer } = event.payload;
         setBoard((prev) => {
-          if (!Number.isInteger(idx) || idx < 0 || idx > 8 || prev[idx] || checkWin(prev)) return prev;
-          const expected = prev.filter(v => v === 'X').length === prev.filter(v => v === 'O').length ? 'X' : 'O';
-          if (turnPlayer !== expected || event.senderId !== (expected === 'X' ? p1?.id : p2?.id)) return prev;
+          if (prev[idx]) return prev;
           const next = [...prev];
           next[idx] = turnPlayer;
+
+          setMoveHistory((h) => [...h, idx]);
 
           const res = checkWin(next);
           sound.playPieceDrop();
 
           if (res) {
-            setWinner(res);
-            if (res === 'draw') {
+            setWinner(res.winner);
+            setWinningLine(res.line);
+            if (res.winner === 'draw') {
               sound.playReward();
               setScores((s) => ({ ...s, draw: s.draw + 1 }));
             } else {
@@ -117,32 +151,27 @@ export const TicTacToeGame: React.FC<TicTacToeProps> = ({
               try { confetti({ particleCount: 70, spread: 60 }); } catch (e) {}
               setScores((s) => ({
                 ...s,
-                [res === 'X' ? 'x' : 'o']: s[res === 'X' ? 'x' : 'o'] + 1,
+                [res.winner === 'X' ? 'x' : 'o']: s[res.winner === 'X' ? 'x' : 'o'] + 1,
               }));
             }
-            if (onGameEnd) onGameEnd(res);
+            if (onGameEnd) onGameEnd(res.winner);
           } else {
             setTurn(turnPlayer === 'X' ? 'O' : 'X');
           }
           return next;
         });
       } else if (event.action === 'RESET') {
-        cancelAll();
         sound.playClick();
-        setBoard(Array(9).fill(null));
-        setTurn('X');
-        setWinner(null);
+        resetBoardState(boardSize);
       }
     });
 
     return () => unsubscribe();
-  }, [roomCode, currentUserId, onGameEnd]);
+  }, [roomCode, currentUserId, onGameEnd, boardSize]);
 
   const handleCellClick = (idx: number) => {
-    if (board[idx] || winner || (mode === 'bot' && turn === 'O')) return;
-    if (isOnlineMultiplayer && !mySymbol) return;
+    if (board[idx] || winner) return;
 
-    // In online mode, verify it's our turn
     if (isOnlineMultiplayer && mySymbol && turn !== mySymbol) {
       sound.playError();
       return;
@@ -153,8 +182,8 @@ export const TicTacToeGame: React.FC<TicTacToeProps> = ({
     const currentSymbol = isOnlineMultiplayer && mySymbol ? mySymbol : turn;
     newBoard[idx] = currentSymbol;
     setBoard(newBoard);
+    setMoveHistory((h) => [...h, idx]);
 
-    // Broadcast move to remote players
     if (roomCode) {
       multiplayerService.sendGameAction(roomCode, 'tictactoe', 'MOVE', {
         idx,
@@ -164,21 +193,20 @@ export const TicTacToeGame: React.FC<TicTacToeProps> = ({
 
     const result = checkWin(newBoard);
     if (result) {
-      setWinner(result);
-      if (result === 'draw') {
+      setWinner(result.winner);
+      setWinningLine(result.line);
+      if (result.winner === 'draw') {
         sound.playReward();
         setScores((s) => ({ ...s, draw: s.draw + 1 }));
       } else {
         sound.playVictory();
-        try {
-          confetti({ particleCount: 70, spread: 60 });
-        } catch (e) {}
+        try { confetti({ particleCount: 90, spread: 70 }); } catch (e) {}
         setScores((s) => ({
           ...s,
-          [result === 'X' ? 'x' : 'o']: s[result === 'X' ? 'x' : 'o'] + 1,
+          [result.winner === 'X' ? 'x' : 'o']: s[result.winner === 'X' ? 'x' : 'o'] + 1,
         }));
       }
-      if (onGameEnd) onGameEnd(result);
+      if (onGameEnd) onGameEnd(result.winner);
       return;
     }
 
@@ -187,9 +215,9 @@ export const TicTacToeGame: React.FC<TicTacToeProps> = ({
 
     // AI Move in Bot Mode
     if (mode === 'bot' && nextTurn === 'O') {
-      schedule(() => {
+      setTimeout(() => {
         executeBotMove(newBoard);
-      }, 500);
+      }, 450);
     }
   };
 
@@ -200,215 +228,335 @@ export const TicTacToeGame: React.FC<TicTacToeProps> = ({
 
     if (emptyIndices.length === 0) return;
 
-    const chosen = chooseTicMove(currentBoard, difficulty);
-    if (chosen === null) return;
+    let chosen = emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
 
+    // Easy mode: occasional random mistake
+    if (difficulty === 'easy' && Math.random() < 0.45) {
+      // Pick random
+    } else {
+      // 1. Check if bot can win now
+      for (const idx of emptyIndices) {
+        const test = [...currentBoard];
+        test[idx] = 'O';
+        if (checkWin(test)?.winner === 'O') {
+          chosen = idx;
+          applyBotChoice(chosen, currentBoard);
+          return;
+        }
+      }
+
+      // 2. Block X from winning
+      for (const idx of emptyIndices) {
+        const test = [...currentBoard];
+        test[idx] = 'X';
+        if (checkWin(test)?.winner === 'X') {
+          chosen = idx;
+          applyBotChoice(chosen, currentBoard);
+          return;
+        }
+      }
+
+      // 3. Center square priority
+      const centerIdx = boardSize === 3 ? 4 : 12;
+      if (emptyIndices.includes(centerIdx)) {
+        chosen = centerIdx;
+      }
+    }
+
+    applyBotChoice(chosen, currentBoard);
+  };
+
+  const applyBotChoice = (chosen: number, currentBoard: (string | null)[]) => {
     sound.playPieceDrop();
     const newBoard = [...currentBoard];
     newBoard[chosen] = 'O';
     setBoard(newBoard);
+    setMoveHistory((h) => [...h, chosen]);
 
     const result = checkWin(newBoard);
     if (result) {
-      setWinner(result);
-      if (result === 'draw') {
+      setWinner(result.winner);
+      setWinningLine(result.line);
+      if (result.winner === 'draw') {
         sound.playReward();
         setScores((s) => ({ ...s, draw: s.draw + 1 }));
       } else {
         sound.playError();
         setScores((s) => ({ ...s, o: s.o + 1 }));
       }
-      if (onGameEnd) onGameEnd(result);
+      if (onGameEnd) onGameEnd(result.winner);
       return;
     }
 
     setTurn('X');
   };
 
-  const resetGame = () => {
-    cancelAll();
+  // Undo move
+  const handleUndo = () => {
+    if (moveHistory.length === 0 || winner) return;
+
     sound.playClick();
-    setBoard(Array(9).fill(null));
+    const historyCopy = [...moveHistory];
+    const steps = mode === 'bot' && historyCopy.length >= 2 ? 2 : 1;
+
+    for (let i = 0; i < steps; i++) {
+      const idx = historyCopy.pop();
+      if (idx !== undefined) {
+        board[idx] = null;
+      }
+    }
+
+    setBoard([...board]);
+    setMoveHistory(historyCopy);
+    setWinner(null);
+    setWinningLine([]);
+    setTurn(mode === 'bot' ? 'X' : historyCopy.length % 2 === 0 ? 'X' : 'O');
+  };
+
+  const resetBoardState = (size: 3 | 5) => {
+    setBoardSize(size);
+    setBoard(Array(size * size).fill(null));
     setTurn('X');
     setWinner(null);
+    setWinningLine([]);
+    setMoveHistory([]);
+  };
 
+  const resetGame = () => {
+    sound.playClick();
+    resetBoardState(boardSize);
     if (roomCode) {
       multiplayerService.sendGameAction(roomCode, 'tictactoe', 'RESET', {}, currentUserId || 'p1');
     }
   };
 
-  return (
-    <div className="flex flex-col items-center max-w-6xl mx-auto w-full select-none text-slate-100">
-      
-      {/* Score Header with Avatars */}
-      <div className="w-full mobile-game-header flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 border border-slate-800 p-3 sm:p-3.5 rounded-2xl mb-4 text-xs font-semibold shadow-xl">
-        <div className={`flex items-center gap-2 p-1 rounded-xl transition ${turn === 'X' && !winner ? 'bg-sky-950/40 ring-1 ring-sky-500/50' : ''}`}>
-          {p1?.avatar ? (
-            <AvatarDisplay avatar={p1.avatar} size="sm" />
-          ) : (
-            <div
-              className="w-5 h-5 rounded-full border border-sky-300 shadow"
-              style={{
-                background: 'radial-gradient(circle at 35% 35%, #7dd3fc, #0284c7 70%, #0369a1)',
-              }}
-            />
-          )}
-          <div>
-            <div className="font-bold text-slate-200 flex items-center gap-1">
-              <span>{p1Name}</span>
-              <span className="w-2 h-2 rounded-full bg-sky-400 inline-block" />
-            </div>
-            <div className="text-[11px] text-sky-400 font-mono">Siege: {scores.x}</div>
-          </div>
+  // Render Symbols based on theme
+  const renderSymbol = (val: string | null) => {
+    if (!val) return null;
+
+    if (theme === 'gems') {
+      return (
+        <span className="text-3xl sm:text-4xl animate-scale-in drop-shadow-md">
+          {val === 'X' ? '💎' : '🔮'}
+        </span>
+      );
+    }
+
+    if (theme === 'pebbles') {
+      return (
+        <div
+          className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 shadow-lg flex items-center justify-center font-black text-xs text-white ${
+            val === 'X'
+              ? 'bg-gradient-to-br from-rose-500 to-red-700 border-red-300'
+              : 'bg-gradient-to-br from-amber-400 to-yellow-600 border-amber-200'
+          }`}
+        >
+          {val}
         </div>
+      );
+    }
 
-        {/* Mode Indicator */}
-        <div className="flex items-center gap-1.5">
-          {isOnlineMultiplayer ? (
-            <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-[10px] font-black text-emerald-300">
-              <Wifi className="w-3 h-3 text-emerald-400 animate-pulse" />
-              <span>LIVE-DUELLE ({mySymbol ? `Du bist ${mySymbol}` : 'Zuschauer'})</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
-              <button
-                onClick={() => { setMode('bot'); resetGame(); }}
-                className={`px-2 py-0.5 rounded-lg text-[10px] font-bold ${
-                  mode === 'bot' ? 'bg-indigo-600 text-white' : 'text-slate-400'
-                }`}
-              >
-                KI
-              </button>
-              <button
-                onClick={() => { setMode('local2p'); resetGame(); }}
-                className={`px-2 py-0.5 rounded-lg text-[10px] font-bold ${
-                  mode === 'local2p' ? 'bg-indigo-600 text-white' : 'text-slate-400'
-                }`}
-              >
-                2P
-              </button>
-            </div>
-          )}
-
-          <button
-            onClick={() => setTheme(theme === 'pebbles' ? 'wood' : 'pebbles')}
-            className="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded-xl text-[10px] border border-slate-700 transition cursor-pointer"
-          >
-            {theme === 'pebbles' ? 'Kiesel' : 'Holz'}
-          </button>
-        </div>
-
-        <div className={`flex items-center gap-2 p-1 rounded-xl transition ${turn === 'O' && !winner ? 'bg-amber-950/40 ring-1 ring-amber-500/50' : ''}`}>
-          <div className="text-right">
-            <div className="font-bold text-slate-200 flex items-center justify-end gap-1">
-              <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
-              <span>{p2Name}</span>
-            </div>
-            <div className="text-[11px] text-amber-400 font-mono">Siege: {scores.o}</div>
-          </div>
-          {p2?.avatar ? (
-            <AvatarDisplay avatar={p2.avatar} size="sm" />
-          ) : (
-            <div
-              className="w-5 h-5 rounded-full border border-amber-300 shadow"
-              style={{
-                background: 'radial-gradient(circle at 35% 35%, #fde047, #d97706 70%, #92400e)',
-              }}
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Game Turn Status */}
-      <div className="mb-3 text-xs font-semibold flex items-center gap-2 text-slate-300">
-        {winner ? (
-          <span className="text-amber-400 font-bold flex items-center gap-1 text-sm animate-bounce">
-            <Trophy className="w-4 h-4 text-amber-300" />
-            {winner === 'draw' ? 'Unentschieden! Guter Kampf!' : `${winner === 'X' ? p1Name : p2Name} gewinnt! 🎉`}
-          </span>
-        ) : isOnlineMultiplayer ? (
-          <span>
-            {turn === mySymbol ? (
-              <span className="text-emerald-400 font-bold">🟢 Du bist am Zug ({mySymbol})!</span>
-            ) : (
-              <span className="text-slate-400">⏳ Gegner überlegt seinen Zug...</span>
-            )}
-          </span>
-        ) : (
-          <span>Am Zug: <strong className={turn === 'X' ? 'text-sky-400' : 'text-amber-400'}>{turn === 'X' ? p1Name : p2Name} ({turn})</strong></span>
-        )}
-      </div>
-
-      {/* Board */}
-      <BoardSurface name="Tic Tac Toe"><div
-        className="responsive-board relative p-4 rounded-3xl border border-slate-700/80 shadow-2xl overflow-hidden"
-        style={{
-          backgroundImage: `url(${TABLE_BACKGROUNDS.slateZen})`,
-          backgroundSize: 'cover',
-        }}
+    // Classic Neon
+    return (
+      <span
+        className={`font-black font-display text-4xl sm:text-5xl animate-scale-in ${
+          val === 'X'
+            ? 'text-cyan-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.8)]'
+            : 'text-fuchsia-400 drop-shadow-[0_0_12px_rgba(232,121,249,0.8)]'
+        }`}
       >
-        <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full aspect-square">
+        {val}
+      </span>
+    );
+  };
+
+  return (
+    <div className="flex flex-col items-center max-w-md mx-auto w-full select-none text-slate-100">
+      
+      {/* Top Banner: Scores, Mode, Grid Size & Theme */}
+      <div className="w-full bg-slate-900/90 border border-slate-800 p-3 sm:p-4 rounded-2xl mb-3 shadow-xl space-y-3">
+        {/* Header Bar */}
+        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-lg shadow">
+              ❌
+            </div>
+            <div>
+              <h3 className="font-black text-sm text-white">Tic-Tac-Toe & Gomoku</h3>
+              <p className="text-[10px] text-slate-400">
+                {boardSize === 3 ? '3 in einer Reihe gewinnt' : '4 in einer Reihe auf 5x5 gewinnt'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handleUndo}
+              disabled={moveHistory.length === 0 || !!winner}
+              className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-300 border border-slate-700 transition"
+              title="Zug zurücknehmen"
+            >
+              <Undo2 className="w-4 h-4 text-sky-400" />
+            </button>
+            <button
+              onClick={resetGame}
+              className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition"
+              title="Neu starten"
+            >
+              <RefreshCw className="w-4 h-4 text-emerald-400" />
+            </button>
+          </div>
+        </div>
+
+        {/* Players Turn & Scores */}
+        <div className="grid grid-cols-3 gap-2 text-center text-xs">
+          <div className={`p-2 rounded-xl border transition ${turn === 'X' && !winner ? 'bg-cyan-500/15 border-cyan-400 ring-2 ring-cyan-400/30' : 'bg-slate-950/40 border-slate-800'}`}>
+            <span className="text-[10px] text-slate-400 font-bold block truncate">{p1Name.split(' ')[0]} (X)</span>
+            <span className="font-mono text-base font-black text-cyan-400">{scores.x}</span>
+          </div>
+
+          <div className="p-2 rounded-xl border border-slate-800 bg-slate-950/40">
+            <span className="text-[10px] text-slate-400 font-bold block">Remis</span>
+            <span className="font-mono text-base font-black text-slate-300">{scores.draw}</span>
+          </div>
+
+          <div className={`p-2 rounded-xl border transition ${turn === 'O' && !winner ? 'bg-fuchsia-500/15 border-fuchsia-400 ring-2 ring-fuchsia-400/30' : 'bg-slate-950/40 border-slate-800'}`}>
+            <span className="text-[10px] text-slate-400 font-bold block truncate">{p2Name.split(' ')[0]} (O)</span>
+            <span className="font-mono text-base font-black text-fuchsia-400">{scores.o}</span>
+          </div>
+        </div>
+
+        {/* Sub-bar: 3x3 vs 5x5, AI Difficulty & Theme */}
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1">
+          {/* Board Size */}
+          <div className="flex items-center gap-1 bg-slate-950/60 p-1 rounded-xl border border-slate-800">
+            <button
+              onClick={() => resetBoardState(3)}
+              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                boardSize === 3 ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              3x3 Klassik
+            </button>
+            <button
+              onClick={() => resetBoardState(5)}
+              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                boardSize === 5 ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              5x5 Gomoku
+            </button>
+          </div>
+
+          {/* AI Difficulty if bot */}
+          {mode === 'bot' && !isOnlineMultiplayer && (
+            <div className="flex items-center gap-1 bg-slate-950/60 p-1 rounded-xl border border-slate-800">
+              <span className="text-[10px] uppercase font-bold text-slate-400 px-1">KI:</span>
+              {(['easy', 'medium', 'master'] as const).map((lvl) => (
+                <button
+                  key={lvl}
+                  onClick={() => setDifficulty(lvl)}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold capitalize transition ${
+                    difficulty === lvl ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {lvl === 'easy' ? 'Leicht' : lvl === 'medium' ? 'Mittel' : 'Meister'}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Themes */}
+          <div className="flex items-center gap-1 bg-slate-950/60 p-1 rounded-xl border border-slate-800">
+            <Palette className="w-3.5 h-3.5 text-amber-400 ml-1" />
+            <button
+              onClick={() => setTheme('classic')}
+              className={`px-1.5 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                theme === 'classic' ? 'bg-slate-700 text-cyan-300' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Neon
+            </button>
+            <button
+              onClick={() => setTheme('gems')}
+              className={`px-1.5 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                theme === 'gems' ? 'bg-slate-700 text-amber-300' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Juwelen
+            </button>
+            <button
+              onClick={() => setTheme('pebbles')}
+              className={`px-1.5 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                theme === 'pebbles' ? 'bg-slate-700 text-rose-300' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Pöppel
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Grid Board */}
+      <div className="relative w-full rounded-3xl bg-slate-950 border border-slate-800 p-4 sm:p-6 shadow-2xl flex items-center justify-center">
+        <div
+          className={`grid gap-2.5 sm:gap-3.5 w-full mx-auto ${
+            boardSize === 3 ? 'grid-cols-3 max-w-[320px]' : 'grid-cols-5 max-w-[380px]'
+          }`}
+        >
           {board.map((cell, idx) => {
-            const isClickable = !cell && !winner && (mode !== 'bot' || turn === 'X') && (!isOnlineMultiplayer || turn === mySymbol);
+            const isWinning = winningLine.includes(idx);
 
             return (
-              <button
+              <div
                 key={idx}
-                aria-label={`Feld ${idx + 1}: ${cell || "leer"}`}
                 onClick={() => handleCellClick(idx)}
-                disabled={!isClickable}
-                className={`relative rounded-2xl flex items-center justify-center transition-all duration-200 shadow-inner ${
+                className={`aspect-square rounded-2xl border-2 flex items-center justify-center cursor-pointer transition-all duration-200 ${
                   cell
-                    ? 'bg-slate-900/80 shadow-md'
-                    : isClickable
-                    ? 'bg-slate-800/40 hover:bg-slate-700/50 hover:scale-105 active:scale-95 cursor-pointer border border-dashed border-slate-600/40'
-                    : 'bg-slate-900/30 cursor-not-allowed opacity-80'
+                    ? isWinning
+                      ? 'bg-amber-500/20 border-amber-400 ring-4 ring-amber-400/40 scale-105 z-10'
+                      : 'bg-slate-900 border-slate-700 shadow-inner'
+                    : 'bg-slate-900/60 border-slate-800 hover:border-cyan-400/60 hover:bg-slate-800/80 active:scale-95'
                 }`}
               >
-                {cell === 'X' && (
-                  <div
-                    className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center font-black text-2xl shadow-lg border border-sky-300 animate-in zoom-in-50 duration-200"
-                    style={{
-                      background: theme === 'pebbles'
-                        ? 'radial-gradient(circle at 35% 35%, #7dd3fc, #0284c7 70%, #0369a1)'
-                        : 'linear-gradient(135deg, #38bdf8, #0369a1)',
-                      color: '#ffffff',
-                      textShadow: '0 2px 4px rgba(0,0,0,0.5)',
-                    }}
-                  >
-                    X
-                  </div>
-                )}
-                {cell === 'O' && (
-                  <div
-                    className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center font-black text-2xl shadow-lg border border-amber-300 animate-in zoom-in-50 duration-200"
-                    style={{
-                      background: theme === 'pebbles'
-                        ? 'radial-gradient(circle at 35% 35%, #fde047, #d97706 70%, #92400e)'
-                        : 'linear-gradient(135deg, #fbbf24, #b45309)',
-                      color: '#ffffff',
-                      textShadow: '0 2px 4px rgba(0,0,0,0.5)',
-                    }}
-                  >
-                    O
-                  </div>
-                )}
-              </button>
+                {renderSymbol(cell)}
+              </div>
             );
           })}
         </div>
-      </div></BoardSurface>
-
-      {/* Restart Button */}
-      <div className="mt-4 flex items-center gap-3">
-        <button
-          onClick={resetGame}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-xs font-bold text-slate-200 border border-slate-700 shadow transition cursor-pointer"
-        >
-          <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
-          <span>Neu starten</span>
-        </button>
       </div>
+
+      {/* Winner Modal */}
+      {winner && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="bg-gradient-to-b from-slate-900 to-slate-950 border-2 border-cyan-400 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center relative">
+            <div className="w-20 h-20 mx-auto rounded-3xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-4xl mb-3 shadow-inner">
+              👑
+            </div>
+
+            <h2 className="text-2xl font-black text-cyan-300 mb-1">
+              {winner === 'draw'
+                ? 'Unentschieden!'
+                : winner === 'X'
+                ? `${p1Name} gewinnt!`
+                : `${p2Name} gewinnt!`}
+            </h2>
+
+            <p className="text-xs text-slate-300 mb-4">
+              {winner === 'draw'
+                ? 'Kein Spieler konnte die Reihe vollenden!'
+                : `Glückwunsch zur siegreichen ${boardSize === 3 ? '3er-Reihe' : '4er-Reihe'}!`}
+            </p>
+
+            <button
+              onClick={resetGame}
+              className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-sm shadow-xl transition active:scale-95"
+            >
+              Neue Runde spielen
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

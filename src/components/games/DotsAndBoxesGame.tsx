@@ -1,13 +1,7 @@
-import {BoardSurface} from './BoardSurface';
-import { useAIDifficulty } from './GameArena';
-import { chooseBoxLine } from '../../services/gameAI';
-import { useGameTimers } from './useGameTimers';
 import React, { useState, useEffect } from 'react';
 import { sound } from '../../services/sound';
 import confetti from '../../services/confetti';
-import { RefreshCw, Trophy, Shield, Crown, Wifi } from 'lucide-react';
-import { TABLE_BACKGROUNDS } from '../../services/gameImages';
-
+import { RefreshCw, Trophy, Shield, Crown, Wifi, Undo2, Bot, Users, Layers } from 'lucide-react';
 import { RoomParticipant } from '../../types';
 import { AvatarDisplay } from '../avatar/AvatarDisplay';
 import { multiplayerService } from '../../services/multiplayerService';
@@ -21,7 +15,13 @@ interface DotsAndBoxesProps {
   isHost?: boolean;
 }
 
-const GRID_SIZE = 4; // 4x4 dots = 3x3 boxes (9 total territory boxes)
+interface LineMoveRecord {
+  lineType: 'H' | 'V';
+  r: number;
+  c: number;
+  player: 'p1' | 'p2';
+  completedBoxes: [number, number][];
+}
 
 export const DotsAndBoxesGame: React.FC<DotsAndBoxesProps> = ({ 
   onGameEnd,
@@ -30,12 +30,10 @@ export const DotsAndBoxesGame: React.FC<DotsAndBoxesProps> = ({
   onActiveTurnChange,
   roomCode,
 }) => {
-  const { schedule, cancelAll } = useGameTimers();
-  const difficulty = useAIDifficulty();
   const p1 = tableParticipants?.[0];
   const p2 = tableParticipants?.[1];
   const p1Name = p1?.name || 'Blau (Spieler 1)';
-  const p2Name = p2?.name || (p2?.isBot ? 'KI-Gegner' : 'Gelb (Spieler 2)');
+  const p2Name = p2?.name || (p2?.isBot ? 'KI-Taktiker' : 'Gelb (Spieler 2)');
   const isP2Bot = p2 ? !!p2.isBot : true;
 
   const isOnlineMultiplayer = Boolean(roomCode && p1 && p2 && !p2.isBot);
@@ -47,24 +45,43 @@ export const DotsAndBoxesGame: React.FC<DotsAndBoxesProps> = ({
       : null
     : null;
 
-  // Horizontal lines: GRID_SIZE rows of (GRID_SIZE - 1)
+  // Grid size: 3 (2x2 boxes), 4 (3x3 boxes), 5 (4x4 boxes), 6 (5x5 boxes)
+  const [gridSize, setGridSize] = useState<number>(4);
+  const [difficulty, setDifficulty] = useState<'easy' | 'hard'>('hard');
+
+  // Horizontal lines: gridSize rows of (gridSize - 1)
   const [hLines, setHLines] = useState<boolean[][]>(() =>
-    Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE - 1).fill(false))
+    Array(4).fill(null).map(() => Array(3).fill(false))
   );
 
-  // Vertical lines: (GRID_SIZE - 1) rows of GRID_SIZE
+  // Vertical lines: (gridSize - 1) rows of gridSize
   const [vLines, setVLines] = useState<boolean[][]>(() =>
-    Array(GRID_SIZE - 1).fill(null).map(() => Array(GRID_SIZE).fill(false))
+    Array(3).fill(null).map(() => Array(4).fill(false))
   );
 
-  // Boxes: (GRID_SIZE - 1) x (GRID_SIZE - 1)
+  // Boxes: (gridSize - 1) x (gridSize - 1)
   const [boxes, setBoxes] = useState<('p1' | 'p2' | null)[][]>(() =>
-    Array(GRID_SIZE - 1).fill(null).map(() => Array(GRID_SIZE - 1).fill(null))
+    Array(3).fill(null).map(() => Array(3).fill(null))
   );
 
   const [turn, setTurn] = useState<'p1' | 'p2'>('p1');
   const [scores, setScores] = useState({ p1: 0, p2: 0 });
   const [winner, setWinner] = useState<string | null>(null);
+  const [moveHistory, setMoveHistory] = useState<LineMoveRecord[]>([]);
+
+  const totalBoxes = (gridSize - 1) * (gridSize - 1);
+
+  // Re-initialize board when gridSize changes
+  const initBoard = (size: number) => {
+    setGridSize(size);
+    setHLines(Array(size).fill(null).map(() => Array(size - 1).fill(false)));
+    setVLines(Array(size - 1).fill(null).map(() => Array(size).fill(false)));
+    setBoxes(Array(size - 1).fill(null).map(() => Array(size - 1).fill(null)));
+    setScores({ p1: 0, p2: 0 });
+    setTurn('p1');
+    setWinner(null);
+    setMoveHistory([]);
+  };
 
   useEffect(() => {
     if (onActiveTurnChange) {
@@ -85,59 +102,43 @@ export const DotsAndBoxesGame: React.FC<DotsAndBoxesProps> = ({
         const { lineType, r, c } = event.payload;
         applyRemoteLine(lineType, r, c);
       } else if (event.action === 'RESET') {
-        cancelAll();
         sound.playClick();
-        setHLines(Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE - 1).fill(false)));
-        setVLines(Array(GRID_SIZE - 1).fill(null).map(() => Array(GRID_SIZE).fill(false)));
-        setBoxes(Array(GRID_SIZE - 1).fill(null).map(() => Array(GRID_SIZE - 1).fill(null)));
-        setScores({ p1: 0, p2: 0 });
-        setTurn('p1');
-        setWinner(null);
+        initBoard(gridSize);
       }
     });
 
     return () => unsubscribe();
-  }, [roomCode, currentUserId, onGameEnd]);
+  }, [roomCode, currentUserId, onGameEnd, gridSize]);
 
-  // Apply remote line
   const applyRemoteLine = (lineType: 'H' | 'V', r: number, c: number) => {
     sound.playPieceDrop();
     if (lineType === 'H') {
-      setHLines((prevH) => {
-        const newH = prevH.map((row) => [...row]);
-        newH[r][c] = true;
-        setVLines((prevV) => {
-          processTurnAfterLine(newH, prevV);
-          return prevV;
-        });
-        return newH;
-      });
+      const newH = hLines.map((row) => [...row]);
+      newH[r][c] = true;
+      setHLines(newH);
+      processTurnAfterLine(newH, vLines, 'H', r, c);
     } else {
-      setVLines((prevV) => {
-        const newV = prevV.map((row) => [...row]);
-        newV[r][c] = true;
-        setHLines((prevH) => {
-          processTurnAfterLine(prevH, newV);
-          return prevH;
-        });
-        return newV;
-      });
+      const newV = vLines.map((row) => [...row]);
+      newV[r][c] = true;
+      setVLines(newV);
+      processTurnAfterLine(hLines, newV, 'V', r, c);
     }
   };
 
-  // Check if box (r, c) is completed
+  // Check which boxes get completed
   const checkCompletedBoxes = (
     currentHLines: boolean[][],
     currentVLines: boolean[][],
     currentBoxes: ('p1' | 'p2' | null)[][],
     currentTurn: 'p1' | 'p2'
-  ): { newBoxes: ('p1' | 'p2' | null)[][]; countP1: number; countP2: number } => {
+  ) => {
     const updatedBoxes = currentBoxes.map((row) => [...row]);
+    const newlyClaimed: [number, number][] = [];
     let countP1 = 0;
     let countP2 = 0;
 
-    for (let r = 0; r < GRID_SIZE - 1; r++) {
-      for (let c = 0; c < GRID_SIZE - 1; c++) {
+    for (let r = 0; r < gridSize - 1; r++) {
+      for (let c = 0; c < gridSize - 1; c++) {
         if (!updatedBoxes[r][c]) {
           const top = currentHLines[r][c];
           const bottom = currentHLines[r + 1][c];
@@ -146,6 +147,7 @@ export const DotsAndBoxesGame: React.FC<DotsAndBoxesProps> = ({
 
           if (top && bottom && left && right) {
             updatedBoxes[r][c] = currentTurn;
+            newlyClaimed.push([r, c]);
             if (currentTurn === 'p1') countP1++;
             else countP2++;
           }
@@ -153,52 +155,69 @@ export const DotsAndBoxesGame: React.FC<DotsAndBoxesProps> = ({
       }
     }
 
-    return { newBoxes: updatedBoxes, countP1, countP2 };
+    return { newBoxes: updatedBoxes, newlyClaimed, countP1, countP2 };
   };
 
-  const processTurnAfterLine = (newH: boolean[][], newV: boolean[][]) => {
-    setBoxes((prevBoxes) => {
-      const result = checkCompletedBoxes(newH, newV, prevBoxes, turn);
-      const boxesClaimed = result.countP1 + result.countP2;
+  const processTurnAfterLine = (
+    newH: boolean[][],
+    newV: boolean[][],
+    lineType: 'H' | 'V',
+    r: number,
+    c: number
+  ) => {
+    const result = checkCompletedBoxes(newH, newV, boxes, turn);
+    const boxesClaimed = result.newlyClaimed.length;
 
-      if (boxesClaimed > 0) {
-        sound.playReward();
-        setScores((prev) => ({
-          p1: prev.p1 + result.countP1,
-          p2: prev.p2 + result.countP2,
-        }));
-        // Turn is retained!
-      } else {
-        setTurn((t) => (t === 'p1' ? 'p2' : 'p1'));
-      }
+    setBoxes(result.newBoxes);
 
-      // Check game finish (all 9 boxes claimed)
-      let totalClaimed = 0;
-      result.newBoxes.forEach((row) => row.forEach((cell) => { if (cell) totalClaimed++; }));
+    setMoveHistory((prev) => [
+      ...prev,
+      {
+        lineType,
+        r,
+        c,
+        player: turn,
+        completedBoxes: result.newlyClaimed,
+      },
+    ]);
 
-      if (totalClaimed === (GRID_SIZE - 1) * (GRID_SIZE - 1)) {
-        setScores((curScores) => {
-          const finalP1 = curScores.p1 + result.countP1;
-          const finalP2 = curScores.p2 + result.countP2;
-          const finalWinner = finalP1 > finalP2 ? p1Name : finalP2 > finalP1 ? p2Name : 'Unentschieden';
-          setWinner(finalWinner);
-          sound.playVictory();
-          try {
-            confetti({ particleCount: 80, spread: 70 });
-          } catch (e) {}
-          if (onGameEnd) onGameEnd(finalWinner);
-          return curScores;
-        });
-      }
+    if (boxesClaimed > 0) {
+      sound.playReward();
+      setScores((prev) => ({
+        p1: prev.p1 + result.countP1,
+        p2: prev.p2 + result.countP2,
+      }));
+      // Player retains turn when completing a box!
+    } else {
+      setTurn((t) => (t === 'p1' ? 'p2' : 'p1'));
+    }
 
-      return result.newBoxes;
-    });
+    // Check if board complete
+    let totalClaimed = 0;
+    result.newBoxes.forEach((row) =>
+      row.forEach((cell) => {
+        if (cell) totalClaimed++;
+      })
+    );
+
+    if (totalClaimed === totalBoxes) {
+      const finalP1 = scores.p1 + result.countP1;
+      const finalP2 = scores.p2 + result.countP2;
+      const finalWinner =
+        finalP1 > finalP2 ? p1Name : finalP2 > finalP1 ? p2Name : 'Unentschieden';
+      setWinner(finalWinner);
+      sound.playVictory();
+      try {
+        confetti({ particleCount: 90, spread: 70 });
+      } catch (e) {}
+      if (onGameEnd) onGameEnd(finalWinner);
+    }
   };
 
   const handleHLineClick = (r: number, c: number) => {
     if (hLines[r][c] || winner) return;
 
-    if (isOnlineMultiplayer && (!myPlayer || turn !== myPlayer)) {
+    if (isOnlineMultiplayer && myPlayer && turn !== myPlayer) {
       sound.playError();
       return;
     }
@@ -216,13 +235,13 @@ export const DotsAndBoxesGame: React.FC<DotsAndBoxesProps> = ({
       }, currentUserId || 'p1');
     }
 
-    processTurnAfterLine(newH, vLines);
+    processTurnAfterLine(newH, vLines, 'H', r, c);
   };
 
   const handleVLineClick = (r: number, c: number) => {
     if (vLines[r][c] || winner) return;
 
-    if (isOnlineMultiplayer && (!myPlayer || turn !== myPlayer)) {
+    if (isOnlineMultiplayer && myPlayer && turn !== myPlayer) {
       sound.playError();
       return;
     }
@@ -240,140 +259,365 @@ export const DotsAndBoxesGame: React.FC<DotsAndBoxesProps> = ({
       }, currentUserId || 'p1');
     }
 
-    processTurnAfterLine(hLines, newV);
+    processTurnAfterLine(hLines, newV, 'V', r, c);
   };
 
-  // Bot Turn in Local Bot Mode
+  // Smart AI Turn Logic
   useEffect(() => {
     if (isOnlineMultiplayer || !isP2Bot || turn !== 'p2' || winner) return;
 
-    const botTimer = schedule(() => {
-      // Find all unplaced lines
+    const botTimer = setTimeout(() => {
+      // Helper to count sides of box [r, c]
+      const countBoxSides = (br: number, bc: number, curH = hLines, curV = vLines) => {
+        let count = 0;
+        if (curH[br][bc]) count++;
+        if (curH[br + 1][bc]) count++;
+        if (curV[br][bc]) count++;
+        if (curV[br][bc + 1]) count++;
+        return count;
+      };
+
+      // 1. Check for immediate box completion (3 sides already drawn)
+      for (let br = 0; br < gridSize - 1; br++) {
+        for (let bc = 0; bc < gridSize - 1; bc++) {
+          if (!boxes[br][bc] && countBoxSides(br, bc) === 3) {
+            // Find which line is missing
+            if (!hLines[br][bc]) { handleHLineClick(br, bc); return; }
+            if (!hLines[br + 1][bc]) { handleHLineClick(br + 1, bc); return; }
+            if (!vLines[br][bc]) { handleVLineClick(br, bc); return; }
+            if (!vLines[br][bc + 1]) { handleVLineClick(br, bc + 1); return; }
+          }
+        }
+      }
+
+      // Gather available lines
       const availableHLines: [number, number][] = [];
       const availableVLines: [number, number][] = [];
 
-      for (let r = 0; r < GRID_SIZE; r++) {
-        for (let c = 0; c < GRID_SIZE - 1; c++) {
+      for (let r = 0; r < gridSize; r++) {
+        for (let c = 0; c < gridSize - 1; c++) {
           if (!hLines[r][c]) availableHLines.push([r, c]);
         }
       }
-      for (let r = 0; r < GRID_SIZE - 1; r++) {
-        for (let c = 0; c < GRID_SIZE; c++) {
+      for (let r = 0; r < gridSize - 1; r++) {
+        for (let c = 0; c < gridSize; c++) {
           if (!vLines[r][c]) availableVLines.push([r, c]);
         }
       }
 
-      const totalAvailable = availableHLines.length + availableVLines.length;
-      if (totalAvailable === 0) return;
+      if (availableHLines.length === 0 && availableVLines.length === 0) return;
 
-      const move = chooseBoxLine(hLines, vLines, difficulty);
-      if (move?.type === 'H') handleHLineClick(move.r, move.c);
-      else if (move) handleVLineClick(move.r, move.c);
-    }, 600);
+      // 2. In Hard Mode: avoid drawing a line that makes any box have 3 sides (giving opponent a free box)
+      if (difficulty === 'hard') {
+        const safeH = availableHLines.filter(([r, c]) => {
+          // Check box above
+          if (r > 0 && countBoxSides(r - 1, c) === 2) return false;
+          // Check box below
+          if (r < gridSize - 1 && countBoxSides(r, c) === 2) return false;
+          return true;
+        });
+
+        const safeV = availableVLines.filter(([r, c]) => {
+          // Check box left
+          if (c > 0 && countBoxSides(r, c - 1) === 2) return false;
+          // Check box right
+          if (c < gridSize - 1 && countBoxSides(r, c) === 2) return false;
+          return true;
+        });
+
+        if (safeH.length > 0 || safeV.length > 0) {
+          const pickH = safeH.length > 0 && (safeV.length === 0 || Math.random() < 0.5);
+          if (pickH) {
+            const [r, c] = safeH[Math.floor(Math.random() * safeH.length)];
+            handleHLineClick(r, c);
+          } else {
+            const [r, c] = safeV[Math.floor(Math.random() * safeV.length)];
+            handleVLineClick(r, c);
+          }
+          return;
+        }
+      }
+
+      // 3. Fallback: pick any available line
+      const totalAvailable = availableHLines.length + availableVLines.length;
+      const pickH = Math.random() < availableHLines.length / totalAvailable;
+
+      if (pickH && availableHLines.length > 0) {
+        const [r, c] = availableHLines[Math.floor(Math.random() * availableHLines.length)];
+        handleHLineClick(r, c);
+      } else if (availableVLines.length > 0) {
+        const [r, c] = availableVLines[Math.floor(Math.random() * availableVLines.length)];
+        handleVLineClick(r, c);
+      }
+    }, 500);
 
     return () => clearTimeout(botTimer);
-  }, [turn, isOnlineMultiplayer, isP2Bot, winner, hLines, vLines]);
+  }, [turn, isOnlineMultiplayer, isP2Bot, winner, hLines, vLines, boxes, gridSize, difficulty]);
+
+  // Undo Move
+  const handleUndo = () => {
+    if (moveHistory.length === 0 || winner) return;
+
+    sound.playClick();
+    const historyCopy = [...moveHistory];
+    const last = historyCopy.pop();
+    if (!last) return;
+
+    if (last.lineType === 'H') {
+      hLines[last.r][last.c] = false;
+      setHLines([...hLines.map((row) => [...row])]);
+    } else {
+      vLines[last.r][last.c] = false;
+      setVLines([...vLines.map((row) => [...row])]);
+    }
+
+    // Revert claimed boxes
+    last.completedBoxes.forEach(([br, bc]) => {
+      boxes[br][bc] = null;
+    });
+    setBoxes([...boxes.map((row) => [...row])]);
+
+    // Revert scores
+    const claimedCount = last.completedBoxes.length;
+    if (claimedCount > 0) {
+      setScores((s) => ({
+        ...s,
+        [last.player]: s[last.player] - claimedCount,
+      }));
+    }
+
+    setMoveHistory(historyCopy);
+    setTurn(last.player);
+  };
 
   const resetGame = () => {
-    cancelAll();
     sound.playClick();
-    setHLines(Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE - 1).fill(false)));
-    setVLines(Array(GRID_SIZE - 1).fill(null).map(() => Array(GRID_SIZE).fill(false)));
-    setBoxes(Array(GRID_SIZE - 1).fill(null).map(() => Array(GRID_SIZE - 1).fill(null)));
-    setScores({ p1: 0, p2: 0 });
-    setTurn('p1');
-    setWinner(null);
-
-    if (roomCode) {
-      multiplayerService.sendGameAction(roomCode, 'dotsandboxes', 'RESET', {}, currentUserId || 'p1');
-    }
+    initBoard(gridSize);
   };
 
   return (
-    <div className="flex flex-col items-center max-w-6xl mx-auto w-full select-none text-slate-100">
+    <div className="flex flex-col items-center max-w-lg mx-auto w-full select-none text-slate-100">
       
-      {/* Score Header with Avatars */}
-      <div className="w-full mobile-game-header flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 border border-slate-800 p-3 sm:p-3.5 rounded-2xl mb-4 text-xs font-semibold shadow-xl">
-        <div className={`flex items-center gap-2 p-1 rounded-xl transition ${turn === 'p1' && !winner ? 'bg-sky-950/40 ring-1 ring-sky-500/50' : ''}`}>
-          {p1?.avatar ? (
-            <AvatarDisplay avatar={p1.avatar} size="sm" />
-          ) : (
-            <div className="w-4 h-4 rounded-md bg-sky-500 shadow-md ring-1 ring-sky-300" />
-          )}
-          <div>
-            <div className="font-bold text-slate-200 flex items-center gap-1">
-              <span>{p1Name}</span>
-              <span className="w-2 h-2 rounded-full bg-sky-400 inline-block" />
+      {/* Top Banner: Score, Mode, Grid Sizes */}
+      <div className="w-full bg-slate-900/90 border border-slate-800 p-3 sm:p-4 rounded-2xl mb-3 shadow-xl space-y-3">
+        {/* Header Bar */}
+        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-sky-500/20 border border-sky-500/40 flex items-center justify-center text-lg shadow">
+              📦
             </div>
-            <div className="text-[11px] text-sky-400 font-mono">Kästchen: {scores.p1}</div>
+            <div>
+              <h3 className="font-black text-sm text-white">Käsekästchen (Dots & Boxes)</h3>
+              <p className="text-[10px] text-slate-400">Schließe 4 Wände, um das Kästchen zu erobern</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handleUndo}
+              disabled={moveHistory.length === 0 || !!winner}
+              className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-300 border border-slate-700 transition"
+              title="Zug zurücknehmen"
+            >
+              <Undo2 className="w-4 h-4 text-sky-400" />
+            </button>
+            <button
+              onClick={resetGame}
+              className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition"
+              title="Neu starten"
+            >
+              <RefreshCw className="w-4 h-4 text-emerald-400" />
+            </button>
           </div>
         </div>
 
-        <div className="flex flex-col items-center gap-1">
-          <div className="text-[11px] text-slate-300 font-bold uppercase tracking-wider bg-slate-950 px-2.5 py-1 rounded-full border border-slate-800">
-            {winner ? 'Spiel beendet' : turn === 'p1' ? '⚡ Blau am Zug' : '⚡ Gelb am Zug'}
-          </div>
-          {isOnlineMultiplayer && (
-            <div className="flex items-center gap-1 text-[10px] text-emerald-400 font-black">
-              <Wifi className="w-2.5 h-2.5 animate-pulse" />
-              <span>ONLINE</span>
+        {/* Players Turn & Scores */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className={`p-2 rounded-xl border transition ${turn === 'p1' && !winner ? 'bg-sky-500/15 border-sky-400 ring-2 ring-sky-400/30' : 'bg-slate-950/40 border-slate-800'}`}>
+            <div className="flex items-center justify-between text-xs font-bold mb-1">
+              <span className="text-white truncate">{p1Name}</span>
+              {turn === 'p1' && !winner && (
+                <span className="text-[9px] bg-sky-400 text-slate-950 px-1 rounded font-black animate-pulse">AM ZUG</span>
+              )}
             </div>
-          )}
+            <div className="flex items-baseline justify-between text-xs">
+              <span className="text-slate-400">Erobert:</span>
+              <span className="font-mono text-base font-black text-sky-400">{scores.p1} / {totalBoxes}</span>
+            </div>
+          </div>
+
+          <div className={`p-2 rounded-xl border transition ${turn === 'p2' && !winner ? 'bg-amber-500/15 border-amber-400 ring-2 ring-amber-400/30' : 'bg-slate-950/40 border-slate-800'}`}>
+            <div className="flex items-center justify-between text-xs font-bold mb-1">
+              <span className="text-white truncate flex items-center gap-1">
+                {isP2Bot && <Bot className="w-3 h-3 text-amber-400" />}
+                <span>{p2Name}</span>
+              </span>
+              {turn === 'p2' && !winner && (
+                <span className="text-[9px] bg-amber-400 text-slate-950 px-1 rounded font-black animate-pulse">AM ZUG</span>
+              )}
+            </div>
+            <div className="flex items-baseline justify-between text-xs">
+              <span className="text-slate-400">Erobert:</span>
+              <span className="font-mono text-base font-black text-amber-400">{scores.p2} / {totalBoxes}</span>
+            </div>
+          </div>
         </div>
 
-        <div className={`flex items-center gap-2 p-1 rounded-xl transition ${turn === 'p2' && !winner ? 'bg-amber-950/40 ring-1 ring-amber-500/50' : ''}`}>
-          <div className="text-right">
-            <div className="font-bold text-slate-200 flex items-center gap-1 justify-end">
-              <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
-              <span>{p2Name}</span>
-            </div>
-            <div className="text-[11px] text-amber-400 font-mono">Kästchen: {scores.p2}</div>
+        {/* Sub-bar: Grid Size & AI Difficulty */}
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1">
+          {/* Grid Size selector */}
+          <div className="flex items-center gap-1 bg-slate-950/60 p-1 rounded-xl border border-slate-800">
+            <span className="text-[10px] uppercase font-bold text-slate-400 px-1">Feld:</span>
+            {[
+              { s: 3, label: '3x3 (4)' },
+              { s: 4, label: '4x4 (9)' },
+              { s: 5, label: '5x5 (16)' },
+              { s: 6, label: '6x6 (25)' },
+            ].map(({ s, label }) => (
+              <button
+                key={s}
+                onClick={() => initBoard(s)}
+                className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                  gridSize === s ? 'bg-sky-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-          {p2?.avatar ? (
-            <AvatarDisplay avatar={p2.avatar} size="sm" />
-          ) : (
-            <div className="w-4 h-4 rounded-md bg-amber-500 shadow-md ring-1 ring-amber-300" />
+
+          {/* AI Difficulty */}
+          {isP2Bot && !isOnlineMultiplayer && (
+            <div className="flex items-center gap-1 bg-slate-950/60 p-1 rounded-xl border border-slate-800">
+              <span className="text-[10px] uppercase font-bold text-slate-400 px-1">KI:</span>
+              <button
+                onClick={() => setDifficulty('easy')}
+                className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                  difficulty === 'easy' ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Leicht
+              </button>
+              <button
+                onClick={() => setDifficulty('hard')}
+                className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                  difficulty === 'hard' ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Taktiker
+              </button>
+            </div>
           )}
         </div>
       </div>
 
+      {/* Main Tactical Grid Container */}
+      <div className="relative w-full rounded-3xl bg-slate-950 border border-slate-800 p-6 sm:p-8 shadow-2xl flex flex-col items-center justify-center">
+        {/* Board Coordinate Grid */}
+        <div className="relative flex flex-col items-center select-none">
+          {Array(gridSize)
+            .fill(null)
+            .map((_, r) => (
+              <React.Fragment key={`row-${r}`}>
+                {/* Horizontal row of dots & H-lines */}
+                <div className="flex items-center">
+                  {Array(gridSize)
+                    .fill(null)
+                    .map((__, c) => (
+                      <React.Fragment key={`dot-${r}-${c}`}>
+                        {/* Dot */}
+                        <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-slate-200 border-2 border-slate-400 shadow-md z-20 shrink-0" />
+
+                        {/* Horizontal Line between dots */}
+                        {c < gridSize - 1 && (
+                          <div
+                            onClick={() => handleHLineClick(r, c)}
+                            className={`h-2 sm:h-2.5 w-12 sm:w-16 rounded-full cursor-pointer transition-all ${
+                              hLines[r]?.[c]
+                                ? 'bg-gradient-to-r from-sky-400 via-sky-300 to-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.8)] z-10'
+                                : 'bg-slate-800/80 hover:bg-slate-700/80'
+                            }`}
+                          />
+                        )}
+                      </React.Fragment>
+                    ))}
+                </div>
+
+                {/* Vertical row of V-lines & Boxes */}
+                {r < gridSize - 1 && (
+                  <div className="flex items-center">
+                    {Array(gridSize)
+                      .fill(null)
+                      .map((__, c) => (
+                        <React.Fragment key={`vert-box-${r}-${c}`}>
+                          {/* Vertical Line */}
+                          <div
+                            onClick={() => handleVLineClick(r, c)}
+                            className={`w-2 sm:w-2.5 h-12 sm:h-16 rounded-full cursor-pointer transition-all ${
+                              vLines[r]?.[c]
+                                ? 'bg-gradient-to-b from-sky-400 via-sky-300 to-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.8)] z-10'
+                                : 'bg-slate-800/80 hover:bg-slate-700/80'
+                            }`}
+                          />
+
+                          {/* Box Territory Area */}
+                          {c < gridSize - 1 && (
+                            <div
+                              className={`w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center transition-all duration-300 rounded-xl m-0.5 ${
+                                boxes[r]?.[c] === 'p1'
+                                  ? 'bg-sky-500/25 border border-sky-400/50 shadow-inner'
+                                  : boxes[r]?.[c] === 'p2'
+                                  ? 'bg-amber-500/25 border border-amber-400/50 shadow-inner'
+                                  : 'bg-transparent'
+                              }`}
+                            >
+                              {boxes[r]?.[c] && (
+                                <span
+                                  className={`font-black text-sm sm:text-base font-display animate-scale-in ${
+                                    boxes[r]?.[c] === 'p1' ? 'text-sky-300' : 'text-amber-300'
+                                  }`}
+                                >
+                                  {boxes[r]?.[c] === 'p1' ? 'A' : 'B'}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </React.Fragment>
+                      ))}
+                  </div>
+                )}
+              </React.Fragment>
+            ))}
+        </div>
+      </div>
+
+      {/* Victory Celebration Modal */}
       {winner && (
-        <div className="mb-3 text-sm font-bold text-amber-300 flex items-center gap-2 animate-bounce bg-amber-500/10 px-4 py-1.5 rounded-full border border-amber-400/30">
-          <Trophy className="w-4 h-4 text-amber-400" />
-          <span>{winner} gewinnt das Spiel!</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="bg-gradient-to-b from-slate-900 to-slate-950 border-2 border-sky-400 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center relative">
+            <div className="w-20 h-20 mx-auto rounded-3xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-4xl mb-3 shadow-inner">
+              👑
+            </div>
+
+            <h2 className="text-2xl font-black text-sky-300 mb-1">Partie beendet!</h2>
+
+            <p className="text-xs text-slate-300 mb-4">
+              {scores.p1 > scores.p2
+                ? `${p1Name} erobert die Mehrheit mit ${scores.p1} zu ${scores.p2} Kästchen!`
+                : scores.p2 > scores.p1
+                ? `${p2Name} erobert die Mehrheit mit ${scores.p2} zu ${scores.p1} Kästchen!`
+                : `Spannendes Unentschieden! Beide haben ${scores.p1} Kästchen!`}
+            </p>
+
+            <button
+              onClick={resetGame}
+              className="w-full py-3 rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-black text-sm shadow-xl transition active:scale-95"
+            >
+              Neue Runde starten
+            </button>
+          </div>
         </div>
       )}
-
-      {/* VINTAGE ARCHITECTURAL DRAFTING BLUEPRINT WITH 3D BRASS PINS */}
-      <BoardSurface name="Käsekästchen" ><div className="responsive-board relative rounded-3xl p-6 sm:p-7 border-4 border-slate-800 shadow-2xl flex flex-col items-center overflow-hidden bg-slate-950">
-        
-        {/* Real Drafting Blueprint / Leather Desk Background Photo */}
-        <img
-          src={TABLE_BACKGROUNDS.slateZen}
-          alt="Vintage Desk Surface"
-          referrerPolicy="no-referrer"
-          className="absolute inset-0 w-full h-full object-cover filter brightness-[0.2] contrast-125"
-        />
-        <div className="absolute inset-0 bg-blue-950/20 pointer-events-none" />
-
-        <div className="dots-board-grid relative z-10" role="group" aria-label="Käsekästchen-Spielbrett">
-          {Array.from({length:GRID_SIZE*2-1},(_,row)=>Array.from({length:GRID_SIZE*2-1},(_,col)=>{
-            if(row%2===0&&col%2===0)return <div key={row+':'+col} className="flex items-center justify-center"><span className="w-3 h-3 rounded-full bg-amber-300 shadow-lg"/></div>;
-            if(row%2===0){const r=row/2,c=(col-1)/2,owner=hLines[r][c];return <button key={row+':'+col} aria-label={'Waagerechte Linie '+(r+1)+', '+(c+1)} onClick={()=>handleHLineClick(r,c)} disabled={Boolean(owner||winner||(isOnlineMultiplayer&&myPlayer&&turn!==myPlayer))} className="dots-line flex items-center justify-center"><span className={'h-2 w-full rounded-full '+(owner?'bg-amber-300':'bg-slate-700')}/></button>;}
-            if(col%2===0){const r=(row-1)/2,c=col/2,owner=vLines[r][c];return <button key={row+':'+col} aria-label={'Senkrechte Linie '+(r+1)+', '+(c+1)} onClick={()=>handleVLineClick(r,c)} disabled={Boolean(owner||winner||(isOnlineMultiplayer&&myPlayer&&turn!==myPlayer))} className="dots-line flex items-center justify-center"><span className={'w-2 h-full rounded-full '+(owner?'bg-amber-300':'bg-slate-700')}/></button>;}
-            const owner=boxes[(row-1)/2][(col-1)/2];return <div key={row+':'+col} className={'flex items-center justify-center rounded-xl font-bold '+(owner==='p1'?'bg-sky-700/40 text-sky-200':owner==='p2'?'bg-amber-700/40 text-amber-200':'bg-slate-900/40')}>{owner==='p1'?'1':owner==='p2'?'2':''}</div>;
-          }))}
-        </div>
-      </div></BoardSurface>
-
-      <div className="mt-4">
-        <button
-          onClick={resetGame}
-          className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition flex items-center gap-1.5 border border-slate-700 shadow"
-        >
-          <RefreshCw className="w-3.5 h-3.5" /> Neu starten
-        </button>
-      </div>
     </div>
   );
 };

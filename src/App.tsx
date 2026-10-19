@@ -1,6 +1,4 @@
-import { friendsService } from './services/friendsService';
-import { GameArena } from './components/games/GameArena';
-import React, { lazy, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   GameInfo, 
   GameCategory, 
@@ -57,22 +55,22 @@ import { PWAInstallButton } from './components/pwa/PWAInstallButton';
 import { OfflineIndicator } from './components/pwa/OfflineIndicator';
 
 // Playable Game Engines
-const ConnectFour = lazy(() => import('./components/games/ConnectFour').then(module => ({ default: module.ConnectFour })));
-const FamCardsUno = lazy(() => import('./components/games/FamCardsUno').then(module => ({ default: module.FamCardsUno })));
-const CheckersGame = lazy(() => import('./components/games/CheckersGame').then(module => ({ default: module.CheckersGame })));
-const BattleshipGame = lazy(() => import('./components/games/BattleshipGame').then(module => ({ default: module.BattleshipGame })));
-const YatzyGame = lazy(() => import('./components/games/YatzyGame').then(module => ({ default: module.YatzyGame })));
-const MemoryMatchGame = lazy(() => import('./components/games/MemoryMatchGame').then(module => ({ default: module.MemoryMatchGame })));
-const DotsAndBoxesGame = lazy(() => import('./components/games/DotsAndBoxesGame').then(module => ({ default: module.DotsAndBoxesGame })));
-const TicTacToeGame = lazy(() => import('./components/games/TicTacToeGame').then(module => ({ default: module.TicTacToeGame })));
-const LudoGame = lazy(() => import('./components/games/LudoGame').then(module => ({ default: module.LudoGame })));
-const ChessGame = lazy(() => import('./components/games/ChessGame').then(module => ({ default: module.ChessGame })));
-const DiamondBlastGame = lazy(() => import('./components/games/diamondBlast/DiamondBlastGame').then(module => ({ default: module.DiamondBlastGame })));
-const MonopolyGame = lazy(() => import('./components/games/MonopolyGame').then(module => ({ default: module.MonopolyGame })));
-const SkipBoGame = lazy(() => import('./components/games/SkipBoGame').then(module => ({ default: module.SkipBoGame })));
-const RommeGame = lazy(() => import('./components/games/RommeGame').then(module => ({ default: module.RommeGame })));
-const CatanGame = lazy(() => import('./components/games/CatanGame').then(module => ({ default: module.CatanGame })));
-const MahjongGame = lazy(() => import('./components/games/MahjongGame').then(module => ({ default: module.MahjongGame })));
+import { ConnectFour } from './components/games/ConnectFour';
+import { FamCardsUno } from './components/games/FamCardsUno';
+import { CheckersGame } from './components/games/CheckersGame';
+import { BattleshipGame } from './components/games/BattleshipGame';
+import { YatzyGame } from './components/games/YatzyGame';
+import { MemoryMatchGame } from './components/games/MemoryMatchGame';
+import { DotsAndBoxesGame } from './components/games/DotsAndBoxesGame';
+import { TicTacToeGame } from './components/games/TicTacToeGame';
+import { LudoGame } from './components/games/LudoGame';
+import { ChessGame } from './components/games/ChessGame';
+import { DiamondBlastGame } from './components/games/diamondBlast/DiamondBlastGame';
+import { MonopolyGame } from './components/games/MonopolyGame';
+import { SkipBoGame } from './components/games/SkipBoGame';
+import { RommeGame } from './components/games/RommeGame';
+import { CatanGame } from './components/games/CatanGame';
+import { MahjongGame } from './components/games/MahjongGame';
 
 // Icons
 import { 
@@ -188,8 +186,6 @@ export default function App() {
   const [activeGame, setActiveGame] = useState<GameInfo | null>(null);
   const [currentTurnPlayerId, setCurrentTurnPlayerId] = useState<string | null>(null);
   const [currentRoom, setCurrentRoom] = useState<GameRoom | null>(null);
-  const [platformError, setPlatformError] = useState('');
-  const [roomPending, setRoomPending] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState<boolean>(false);
   const [showMobileTablePanel, setShowMobileTablePanel] = useState<boolean>(false);
 
@@ -209,64 +205,28 @@ export default function App() {
         setPublicRooms(multiplayerService.getRooms());
         if (currentRoom && (currentRoom.id === event.room.id || currentRoom.code === event.room.code)) {
           setCurrentRoom(event.room);
-          const selectedGame = gamesCatalog.find(game => game.id === event.room.gameId);
-          if (selectedGame) setActiveGame(previous => previous ? selectedGame : previous);
         }
       }
     });
     return () => unsubscribe();
   }, [currentRoom?.id, currentRoom?.code]);
 
-  const joinTable = async (code: string) => {
-    if (!user) return;
-    try {
-      const joined = await multiplayerService.joinRoom(code,user);
-      setCurrentRoom(joined);
-      setActiveGame(gamesCatalog.find(g=>g.id===joined.gameId) || null);
-      setPlatformError('');
-    } catch(error) { setPlatformError(error instanceof Error ? error.message : 'Beitritt fehlgeschlagen.'); }
-  };
+  // URL query parameter ?room=CODE auto-join
   useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get('room');
-    if (user && code) void joinTable(code);
-  },[user?.id]);
-
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    const refresh = async () => {
-      try {
-        await friendsService.fetchFriends(user.id);
-        const invites = await friendsService.invitations();
-        if (!cancelled) setNotifications(previous => {
-          const incoming = invites.filter(i=>!previous.some(n=>n.id===i.id)).map(i=>({
-            id:i.id,title:'Spieleinladung',message:i.senderName + ' lädt dich zu ' + i.gameTitle + ' ein.',
-            type:'invite' as const,timestamp:new Date(i.createdAt).toLocaleString('de-DE'),read:false,roomCode:i.roomCode,
-          }));
-          return [...incoming,...previous];
-        });
-      } catch {}
-    };
-    void refresh(); const timer=setInterval(refresh,15000);
-    return ()=>{cancelled=true;clearInterval(timer);};
-  },[user?.id]);
-  useEffect(()=> {
-    const url=new URL(window.location.href), token=url.searchParams.get('verifyToken');
-    if (!user || !token) return;
-    void apiAuth.verifyEmail(token).then(async result=> {
-      if (!result.success) setPlatformError(result.error || 'Bestätigung fehlgeschlagen.');
-      else { const fresh=await apiAuth.fetchCurrentUser(); if(fresh) setUser(fresh); setGlobalAnnouncement(result.message || 'E-Mail bestätigt.'); }
-      url.searchParams.delete('verifyToken');window.history.replaceState({},'',url);
-    });
-  },[user?.id]);
-  const inviteFriend = async (friend: {id:string;name:string}) => {
-    if (!currentRoom) { setPlatformError('Öffne zuerst einen Spieltisch, um Freunde einzuladen.'); return; }
-    try {
-      await friendsService.invite(friend.id,currentRoom.code);
-      setPlatformError('');
-      setNotifications(previous=>[{id:'sent_'+Date.now(),title:'Spieleinladung gesendet',message:'Einladung an '+friend.name+' gesendet.',type:'system',timestamp:'Gerade eben',read:false},...previous]);
-    } catch(error) { setPlatformError(error instanceof Error ? error.message : 'Einladung fehlgeschlagen.'); }
-  };
+    if (typeof window !== 'undefined' && user) {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('room');
+      if (code) {
+        const found = multiplayerService.getRoomByCode(code);
+        if (found) {
+          const joined = multiplayerService.joinRoom(found.code, user) || found;
+          setCurrentRoom(joined);
+          const matchedGame = gamesCatalog.find((g) => g.id === joined.gameId);
+          if (matchedGame) setActiveGame(matchedGame);
+        }
+      }
+    }
+  }, [user]);
 
   const [globalAnnouncement, setGlobalAnnouncement] = useState<string | null>(
     '🎲 Willkommen am virtuellen FamPlay-Spieltisch · Wähle dein Lieblingsspiel oder lade deine Familie per Tisch-Code ein!'
@@ -305,26 +265,33 @@ export default function App() {
     if (next) sound.playClick();
   };
 
-  const handleLaunchGame = async (game: GameInfo) => {
-    if (!user || roomPending) return;
-    if (parental.enabled && game.minAge > parental.maxAgeRating) { setIsParentalOpen(true); return; }
-    if (currentRoom?.gameId===game.id) {setActiveGame(game);return;}
-    setRoomPending(true);setPlatformError('');
-    try {
-      const room = await multiplayerService.createRoom(user,{
-        name:t('family_table_of',{name:user.name}),gameId:game.id,gameTitle:game.title,
-        maxPlayers:['chess','connect-four','checkers','tictactoe','dots-boxes','battleship'].includes(game.engine)?2:4,
-        isPrivate:false,voiceChatActive:false,
-      });
-      setCurrentRoom(room);setActiveGame(game);
-    } catch(error) {setPlatformError(error instanceof Error ? error.message : 'Tisch konnte nicht geöffnet werden.');}
-    finally {setRoomPending(false);}
-  };
+  const handleLaunchGame = (game: GameInfo) => {
+    if (!user) return;
+    // Check parental controls age rating
+    if (parental.enabled && game.minAge > parental.maxAgeRating) {
+      sound.playError();
+      setIsParentalOpen(true);
+      return;
+    }
+    sound.playReward();
+    setActiveGame(game);
 
-  const saveProfile = async (updated: UserProfile) => {
-    const saved = await apiAuth.updateProfile(updated);
-    setUser(saved);authService.setCurrentUser(saved);multiplayerService.identifyUser(saved);
-    if(currentRoom) await multiplayerService.joinRoom(currentRoom.code,saved);
+    // Ensure current table matches active game and seats user
+    setCurrentRoom((prev) => {
+      const maxSlots = ['chess', 'connect-four', 'checkers', 'tictactoe', 'dots-boxes', 'battleship'].includes(game.engine) ? 2 : 4;
+      if (prev && prev.gameId === game.id) {
+        return prev;
+      }
+      const newRoom = multiplayerService.createRoom(user, {
+        name: t('family_table_of', { name: user.name }),
+        gameId: game.id,
+        gameTitle: game.title,
+        maxPlayers: maxSlots,
+        isPrivate: false,
+        voiceChatActive: false,
+      });
+      return newRoom;
+    });
   };
 
   const handleGameCompletion = (result: any) => {
@@ -412,15 +379,13 @@ export default function App() {
   }
 
   // 3. Mandatory Authentication: Must be logged in to enter FamPlay
-  if (!user || new URLSearchParams(window.location.search).has('resetToken')) {
+  if (!user) {
     return <AuthGate onLoginSuccess={(loggedInUser) => setUser(loggedInUser)} />;
   }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       
-      {platformError && <div role="alert" className="bg-rose-950 text-rose-200 p-3 flex justify-between gap-3">{platformError}<button onClick={()=>setPlatformError('')}>Schließen</button></div>}
-      {roomPending && <p role="status" className="p-3 text-amber-300">Tisch wird geöffnet …</p>}
       {/* 1. TOP GLOBAL LIVE ANNOUNCEMENT BANNER */}
       {globalAnnouncement && (
         <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-rose-600 px-4 py-2 text-xs font-bold text-white flex items-center justify-between shadow-md">
@@ -460,12 +425,9 @@ export default function App() {
                 <h1 className="text-xl sm:text-2xl font-black font-display tracking-tight text-white leading-none">
                   Fam<span style={{ color: currentTheme.primaryColor }}>Play</span>
                 </h1>
-                <span className="text-[10px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 px-2 py-0.5 rounded-full">
-                  Arcade
-                </span>
               </div>
-              <p className="text-[11px] text-slate-400 hidden sm:block font-medium">
-                100+ Classic Card & Board Games
+              <p className="text-[11px] text-slate-400 hidden sm:block font-medium mt-0.5">
+                Klassische & moderne Gesellschaftsspiele
               </p>
             </div>
           </div>
@@ -488,7 +450,6 @@ export default function App() {
             {/* Notifications Dropdown */}
             <NotificationCenter
               notifications={notifications}
-              onJoinRoom={code=>void joinTable(code)}
               onMarkAllRead={() => {
                 setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
               }}
@@ -590,7 +551,6 @@ export default function App() {
             {/* Notifications Dropdown */}
             <NotificationCenter
               notifications={notifications}
-              onJoinRoom={code=>void joinTable(code)}
               onMarkAllRead={() => {
                 setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
               }}
@@ -765,7 +725,7 @@ export default function App() {
       )}
 
       {/* 4. ACTIVE GAME ARENA OR BROWSE CATALOG */}
-      <main className={`flex-1 ${activeGame ? 'max-w-[1600px] p-0.5 sm:p-3' : 'max-w-7xl p-2.5 sm:p-6'} mx-auto w-full pb-24 md:pb-8`}>
+      <main className="flex-1 max-w-7xl mx-auto w-full p-2.5 sm:p-6 pb-24 md:pb-8">
         {activeGame ? (
           /* ACTIVE GAME VIEW */
           <div className="space-y-3 sm:space-y-4 animate-in fade-in duration-200">
@@ -862,7 +822,7 @@ export default function App() {
             </div>
 
             {/* GAME ENGINE CONTAINER (Optimized for full viewport display on mobile) */}
-            <GameArena engine={activeGame.engine} title={activeGame.title} room={currentRoom} userId={user.id}>
+            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl sm:rounded-3xl p-2 sm:p-6 shadow-2xl min-h-[420px] sm:min-h-[500px] flex items-center justify-center overflow-x-hidden">
               {activeGame.engine === 'ludo' && (
                 <LudoGame 
                   onGameEnd={handleGameCompletion} 
@@ -1023,52 +983,48 @@ export default function App() {
                   isHost={currentRoom?.participants[0]?.id === user.id}
                 />
               )}
-            </GameArena>
+            </div>
           </div>
         ) : (
           /* ARCADE LIBRARY CATALOG VIEW */
           <div className="space-y-6">
             
             {/* Hero Banner with Real Photography */}
-            <div className="relative rounded-3xl overflow-hidden border border-indigo-700/50 shadow-2xl min-h-[300px] flex items-center bg-slate-900">
-              {/* Arcade Hero Visual */}
+            <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden border border-slate-800 shadow-2xl min-h-[280px] sm:min-h-[320px] flex items-center bg-slate-950">
               <img
                 src={HERO_BANNER_IMAGE}
-                alt="Family Game Night"
+                alt="Family Game Table"
                 referrerPolicy="no-referrer"
                 onError={(e) => {
                   e.currentTarget.src = HERO_BANNER_FALLBACK;
                 }}
-                className="absolute inset-0 w-full h-full object-cover object-center filter brightness-[0.4] contrast-105"
+                className="absolute inset-0 w-full h-full object-cover object-center filter brightness-[0.38] contrast-105"
               />
-              <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-950/80 to-transparent" />
-              <div className="absolute -right-10 -bottom-10 w-72 h-72 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/80 to-transparent" />
 
-              <div className="relative z-10 max-w-2xl p-6 sm:p-8 space-y-3">
-                <span 
-                  className="text-[11px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow"
-                  style={{
-                    backgroundColor: currentTheme.primaryColor,
-                    color: currentTheme.id === 'purple' || currentTheme.id === 'ruby' ? '#ffffff' : '#020617'
-                  }}
-                >
-                  {t('hero_badge')}
-                </span>
-                <h2 className="text-2xl sm:text-4xl font-black font-display text-white leading-tight">
-                  {t('tagline')}
+              <div className="relative z-10 max-w-2xl p-6 sm:p-10 space-y-3.5">
+                <div className="text-xs font-semibold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                  <span>Digitale Spielesammlung 2026</span>
+                  <span aria-hidden="true" className="text-slate-600">·</span>
+                  <span className="text-slate-300">100+ Titel spielbar</span>
+                </div>
+
+                <h2 className="text-2xl sm:text-4xl lg:text-5xl font-black font-display text-white tracking-tight leading-tight">
+                  Große Klassiker & moderne Spiele am gemeinsamen Tisch
                 </h2>
+
                 <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xl">
-                  {t('hero_subtitle')}
+                  Mahjong Classic mit 25 handgefertigten Leveln, Diamond Blast Kettenreaktionen, Catan, Monopoly, Schach, Rommé und viele mehr – zusammen mit Freunden oder Familie am interaktiven Tisch mit Sprachchat.
                 </p>
 
-                {/* Hero Primary Actions (No duplicate game buttons) */}
+                {/* Hero Actions */}
                 <div className="pt-2 flex flex-wrap items-center gap-3">
                   <button
                     onClick={() => {
                       sound.playClick();
                       setIsRoomManagerOpen(true);
                     }}
-                    className={`px-4 py-2.5 rounded-2xl font-black text-xs shadow-lg transition flex items-center gap-2 active:scale-95 cursor-pointer ${currentTheme.btnClasses}`}
+                    className={`px-4 py-2.5 rounded-xl font-bold text-xs shadow-lg transition flex items-center gap-2 active:scale-95 cursor-pointer ${currentTheme.btnClasses}`}
                   >
                     <Users className="w-4 h-4" />
                     <span>{t('open_family_table')}</span>
@@ -1080,7 +1036,7 @@ export default function App() {
                       const randomGame = gamesCatalog[Math.floor(Math.random() * gamesCatalog.length)];
                       handleLaunchGame(randomGame);
                     }}
-                    className="px-4 py-2.5 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-white font-bold text-xs border border-slate-700 shadow transition flex items-center gap-2 active:scale-95 cursor-pointer"
+                    className="px-4 py-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 font-semibold text-xs border border-slate-700/80 shadow transition flex items-center gap-2 active:scale-95 cursor-pointer"
                   >
                     <Sparkles className="w-4 h-4 text-amber-400" />
                     <span>{t('play_random_game')}</span>
@@ -1092,8 +1048,7 @@ export default function App() {
             {/* Search & Category Filter Navigation */}
             <div className="space-y-3">
               <div className="flex flex-col sm:flex-row gap-3">
-                
-                {/* Search 100+ Games Input */}
+                {/* Search Input */}
                 <div className="relative flex-1">
                   <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
@@ -1101,7 +1056,7 @@ export default function App() {
                     placeholder={t('search_input_placeholder')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-10 pr-4 py-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 transition"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 transition"
                   />
                   {searchQuery && (
                     <button
@@ -1114,8 +1069,8 @@ export default function App() {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  <div className="bg-slate-900 border border-slate-800 px-3.5 py-3 rounded-2xl text-xs font-bold text-slate-300">
-                    <strong className="text-amber-400 font-mono">{filteredGames.length}</strong> {t('games_available')}
+                  <div className="bg-slate-900 border border-slate-800 px-3.5 py-2.5 rounded-xl text-xs font-medium text-slate-400">
+                    <strong className="text-amber-400 font-mono tabular-nums">{filteredGames.length}</strong> {t('games_available')}
                   </div>
                 </div>
               </div>
@@ -1140,9 +1095,9 @@ export default function App() {
                         sound.playClick();
                         setSelectedCategory(cat.id as any);
                       }}
-                      className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shrink-0 ${
                         isSelected
-                          ? `${currentTheme.btnClasses} shadow-md font-black`
+                          ? `${currentTheme.btnClasses} shadow-sm font-bold`
                           : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
                       }`}
                     >
@@ -1161,11 +1116,11 @@ export default function App() {
                 return (
                   <div
                     key={game.id}
-                    className="bg-slate-900/90 border border-slate-800 hover:border-amber-500/40 rounded-3xl p-3.5 flex flex-col justify-between transition-all hover:-translate-y-1 hover:shadow-2xl group overflow-hidden"
+                    className="bg-slate-900/90 border border-slate-800/80 hover:border-amber-500/50 rounded-2xl p-3 flex flex-col justify-between transition-all duration-200 hover:-translate-y-1 hover:shadow-xl group overflow-hidden"
                   >
                     <div>
                       {/* Real Game Photograph Header */}
-                      <div className="h-44 w-full rounded-2xl overflow-hidden relative mb-3 bg-slate-950 border border-slate-800">
+                      <div className="aspect-[16/10] w-full rounded-xl overflow-hidden relative mb-3 bg-slate-950 border border-slate-800/80">
                         <img
                           src={getGameImage(game)}
                           alt={game.title}
@@ -1175,39 +1130,43 @@ export default function App() {
                             (e.currentTarget as HTMLImageElement).src = HERO_BANNER_FALLBACK;
                           }}
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/30 to-transparent pointer-events-none" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent pointer-events-none" />
 
-                        {/* Top Overlay Indicator */}
-                        <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between pointer-events-none">
-                          <span className="text-lg p-1.5 rounded-xl bg-slate-950/80 backdrop-blur-md shadow-md border border-slate-700/60 leading-none">
+                        {/* Top Indicator */}
+                        <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-none">
+                          <span className="text-base p-1 rounded-lg bg-slate-950/80 backdrop-blur-md shadow-sm border border-slate-700/60 leading-none">
                             {game.icon}
                           </span>
                           {game.featured && (
-                            <span className="text-[10px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 px-2 py-0.5 rounded shadow flex items-center gap-1">
-                              <Star className="w-2.5 h-2.5 fill-current" /> {t('highlight')}
+                            <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1 drop-shadow-md">
+                              <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                              <span>Empfehlung</span>
                             </span>
                           )}
                         </div>
 
-                        {/* Bottom Overlay Title Bar */}
-                        <div className="absolute bottom-2 left-2.5 right-2.5 pointer-events-none">
-                          <span className="text-[11px] text-amber-300/90 font-medium tracking-wide">
-                            ★ {game.rating.toFixed(1)} · {game.playsCount > 0 ? `${game.playsCount.toLocaleString()} ${t('rounds_played')}` : t('open_table')}
+                        {/* Bottom Overlay Info */}
+                        <div className="absolute bottom-2 left-2.5 right-2.5 pointer-events-none flex items-center justify-between text-[11px] text-slate-300">
+                          <span className="font-semibold text-amber-300/95">
+                            ★ {game.rating.toFixed(1)}
+                          </span>
+                          <span className="text-slate-400 text-[10px]">
+                            {game.playsCount > 0 ? `${game.playsCount.toLocaleString()} ${t('rounds_played')}` : t('open_table')}
                           </span>
                         </div>
                       </div>
 
                       {/* Title & Description */}
-                      <h3 className="font-bold font-display text-base text-white group-hover:text-amber-400 transition-colors line-clamp-1 px-1">
+                      <h3 className="font-bold font-display text-base text-white group-hover:text-amber-400 transition-colors line-clamp-1 px-0.5">
                         {game.title}
                       </h3>
 
-                      <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed px-1">
+                      <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed px-0.5">
                         {game.description}
                       </p>
 
-                      {/* Metadata Specs as Clean Typographic Line (Zero-Pill Discipline) */}
-                      <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center gap-2 text-xs text-slate-400 px-1 font-medium">
+                      {/* Clean Unboxed Metadata Specs Line */}
+                      <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center gap-2 text-xs text-slate-400 px-0.5 font-medium">
                         <span className="text-slate-300">{game.players}</span>
                         <span aria-hidden="true" className="text-slate-600">·</span>
                         <span>{game.duration}</span>
@@ -1217,10 +1176,10 @@ export default function App() {
                     </div>
 
                     {/* Play Action Button */}
-                    <div className="mt-4 pt-1">
+                    <div className="mt-3.5 pt-0.5">
                       <button
                         onClick={() => handleLaunchGame(gameRaw)}
-                        className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-white font-bold text-xs shadow transition-all duration-200 flex items-center justify-center gap-1.5 active:scale-95 group-hover:bg-amber-500 group-hover:text-slate-950"
+                        className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-slate-100 font-semibold text-xs shadow-sm transition-all duration-200 flex items-center justify-center gap-1.5 active:scale-95 group-hover:bg-amber-500 group-hover:text-slate-950 cursor-pointer"
                       >
                         <Play className="w-3.5 h-3.5 fill-current" />
                         <span>{t('play_at_table')}</span>
@@ -1290,7 +1249,27 @@ export default function App() {
         isOpen={isAvatarOpen}
         onClose={() => setIsAvatarOpen(false)}
         currentUser={user}
-        onSave={(newAvatar,newRole)=>{void saveProfile({...user,avatar:newAvatar,familyRole:newRole}).catch(error=>setPlatformError(error.message));}}
+        onSave={(newAvatar, newRole) => {
+          setUser((u) => {
+            if (!u) return null;
+            const updated = {
+              ...u,
+              avatar: newAvatar,
+              familyRole: newRole,
+            };
+            authService.setCurrentUser(updated);
+            return updated;
+          });
+          setCurrentRoom((prev) => {
+            if (!prev) return null;
+            const updatedParticipants = prev.participants.map((p) =>
+              p.id === user.id ? { ...p, avatar: newAvatar } : p
+            );
+            const updatedRoom = { ...prev, participants: updatedParticipants };
+            multiplayerService.updateRoomState(updatedRoom);
+            return updatedRoom;
+          });
+        }}
       />
 
       <RoomManagerModal
@@ -1460,7 +1439,10 @@ export default function App() {
         isOpen={isUserPanelOpen}
         onClose={() => setIsUserPanelOpen(false)}
         user={user}
-        onUpdateUser={saveProfile}
+        onUpdateUser={(updatedUser) => {
+          setUser(updatedUser);
+          authService.setCurrentUser(updatedUser);
+        }}
         onOpenAvatarStudio={() => {
           setIsUserPanelOpen(false);
           setIsAvatarOpen(true);
@@ -1471,9 +1453,7 @@ export default function App() {
         }}
         onLogout={() => {
           sound.playClick();
-          multiplayerService.signOut();
           apiAuth.logout();
-          setNotifications([]);
           setUser(null);
           setActiveGame(null);
           setCurrentRoom(null);
@@ -1487,7 +1467,22 @@ export default function App() {
           setIsUserPanelOpen(false);
           setIsFriendsOpen(true);
         }}
-        onInviteFriendToGame={friend=>void inviteFriend(friend)}
+        onInviteFriendToGame={(friend) => {
+          sound.playReward();
+          if (activeGame) {
+            setNotifications((prev) => [
+              {
+                id: `invite_${Date.now()}`,
+                title: 'Spieleinladung gesendet',
+                message: `Einladung an ${friend.name} für ${activeGame.title} gesendet!`,
+                type: 'invite',
+                timestamp: 'Gerade eben',
+                read: false,
+              },
+              ...prev,
+            ]);
+          }
+        }}
       />
 
       {/* Standalone Family & Friends Modal */}
@@ -1495,7 +1490,20 @@ export default function App() {
         isOpen={isFriendsOpen}
         onClose={() => setIsFriendsOpen(false)}
         currentUser={user}
-        onInviteToGame={friend=>void inviteFriend(friend)}
+        onInviteToGame={(friend) => {
+          sound.playReward();
+          setNotifications((prev) => [
+            {
+              id: `invite_${Date.now()}`,
+              title: 'Spieleinladung gesendet',
+              message: `Einladung an ${friend.name} wurde gesendet!`,
+              type: 'invite',
+              timestamp: 'Gerade eben',
+              read: false,
+            },
+            ...prev,
+          ]);
+        }}
       />
 
       {/* Android App & PWA Hub Modal */}

@@ -1,4 +1,3 @@
-import {boardAsset} from './gameAssets';
 import { GameInfo, GameCategory } from '../types';
 
 // Helper: converts SVG string to clean data URI
@@ -6,54 +5,124 @@ export const svgToDataUri = (svg: string): string => {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.trim())}`;
 };
 
-// Original local table artwork, also included in the offline cache.
-export const TABLE_BACKGROUNDS = Object.fromEntries(['mahogany','feltGreen','hearthCozy','terraceGarden','oceanRadar','slateZen'].map(name=>[name,boardAsset(name)])) as Record<'mahogany'|'feltGreen'|'hearthCozy'|'terraceGarden'|'oceanRadar'|'slateZen',string>;
+// Ambient backgrounds for games & tables (self-contained SVG data URIs, immune to CSP & offline)
+export const TABLE_BACKGROUNDS = {
+  mahogany: svgToDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" width="1400" height="900">
+      <defs>
+        <radialGradient id="mCenter" cx="50%" cy="50%" r="65%">
+          <stop offset="0%" stop-color="#4e2613"/>
+          <stop offset="60%" stop-color="#34160a"/>
+          <stop offset="100%" stop-color="#190903"/>
+        </radialGradient>
+        <pattern id="grain" width="120" height="24" patternUnits="userSpaceOnUse">
+          <path d="M0 6 Q 60 18 120 6 M0 14 Q 60 2 120 14" stroke="#230b03" stroke-width="1.2" fill="none" opacity="0.35"/>
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#mCenter)"/>
+      <rect width="100%" height="100%" fill="url(#grain)"/>
+      <rect width="100%" height="100%" fill="none" stroke="#2a1005" stroke-width="14" opacity="0.6"/>
+    </svg>
+  `),
+  feltGreen: svgToDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" width="1400" height="900">
+      <defs>
+        <radialGradient id="fCenter" cx="50%" cy="45%" r="65%">
+          <stop offset="0%" stop-color="#116239"/>
+          <stop offset="65%" stop-color="#0a3e23"/>
+          <stop offset="100%" stop-color="#051f11"/>
+        </radialGradient>
+        <radialGradient id="vignette" cx="50%" cy="50%" r="60%">
+          <stop offset="80%" stop-color="transparent"/>
+          <stop offset="100%" stop-color="#020e07" stop-opacity="0.85"/>
+        </radialGradient>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#fCenter)"/>
+      <rect width="100%" height="100%" fill="url(#vignette)"/>
+      <rect width="100%" height="100%" fill="none" stroke="#1d7a49" stroke-width="8" opacity="0.3"/>
+    </svg>
+  `),
+  hearthCozy: svgToDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" width="1400" height="900">
+      <defs>
+        <radialGradient id="hCenter" cx="50%" cy="50%" r="65%">
+          <stop offset="0%" stop-color="#5a2f14"/>
+          <stop offset="50%" stop-color="#3c1e0b"/>
+          <stop offset="100%" stop-color="#1c0b03"/>
+        </radialGradient>
+        <radialGradient id="fireGlow" cx="50%" cy="100%" r="65%">
+          <stop offset="0%" stop-color="#ff7a18" stop-opacity="0.25"/>
+          <stop offset="70%" stop-color="transparent"/>
+        </radialGradient>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#hCenter)"/>
+      <rect width="100%" height="100%" fill="url(#fireGlow)"/>
+    </svg>
+  `),
+  terraceGarden: svgToDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" width="1400" height="900">
+      <defs>
+        <radialGradient id="tCenter" cx="50%" cy="50%" r="65%">
+          <stop offset="0%" stop-color="#2d3748"/>
+          <stop offset="60%" stop-color="#1a202c"/>
+          <stop offset="100%" stop-color="#0f141d"/>
+        </radialGradient>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#tCenter)"/>
+    </svg>
+  `),
+  oceanRadar: svgToDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" width="1400" height="900">
+      <defs>
+        <radialGradient id="oceanBg" cx="50%" cy="50%" r="70%">
+          <stop offset="0%" stop-color="#062744"/>
+          <stop offset="55%" stop-color="#031526"/>
+          <stop offset="100%" stop-color="#010a12"/>
+        </radialGradient>
+        <pattern id="radarGrid" width="60" height="60" patternUnits="userSpaceOnUse">
+          <path d="M 60 0 L 0 0 0 60" fill="none" stroke="#00ffff" stroke-width="0.75" opacity="0.12"/>
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#oceanBg)"/>
+      <rect width="100%" height="100%" fill="url(#radarGrid)"/>
+      <circle cx="700" cy="450" r="180" fill="none" stroke="#00e5ff" stroke-width="1" opacity="0.25" stroke-dasharray="8 6"/>
+      <circle cx="700" cy="450" r="320" fill="none" stroke="#00e5ff" stroke-width="1.2" opacity="0.2"/>
+      <circle cx="700" cy="450" r="460" fill="none" stroke="#00e5ff" stroke-width="1" opacity="0.15"/>
+    </svg>
+  `),
+  slateZen: svgToDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" width="1400" height="900">
+      <defs>
+        <radialGradient id="slateGrad" cx="50%" cy="50%" r="70%">
+          <stop offset="0%" stop-color="#242b35"/>
+          <stop offset="60%" stop-color="#171b22"/>
+          <stop offset="100%" stop-color="#0c0e12"/>
+        </radialGradient>
+        <pattern id="subtleGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#ffffff" stroke-width="0.5" opacity="0.04"/>
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#slateGrad)"/>
+      <rect width="100%" height="100%" fill="url(#subtleGrid)"/>
+    </svg>
+  `),
+};
 
-export const HERO_BANNER_IMAGE = svgToDataUri(`
+const SVG_HERO_FALLBACK = svgToDataUri(`
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 700" width="1600" height="700">
   <defs>
     <radialGradient id="heroGlow" cx="30%" cy="35%" r="70%">
-      <stop offset="0%" stop-color="#2e1065"/>
-      <stop offset="50%" stop-color="#1e1b4b"/>
-      <stop offset="100%" stop-color="#090a16"/>
-    </radialGradient>
-    <radialGradient id="warmSpot" cx="75%" cy="55%" r="50%">
-      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.35"/>
-      <stop offset="60%" stop-color="#b45309" stop-opacity="0.1"/>
-      <stop offset="100%" stop-color="transparent"/>
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="50%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#020617"/>
     </radialGradient>
   </defs>
   <rect width="100%" height="100%" fill="url(#heroGlow)"/>
-  <rect width="100%" height="100%" fill="url(#warmSpot)"/>
-  <g transform="translate(1120, 220) rotate(-12)" opacity="0.85">
-    <rect width="120" height="120" rx="26" fill="#f8fafc" stroke="#cbd5e1" stroke-width="4"/>
-    <circle cx="35" cy="35" r="10" fill="#dc2626"/>
-    <circle cx="60" cy="60" r="10" fill="#dc2626"/>
-    <circle cx="85" cy="85" r="10" fill="#dc2626"/>
-  </g>
-  <g transform="translate(1280, 290) rotate(18)" opacity="0.85">
-    <rect width="110" height="110" rx="24" fill="#fbbf24" stroke="#d97706" stroke-width="4"/>
-    <circle cx="32" cy="32" r="9" fill="#1e293b"/>
-    <circle cx="78" cy="32" r="9" fill="#1e293b"/>
-    <circle cx="32" cy="78" r="9" fill="#1e293b"/>
-    <circle cx="78" cy="78" r="9" fill="#1e293b"/>
-    <circle cx="55" cy="55" r="9" fill="#1e293b"/>
-  </g>
-  <g transform="translate(1000, 360) rotate(-20)" opacity="0.85">
-    <rect width="100" height="150" rx="14" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
-    <text x="50" y="90" font-family="sans-serif" font-weight="900" font-size="44" fill="#ef4444" text-anchor="middle">♥</text>
-  </g>
-  <g transform="translate(1060, 340) rotate(-5)" opacity="0.9">
-    <rect width="100" height="150" rx="14" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
-    <text x="50" y="90" font-family="sans-serif" font-weight="900" font-size="44" fill="#0f172a" text-anchor="middle">♠</text>
-  </g>
-  <g transform="translate(1130, 350) rotate(14)" opacity="0.95">
-    <rect width="100" height="150" rx="14" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
-    <text x="50" y="90" font-family="sans-serif" font-weight="900" font-size="40" fill="#f59e0b" text-anchor="middle">★</text>
-  </g>
 </svg>
 `);
-export const HERO_BANNER_FALLBACK = HERO_BANNER_IMAGE;
+
+export const HERO_BANNER_IMAGE = 'https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?auto=format&fit=crop&w=1600&q=85';
+export const HERO_BANNER_FALLBACK = SVG_HERO_FALLBACK;
 
 export const NAVAL_FLEET_PHOTOS = {
   carrier: {
@@ -2151,96 +2220,96 @@ const SVG_MAHJONG = svgToDataUri(`
 // --------------------------------------------------------------------------
 
 export const SPECIFIC_GAME_IMAGES: Record<string, string> = {
-  // Flagship Core Playable Games
-  'mahjong': SVG_MAHJONG,
-  'catan': SVG_CATAN,
-  'romme': SVG_ROMME,
-  'skip-bo': SVG_SKIP_BO,
-  'monopoly': SVG_MONOPOLY_2026,
-  'diamond-blast': SVG_DIAMOND_BLAST,
-  'ludo': SVG_LUDO,
-  'chess': SVG_CHESS,
-  'connect-four': SVG_CONNECT_FOUR,
-  'checkers': SVG_CHECKERS,
-  'battleship': SVG_BATTLESHIP,
-  'fam-cards': SVG_FAMCARDS,
-  'yatzy': SVG_YATZY,
-  'memory-match': SVG_MEMORY,
-  'dots-boxes': SVG_DOTS_BOXES,
-  'tictactoe-gomoku': SVG_TICTACTOE,
-  'tictactoe': SVG_TICTACTOE,
+  // Flagship Core Playable Games - High Resolution Photography
+  'mahjong': 'https://images.unsplash.com/photo-1596704017254-9b121068fb31?auto=format&fit=crop&w=800&q=80',
+  'catan': 'https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?auto=format&fit=crop&w=800&q=80',
+  'romme': 'https://images.unsplash.com/photo-1511193311914-0346f16efe90?auto=format&fit=crop&w=800&q=80',
+  'skip-bo': 'https://images.unsplash.com/photo-1541123437800-1bb1317badc2?auto=format&fit=crop&w=800&q=80',
+  'monopoly': 'https://images.unsplash.com/photo-1611891487122-207579d67d98?auto=format&fit=crop&w=800&q=80',
+  'diamond-blast': 'https://images.unsplash.com/photo-1599707367072-cd6ada2bc375?auto=format&fit=crop&w=800&q=80',
+  'ludo': 'https://images.unsplash.com/photo-1606167668584-78701c57f13d?auto=format&fit=crop&w=800&q=80',
+  'chess': 'https://images.unsplash.com/photo-1529699211952-734e80c4d42b?auto=format&fit=crop&w=800&q=80',
+  'connect-four': 'https://images.unsplash.com/photo-1616091216791-a5360b5fc78a?auto=format&fit=crop&w=800&q=80',
+  'checkers': 'https://images.unsplash.com/photo-1563245372-f21724e3856d?auto=format&fit=crop&w=800&q=80',
+  'battleship': 'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?auto=format&fit=crop&w=800&q=80',
+  'fam-cards': 'https://images.unsplash.com/photo-1577741314755-048d8525d31e?auto=format&fit=crop&w=800&q=80',
+  'yatzy': 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&w=800&q=80',
+  'memory-match': 'https://images.unsplash.com/photo-1596461404969-9ae70f2830c1?auto=format&fit=crop&w=800&q=80',
+  'dots-boxes': 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?auto=format&fit=crop&w=800&q=80',
+  'tictactoe-gomoku': 'https://images.unsplash.com/photo-1508873696983-2df5293cb32b?auto=format&fit=crop&w=800&q=80',
+  'tictactoe': 'https://images.unsplash.com/photo-1508873696983-2df5293cb32b?auto=format&fit=crop&w=800&q=80',
 
   // Board Games
-  'backgammon': SVG_BACKGAMMON,
-  'dominoes-draw': SVG_DOMINOES,
-  'mexican-train': SVG_DOMINOES,
+  'backgammon': 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=800&q=80',
+  'dominoes-draw': 'https://images.unsplash.com/photo-1589802829985-817e51171b92?auto=format&fit=crop&w=800&q=80',
+  'mexican-train': 'https://images.unsplash.com/photo-1589802829985-817e51171b92?auto=format&fit=crop&w=800&q=80',
   'mancala': SVG_MANCALA,
   'nine-mens-morris': SVG_MUEHLE,
-  'chinese-checkers': SVG_LUDO,
-  'halma': SVG_LUDO,
-  'reversi': SVG_CHECKERS,
-  'go-board-game': SVG_TICTACTOE,
-  'shogi': SVG_CHESS,
-  'xiangqi': SVG_CHESS,
+  'chinese-checkers': 'https://images.unsplash.com/photo-1606167668584-78701c57f13d?auto=format&fit=crop&w=800&q=80',
+  'halma': 'https://images.unsplash.com/photo-1606167668584-78701c57f13d?auto=format&fit=crop&w=800&q=80',
+  'reversi': 'https://images.unsplash.com/photo-1563245372-f21724e3856d?auto=format&fit=crop&w=800&q=80',
+  'go-board-game': 'https://images.unsplash.com/photo-1508873696983-2df5293cb32b?auto=format&fit=crop&w=800&q=80',
+  'shogi': 'https://images.unsplash.com/photo-1529699211952-734e80c4d42b?auto=format&fit=crop&w=800&q=80',
+  'xiangqi': 'https://images.unsplash.com/photo-1529699211952-734e80c4d42b?auto=format&fit=crop&w=800&q=80',
   'snakes-ladders': SVG_SNAKES_LADDERS,
   'goose-game': SVG_SNAKES_LADDERS,
-  'peg-solitaire': SVG_CHECKERS,
-  'senet': SVG_BACKGAMMON,
-  'royal-game-ur': SVG_BACKGAMMON,
+  'peg-solitaire': 'https://images.unsplash.com/photo-1563245372-f21724e3856d?auto=format&fit=crop&w=800&q=80',
+  'senet': 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=800&q=80',
+  'royal-game-ur': 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=800&q=80',
 
   // Card Games
-  'hearts': SVG_HEARTS_SPADES,
-  'spades': SVG_HEARTS_SPADES,
-  'solitaire-klondike': SVG_SOLITAIRE,
-  'blackjack-family': SVG_GERMAN_CARDS,
-  'rummy': SVG_GERMAN_CARDS,
-  'canasta': SVG_GERMAN_CARDS,
-  'skat': SVG_GERMAN_CARDS,
-  'doppelkopf': SVG_GERMAN_CARDS,
-  'mau-mau': SVG_GERMAN_CARDS,
-  'cribbage': SVG_GERMAN_CARDS,
-  'go-fish': SVG_GERMAN_CARDS,
-  'war-card-game': SVG_GERMAN_CARDS,
-  'whist': SVG_HEARTS_SPADES,
-  'schnapsen': SVG_GERMAN_CARDS,
-  'tarneeb': SVG_HEARTS_SPADES,
-  'scopa': SVG_GERMAN_CARDS,
-  'belote': SVG_GERMAN_CARDS,
-  'old-maid': SVG_GERMAN_CARDS,
-  'snap': SVG_FAMCARDS,
-  'speed-cards': SVG_FAMCARDS,
+  'hearts': 'https://images.unsplash.com/photo-1511193311914-0346f16efe90?auto=format&fit=crop&w=800&q=80',
+  'spades': 'https://images.unsplash.com/photo-1511193311914-0346f16efe90?auto=format&fit=crop&w=800&q=80',
+  'solitaire-klondike': 'https://images.unsplash.com/photo-1511193311914-0346f16efe90?auto=format&fit=crop&w=800&q=80',
+  'blackjack-family': 'https://images.unsplash.com/photo-1511193311914-0346f16efe90?auto=format&fit=crop&w=800&q=80',
+  'rummy': 'https://images.unsplash.com/photo-1511193311914-0346f16efe90?auto=format&fit=crop&w=800&q=80',
+  'canasta': 'https://images.unsplash.com/photo-1511193311914-0346f16efe90?auto=format&fit=crop&w=800&q=80',
+  'skat': 'https://images.unsplash.com/photo-1511193311914-0346f16efe90?auto=format&fit=crop&w=800&q=80',
+  'doppelkopf': 'https://images.unsplash.com/photo-1511193311914-0346f16efe90?auto=format&fit=crop&w=800&q=80',
+  'mau-mau': 'https://images.unsplash.com/photo-1577741314755-048d8525d31e?auto=format&fit=crop&w=800&q=80',
+  'cribbage': 'https://images.unsplash.com/photo-1511193311914-0346f16efe90?auto=format&fit=crop&w=800&q=80',
+  'go-fish': 'https://images.unsplash.com/photo-1577741314755-048d8525d31e?auto=format&fit=crop&w=800&q=80',
+  'war-card-game': 'https://images.unsplash.com/photo-1511193311914-0346f16efe90?auto=format&fit=crop&w=800&q=80',
+  'whist': 'https://images.unsplash.com/photo-1511193311914-0346f16efe90?auto=format&fit=crop&w=800&q=80',
+  'schnapsen': 'https://images.unsplash.com/photo-1511193311914-0346f16efe90?auto=format&fit=crop&w=800&q=80',
+  'tarneeb': 'https://images.unsplash.com/photo-1511193311914-0346f16efe90?auto=format&fit=crop&w=800&q=80',
+  'scopa': 'https://images.unsplash.com/photo-1511193311914-0346f16efe90?auto=format&fit=crop&w=800&q=80',
+  'belote': 'https://images.unsplash.com/photo-1511193311914-0346f16efe90?auto=format&fit=crop&w=800&q=80',
+  'old-maid': 'https://images.unsplash.com/photo-1577741314755-048d8525d31e?auto=format&fit=crop&w=800&q=80',
+  'snap': 'https://images.unsplash.com/photo-1577741314755-048d8525d31e?auto=format&fit=crop&w=800&q=80',
+  'speed-cards': 'https://images.unsplash.com/photo-1577741314755-048d8525d31e?auto=format&fit=crop&w=800&q=80',
 
   // Dice Games
-  'farkle': SVG_YATZY,
-  'liars-dice': SVG_YATZY,
+  'farkle': 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&w=800&q=80',
+  'liars-dice': 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&w=800&q=80',
   'shut-the-box': SVG_SHUT_THE_BOX,
-  'bunco': SVG_YATZY,
-  'pig-dice': SVG_YATZY,
-  'beetle-game': SVG_YATZY,
-  'cee-lo': SVG_YATZY,
+  'bunco': 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&w=800&q=80',
+  'pig-dice': 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&w=800&q=80',
+  'beetle-game': 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&w=800&q=80',
+  'cee-lo': 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&w=800&q=80',
 
   // Brain & Party Games
   'sudoku-family': SVG_SUDOKU,
   'word-scramble': SVG_WORD_SCRAMBLE,
-  'hangman-family': SVG_DOTS_BOXES,
-  'trivia-quest': SVG_FAMCARDS,
-  'simon-memory': SVG_MEMORY,
-  'sliding-puzzle': SVG_DOTS_BOXES,
-  'charades-timer': SVG_FAMCARDS,
-  'pictionary-sketch': SVG_DOTS_BOXES,
-  'reaction-tap': SVG_FAMCARDS,
+  'hangman-family': 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?auto=format&fit=crop&w=800&q=80',
+  'trivia-quest': 'https://images.unsplash.com/photo-1577741314755-048d8525d31e?auto=format&fit=crop&w=800&q=80',
+  'simon-memory': 'https://images.unsplash.com/photo-1596461404969-9ae70f2830c1?auto=format&fit=crop&w=800&q=80',
+  'sliding-puzzle': 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?auto=format&fit=crop&w=800&q=80',
+  'charades-timer': 'https://images.unsplash.com/photo-1577741314755-048d8525d31e?auto=format&fit=crop&w=800&q=80',
+  'pictionary-sketch': 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?auto=format&fit=crop&w=800&q=80',
+  'reaction-tap': 'https://images.unsplash.com/photo-1577741314755-048d8525d31e?auto=format&fit=crop&w=800&q=80',
   'tower-balance': SVG_TOWER_BALANCE,
 };
 
 // Category Default Fallbacks
 export const CATEGORY_FALLBACK_IMAGES: Record<GameCategory, string> = {
-  all: SVG_LUDO,
-  board: SVG_LUDO,
-  cards: SVG_GERMAN_CARDS,
-  dice: SVG_YATZY,
-  strategy: SVG_CHESS,
-  party: SVG_FAMCARDS,
-  kids: SVG_MEMORY,
+  all: 'https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?auto=format&fit=crop&w=800&q=80',
+  board: 'https://images.unsplash.com/photo-1606167668584-78701c57f13d?auto=format&fit=crop&w=800&q=80',
+  cards: 'https://images.unsplash.com/photo-1511193311914-0346f16efe90?auto=format&fit=crop&w=800&q=80',
+  dice: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&w=800&q=80',
+  strategy: 'https://images.unsplash.com/photo-1529699211952-734e80c4d42b?auto=format&fit=crop&w=800&q=80',
+  party: 'https://images.unsplash.com/photo-1577741314755-048d8525d31e?auto=format&fit=crop&w=800&q=80',
+  kids: 'https://images.unsplash.com/photo-1596461404969-9ae70f2830c1?auto=format&fit=crop&w=800&q=80',
 };
 
 /**
@@ -2258,9 +2327,9 @@ export const getGameImage = (game: GameInfo): string => {
   // Heritage classic titles
   if (game.id.startsWith('classic-')) {
     const cat = game.category || 'board';
-    return CATEGORY_FALLBACK_IMAGES[cat] || SVG_LUDO;
+    return CATEGORY_FALLBACK_IMAGES[cat] || CATEGORY_FALLBACK_IMAGES.board;
   }
 
   // Category fallback
-  return CATEGORY_FALLBACK_IMAGES[game.category] || SVG_LUDO;
+  return CATEGORY_FALLBACK_IMAGES[game.category] || CATEGORY_FALLBACK_IMAGES.board;
 };
